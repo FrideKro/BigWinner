@@ -21,6 +21,8 @@ node scripts/test-db-connection.mjs  # 验证 .env 数据库连通性
 
 无 ESLint、Prettier、测试框架。**改动后必须跑 `pnpm typecheck`，涉及服务端逻辑再跑 `pnpm build`**
 
+**开发服务器固定使用 3000 端口**：启动 `pnpm dev` 前若 3000 被占用（通常是残留的旧 dev 实例），先杀掉旧进程再启动，不得改用其他端口。例如 `kill $(lsof -t -i :3000 -sTCP:LISTEN)` 或 `fuser -k 3000/tcp`
+
 ## 目录结构
 
 - `src/lib/` — 核心业务，改任何规则前先读这里：
