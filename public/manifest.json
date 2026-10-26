@@ -1,0 +1,10 @@
+{
+  "name": "大赢家 - 麻将战绩账本",
+  "short_name": "大赢家",
+  "description": "熟人麻将输赢与房费统计系统",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#111827",
+  "orientation": "portrait"
+}
