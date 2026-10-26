@@ -244,7 +244,7 @@ function BottomNav({
           }`}
         >
           <Trophy size={19} strokeWidth={pathname === '/' ? 2.5 : 2} />
-          <span className={`text-[10px] ${pathname === '/' ? 'font-bold' : ''}`}>
+          <span className={`text-xs ${pathname === '/' ? 'font-medium' : ''}`}>
             总榜
           </span>
         </button>
@@ -261,8 +261,8 @@ function BottomNav({
             strokeWidth={pathname.startsWith('/games') ? 2.5 : 2}
           />
           <span
-            className={`text-[10px] ${
-              pathname.startsWith('/games') ? 'font-bold' : ''
+            className={`text-xs ${
+              pathname.startsWith('/games') ? 'font-medium' : ''
             }`}
           >
             流水
@@ -278,7 +278,7 @@ function BottomNav({
           >
             <Plus size={24} strokeWidth={3} />
           </button>
-          <span className="text-[10px] font-bold text-red-600 mt-0.5">
+          <span className="text-xs font-medium text-red-600 mt-0.5">
             记一局
           </span>
         </div>
@@ -295,8 +295,8 @@ function BottomNav({
             strokeWidth={pathname.startsWith('/stats') ? 2.5 : 2}
           />
           <span
-            className={`text-[10px] ${
-              pathname.startsWith('/stats') ? 'font-bold' : ''
+            className={`text-xs ${
+              pathname.startsWith('/stats') ? 'font-medium' : ''
             }`}
           >
             看板
@@ -315,8 +315,8 @@ function BottomNav({
             strokeWidth={pathname.startsWith('/profile') ? 2.5 : 2}
           />
           <span
-            className={`text-[10px] ${
-              pathname.startsWith('/profile') ? 'font-bold' : ''
+            className={`text-xs ${
+              pathname.startsWith('/profile') ? 'font-medium' : ''
             }`}
           >
             我的

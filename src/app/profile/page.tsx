@@ -261,14 +261,14 @@ export default function ProfilePage() {
           />
           <div>
             <div className="flex items-center gap-1.5">
-              <h1 className="text-base font-bold text-slate-900">
+              <h1 className="text-base font-medium text-slate-900">
                 {user?.nickname}
               </h1>
-              <span className="px-2 py-0.5 rounded-full bg-slate-900 text-amber-300 text-[10px] font-bold">
+              <span className="px-2 py-0.5 rounded-full bg-slate-900 text-amber-300 text-xs font-medium">
                 {user?.role === 'ADMIN' ? '管理员' : '玩家'}
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">
+            <p className="text-xs text-slate-400 mt-0.5">
               账号：{user?.username}
             </p>
           </div>
@@ -287,24 +287,24 @@ export default function ProfilePage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
       {/* 个人资料修改 */}
       <div className="rounded-3xl bg-white border border-slate-100 p-5 shadow-sm space-y-4">
-        <h2 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+        <h2 className="text-sm font-medium text-slate-800 flex items-center gap-1.5">
           <User size={15} className="text-amber-500" />
           <span>修改个人设置</span>
         </h2>
 
         <form onSubmit={handleSaveProfile} className="space-y-3.5">
           <div>
-            <label className="text-xs text-slate-500 mb-1 block">牌桌昵称</label>
+            <label className="text-sm text-slate-500 mb-1 block">牌桌昵称</label>
             <input
               type="text"
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
             />
           </div>
 
           <div>
-            <label className="text-xs text-slate-500 mb-1.5 block">头像主题色</label>
+            <label className="text-sm text-slate-500 mb-1.5 block">头像主题色</label>
             <div className="flex flex-wrap gap-2">
               {AVATAR_THEMES.map((t) => (
                 <button
@@ -326,30 +326,30 @@ export default function ProfilePage() {
           </div>
 
           <div className="pt-2 border-t border-slate-100 space-y-2">
-            <span className="text-[11px] text-slate-400 block">修改登录密码（不改请留空）</span>
+            <span className="text-sm text-slate-400 block">修改登录密码（不改请留空）</span>
             <input
               type="password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               placeholder="当前密码"
-              className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
             />
             <input
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="新密码（至少 4 位）"
-              className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
             />
           </div>
 
           {profileErr && (
-            <div className="text-xs text-rose-600 bg-rose-50 px-3 py-2 rounded-xl">
+            <div className="text-sm text-rose-600 bg-rose-50 px-3 py-2 rounded-xl">
               {profileErr}
             </div>
           )}
           {profileMsg && (
-            <div className="text-xs text-emerald-600 bg-emerald-50 px-3 py-2 rounded-xl">
+            <div className="text-sm text-emerald-600 bg-emerald-50 px-3 py-2 rounded-xl">
               {profileMsg}
             </div>
           )}
@@ -357,7 +357,7 @@ export default function ProfilePage() {
           <button
             type="submit"
             disabled={profileSaving}
-            className="w-full py-2.5 rounded-xl bg-slate-900 text-white text-xs font-bold active:scale-[0.99] transition disabled:opacity-50"
+            className="w-full py-2.5 rounded-xl bg-slate-900 text-white text-sm font-medium active:scale-[0.99] transition disabled:opacity-50"
           >
             {profileSaving ? '保存中…' : '保存设置'}
           </button>
@@ -369,14 +369,14 @@ export default function ProfilePage() {
         <div className="space-y-4">
           <div className="flex items-center gap-1.5 px-1 pt-2">
             <Shield size={16} className="text-amber-500" />
-            <h2 className="text-xs font-bold text-slate-800 tracking-wider">
+            <h2 className="text-sm font-medium text-slate-800 tracking-wider">
               管理员控制台
             </h2>
           </div>
 
           {/* 默认房费配置 */}
           <div className="rounded-3xl bg-white border border-slate-100 p-5 shadow-sm space-y-3">
-            <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+            <h3 className="text-sm font-medium text-slate-800 flex items-center gap-1.5">
               <Settings size={15} className="text-amber-500" />
               <span>默认每场房费设置</span>
             </h3>
@@ -389,32 +389,32 @@ export default function ProfilePage() {
                   type="number"
                   value={defaultRoomFee}
                   onChange={(e) => setDefaultRoomFee(parseInt(e.target.value || '0', 10))}
-                  className="w-full pl-7 pr-3 py-2 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400 font-semibold"
+                  className="w-full pl-7 pr-3 py-2 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400 font-semibold"
                 />
               </div>
               <button
                 onClick={handleSaveFee}
                 disabled={feeSaving}
-                className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold shrink-0"
+                className="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium shrink-0"
               >
                 {feeSaving ? '保存中' : '更新'}
               </button>
             </div>
             {feeMsg && (
-              <span className="text-xs text-emerald-600 block">{feeMsg}</span>
+              <span className="text-sm text-emerald-600 block">{feeMsg}</span>
             )}
           </div>
 
           {/* 玩家账号管理 */}
           <div className="rounded-3xl bg-white border border-slate-100 p-5 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <h3 className="text-sm font-medium text-slate-800 flex items-center gap-1.5">
                 <Users size={15} className="text-amber-500" />
                 <span>玩家账号与微信免密链接 ({managedUsers.length})</span>
               </h3>
               <button
                 onClick={() => setShowAddUser(true)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-slate-900 text-white text-xs font-semibold shadow-sm"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-slate-900 text-white text-sm font-medium shadow-sm"
               >
                 <Plus size={14} />
                 <span>新增玩家</span>
@@ -438,24 +438,24 @@ export default function ProfilePage() {
                         />
                         <div>
                           <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-bold text-slate-800">
+                            <span className="text-sm font-medium text-slate-800">
                               {u.nickname}
                             </span>
-                            <span className="text-[10px] text-slate-400 font-mono">
+                            <span className="text-xs text-slate-400 font-mono">
                               ({u.username})
                             </span>
                             {u.role === 'ADMIN' && (
-                              <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-700 text-[9px] font-bold">
+                              <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-700 text-xs font-medium">
                                 官
                               </span>
                             )}
                             {!u.isActive && (
-                              <span className="px-1.5 py-0.2 rounded bg-slate-200 text-slate-500 text-[9px]">
+                              <span className="px-1.5 py-0.2 rounded bg-slate-200 text-slate-500 text-xs">
                                 已隐藏
                               </span>
                             )}
                           </div>
-                          <div className="text-[10px] text-slate-400 mt-0.5">
+                          <div className="text-xs text-slate-400 mt-0.5">
                             已绑微信/设备：{u.deviceCount ?? 0} 台
                           </div>
                         </div>
@@ -466,7 +466,7 @@ export default function ProfilePage() {
                         <button
                           onClick={() => handleCopyBindUrl(u)}
                           title="复制微信专属免登激活链接"
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-400 text-slate-950 font-bold text-[11px] shadow-sm active:scale-95 transition"
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-400 text-slate-950 font-medium text-xs shadow-sm active:scale-95 transition"
                         >
                           {isCopied ? (
                             <>
@@ -484,7 +484,7 @@ export default function ProfilePage() {
                     </div>
 
                     {/* 操作小工具行 */}
-                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-200/60 text-[10px] text-slate-500">
+                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-200/60 text-xs text-slate-500">
                       <button
                         onClick={() => handleResetPassword(u)}
                         className="hover:text-slate-800 flex items-center gap-0.5"
@@ -503,7 +503,7 @@ export default function ProfilePage() {
                       <span>·</span>
                       <button
                         onClick={() => handleToggleActive(u)}
-                        className={u.isActive ? 'hover:text-rose-600' : 'text-emerald-600 font-bold'}
+                        className={u.isActive ? 'hover:text-rose-600' : 'text-emerald-600 font-medium'}
                       >
                         {u.isActive ? '从选人隐藏' : '恢复选人'}
                       </button>
@@ -525,10 +525,10 @@ export default function ProfilePage() {
             onClick={() => setShowAddUser(false)}
           />
           <div className="relative w-full max-w-sm md:max-w-md bg-white rounded-3xl p-5 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
-            <h3 className="text-base font-bold text-slate-900">新增牌友账号</h3>
+            <h3 className="text-base font-medium text-slate-900">新增牌友账号</h3>
             <form onSubmit={handleCreateUser} className="space-y-3">
               <div>
-                <label className="text-xs text-slate-500 mb-1 block">
+                <label className="text-sm text-slate-500 mb-1 block">
                   登录用户名
                 </label>
                 <input
@@ -536,12 +536,12 @@ export default function ProfilePage() {
                   value={newUsername}
                   onChange={(e) => setNewUsername(e.target.value)}
                   placeholder="如：laozhang"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
                 />
               </div>
 
               <div>
-                <label className="text-xs text-slate-500 mb-1 block">
+                <label className="text-sm text-slate-500 mb-1 block">
                   牌桌显示昵称
                 </label>
                 <input
@@ -549,24 +549,24 @@ export default function ProfilePage() {
                   value={newNickname}
                   onChange={(e) => setNewNickname(e.target.value)}
                   placeholder="如：老张"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
                 />
               </div>
 
               <div>
-                <label className="text-xs text-slate-500 mb-1 block">
+                <label className="text-sm text-slate-500 mb-1 block">
                   初始密码（默认 123456）
                 </label>
                 <input
                   type="text"
                   value={newInitPassword}
                   onChange={(e) => setNewInitPassword(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
                 />
               </div>
 
               <div>
-                <label className="text-xs text-slate-500 mb-1.5 block">
+                <label className="text-sm text-slate-500 mb-1.5 block">
                   头像配色
                 </label>
                 <div className="flex gap-2">
@@ -584,14 +584,14 @@ export default function ProfilePage() {
               </div>
 
               <div>
-                <label className="text-xs text-slate-500 mb-1 block">角色权限</label>
-                <div className="flex gap-2 text-xs">
+                <label className="text-sm text-slate-500 mb-1 block">角色权限</label>
+                <div className="flex gap-2 text-sm">
                   <button
                     type="button"
                     onClick={() => setNewRole('PLAYER')}
                     className={`flex-1 py-1.5 rounded-xl border ${
                       newRole === 'PLAYER'
-                        ? 'bg-slate-900 text-white font-bold'
+                        ? 'bg-slate-900 text-white font-medium'
                         : 'bg-white text-slate-600'
                     }`}
                   >
@@ -602,7 +602,7 @@ export default function ProfilePage() {
                     onClick={() => setNewRole('ADMIN')}
                     className={`flex-1 py-1.5 rounded-xl border ${
                       newRole === 'ADMIN'
-                        ? 'bg-amber-500 text-slate-950 font-bold'
+                        ? 'bg-amber-500 text-slate-950 font-medium'
                         : 'bg-white text-slate-600'
                     }`}
                   >
@@ -612,7 +612,7 @@ export default function ProfilePage() {
               </div>
 
               {addErr && (
-                <div className="text-xs text-rose-600 bg-rose-50 px-3 py-2 rounded-xl">
+                <div className="text-sm text-rose-600 bg-rose-50 px-3 py-2 rounded-xl">
                   {addErr}
                 </div>
               )}
@@ -621,14 +621,14 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={() => setShowAddUser(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-600 text-xs font-bold"
+                  className="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-600 text-sm font-medium"
                 >
                   取消
                 </button>
                 <button
                   type="submit"
                   disabled={addSaving}
-                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-red-600 text-white text-xs font-bold"
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-red-600 text-white text-sm font-medium"
                 >
                   {addSaving ? '创建中…' : '确认新增'}
                 </button>

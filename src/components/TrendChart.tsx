@@ -97,11 +97,11 @@ export function TrendChart({ data }: TrendChartProps) {
       {activePoint && (
         <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-900 text-white text-xs">
           <div className="flex items-center gap-2 truncate">
-            <span className="text-amber-400 font-semibold">
+            <span className="text-amber-400 font-medium">
               第{activePoint.index}场 ({activePoint.dateLabel})
             </span>
             {activePoint.isBigWinner && (
-              <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px]">
+              <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-xs">
                 👑大赢家
               </span>
             )}
@@ -168,7 +168,7 @@ export function TrendChart({ data }: TrendChartProps) {
             x={padLeft - 5}
             y={getY(rawMax) + 3}
             textAnchor="end"
-            className="fill-slate-400 text-[9px]"
+            className="fill-slate-400 text-[11px]"
           >
             {rawMax > 0 ? `+${rawMax}` : rawMax}
           </text>
@@ -188,7 +188,7 @@ export function TrendChart({ data }: TrendChartProps) {
                 x={padLeft - 5}
                 y={getY(rawMin) + 3}
                 textAnchor="end"
-                className="fill-slate-400 text-[9px]"
+                className="fill-slate-400 text-[11px]"
               >
                 {rawMin}
               </text>
@@ -209,7 +209,7 @@ export function TrendChart({ data }: TrendChartProps) {
             x={padLeft - 5}
             y={zeroY + 3}
             textAnchor="end"
-            className="fill-slate-500 text-[9px] font-medium"
+            className="fill-slate-500 text-[11px] font-medium"
           >
             0
           </text>
@@ -266,7 +266,7 @@ export function TrendChart({ data }: TrendChartProps) {
             x={getX(1)}
             y={height - 6}
             textAnchor="start"
-            className="fill-slate-400 text-[9px]"
+            className="fill-slate-400 text-[11px]"
           >
             {data[0]?.dateLabel}
           </text>
@@ -275,7 +275,7 @@ export function TrendChart({ data }: TrendChartProps) {
               x={getX(pointsWithZero.length - 1)}
               y={height - 6}
               textAnchor="end"
-              className="fill-slate-400 text-[9px]"
+              className="fill-slate-400 text-[11px]"
             >
               {data[data.length - 1]?.dateLabel}
             </text>

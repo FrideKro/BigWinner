@@ -51,3 +51,15 @@ node scripts/test-db-connection.mjs  # 验证 .env 数据库连通性
 - **展示**：页面上用户一律显示 `nickname` 而非 `username`；UI 文案、代码注释均为中文
 - **移动端**：所有页面按手机竖屏设计并适配微信浏览器，勿引入桌面优先布局
 - 敏感配置只在 `.env`（参考 `.env.example`），不要硬编码或提交真实凭据
+
+## UI 样式规范
+
+- **字号**（内容以中文为主，宁大勿小）：
+  - 正文可读内容（说明文字、消息提示、表单 label、按钮文字）≥ 14px（`text-sm`）
+  - 核心内容（玩家昵称、关键金额）用 16px（`text-base`）；所有输入框一律 `text-base`（同时避免 iOS/微信聚焦时自动放大页面）
+  - 徽章、单位、时间戳、底部导航等短辅助元素最低 12px（`text-xs`）
+  - 全站禁止 12px 以下字号，禁用 `text-[9px]`/`text-[10px]`/`text-[11px]` 之类自定义小字号；唯一例外：TrendChart 的 SVG 坐标轴刻度可用 `text-[11px]`（纯数字/日期）
+- **字重**（中文粗体易发糊，尽量不用）：
+  - 中文文本（标题、昵称、label、按钮、徽章、提示条）一律 ≤ `font-medium`，禁用 `font-bold`/`font-semibold`/`font-black`
+  - 纯数字内容可保留粗体强调：金额用 `font-black`，统计数值（胜率、场次等）可用 `font-bold`；数字输入框可用 `font-semibold`
+  - 选中/高亮状态靠底色、阴影、颜色区分，不靠加粗

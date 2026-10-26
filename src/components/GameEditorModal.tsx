@@ -326,7 +326,7 @@ export function GameEditorModal({
       <div className="relative w-full max-w-lg md:max-w-2xl bg-white rounded-t-3xl md:rounded-3xl max-h-[92vh] md:max-h-[88vh] flex flex-col shadow-2xl animate-slide-up">
         {/* 头部 */}
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-slate-100 shrink-0">
-          <h2 className="text-lg font-bold text-slate-900">
+          <h2 className="text-lg font-medium text-slate-900">
             {isEdit ? '编辑场次战绩' : '记一局'}
           </h2>
           <button
@@ -341,18 +341,18 @@ export function GameEditorModal({
           {/* 时间与备注 */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-slate-500 mb-1 block">
+              <label className="text-sm font-medium text-slate-500 mb-1 block">
                 打牌时间
               </label>
               <input
                 type="datetime-local"
                 value={playedAt}
                 onChange={(e) => setPlayedAt(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-500 mb-1 block">
+              <label className="text-sm font-medium text-slate-500 mb-1 block">
                 备注
               </label>
               <input
@@ -360,7 +360,7 @@ export function GameEditorModal({
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="如：茶楼 / 常规局"
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
               />
             </div>
           </div>
@@ -368,17 +368,17 @@ export function GameEditorModal({
           {/* 选人 */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-medium text-slate-500">
+              <label className="text-sm font-medium text-slate-500">
                 上桌玩家（已选 {selectedIds.length} 人）
               </label>
-              <span className="text-[10px] text-slate-400">至少 2 人，可随时增减</span>
+              <span className="text-xs text-slate-400">至少 2 人，可随时增减</span>
             </div>
             <div className="flex flex-wrap gap-2">
               {selectedPlayers.map((p) => (
                 <button
                   key={p.id}
                   onClick={() => togglePlayer(p.id)}
-                  className="flex items-center gap-1 pl-1 pr-2 py-1 rounded-full bg-slate-900 text-white text-xs font-medium"
+                  className="flex items-center gap-1 pl-1 pr-2 py-1 rounded-full bg-slate-900 text-white text-sm font-medium"
                 >
                   <PlayerAvatar nickname={p.nickname} color={p.avatarColor} size="sm" />
                   <span>{p.nickname}</span>
@@ -389,7 +389,7 @@ export function GameEditorModal({
                 <button
                   key={p.id}
                   onClick={() => togglePlayer(p.id)}
-                  className="flex items-center gap-1 pl-1 pr-2 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-medium border border-dashed border-slate-300"
+                  className="flex items-center gap-1 pl-1 pr-2 py-1 rounded-full bg-slate-100 text-slate-600 text-sm font-medium border border-dashed border-slate-300"
                 >
                   <PlayerAvatar nickname={p.nickname} color={p.avatarColor} size="sm" />
                   <span>{p.nickname}</span>
@@ -401,7 +401,7 @@ export function GameEditorModal({
 
           {/* 房费 */}
           <div>
-            <label className="text-xs font-medium text-slate-500 mb-1 block">
+            <label className="text-sm font-medium text-slate-500 mb-1 block">
               🤖 本场房费（虚拟玩家，始终赢）
             </label>
             <div className="flex items-center gap-2">
@@ -414,12 +414,12 @@ export function GameEditorModal({
                   inputMode="numeric"
                   value={roomFeeStr}
                   onChange={(e) => handleRoomFeeInput(e.target.value)}
-                  className="w-full pl-7 pr-3 py-2 rounded-xl border border-slate-200 text-sm bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-400 font-semibold text-amber-700"
+                  className="w-full pl-7 pr-3 py-2 rounded-xl border border-slate-200 text-base bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-400 font-semibold text-amber-700"
                 />
               </div>
               <button
                 onClick={balanceRoomFee}
-                className="shrink-0 px-3 py-2 rounded-xl bg-slate-100 text-slate-600 text-xs font-medium flex items-center gap-1"
+                className="shrink-0 px-3 py-2 rounded-xl bg-slate-100 text-slate-600 text-sm font-medium flex items-center gap-1"
               >
                 <Wand2 size={13} />
                 反算房费
@@ -429,7 +429,7 @@ export function GameEditorModal({
 
           {/* 各玩家输赢 */}
           <div className="space-y-2.5">
-            <label className="text-xs font-medium text-slate-500">
+            <label className="text-sm font-medium text-slate-500">
               各玩家本场输赢（正为赢，负为输）
             </label>
             <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 md:items-start">
@@ -462,7 +462,7 @@ export function GameEditorModal({
                     <div className="text-sm font-medium text-slate-800 truncate flex items-center gap-1">
                       <span>{p.nickname}</span>
                       {isBigWinner && (
-                        <span className="text-[10px] text-amber-600 font-bold">
+                        <span className="text-xs text-amber-600 font-medium">
                           👑大赢家
                         </span>
                       )}
@@ -509,7 +509,7 @@ export function GameEditorModal({
                       }
                     }}
                     placeholder="金额"
-                    className={`w-20 px-2 py-1.5 rounded-lg border text-right text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400 ${
+                    className={`w-20 px-2 py-1.5 rounded-lg border text-right text-base font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400 ${
                       !isFilled
                         ? 'border-slate-200 bg-white text-slate-700'
                         : currentSign === 1
@@ -537,12 +537,12 @@ export function GameEditorModal({
         {/* 底部配平状态条 + 保存 */}
         <div className="shrink-0 border-t border-slate-100 px-5 py-3 space-y-3 bg-white">
           {error && (
-            <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+            <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
               {error}
             </div>
           )}
           <div
-            className={`flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-semibold ${
+            className={`flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-medium ${
               isBalanced && allFilled
                 ? 'bg-emerald-50 text-emerald-700'
                 : 'bg-slate-100 text-slate-600'
@@ -570,7 +570,7 @@ export function GameEditorModal({
           <button
             onClick={handleSave}
             disabled={saving || !isBalanced || !allFilled}
-            className={`w-full py-3.5 rounded-2xl text-base font-bold transition ${
+            className={`w-full py-3.5 rounded-2xl text-base font-medium transition ${
               isBalanced && allFilled && !saving
                 ? 'bg-gradient-to-r from-amber-500 to-red-600 text-white shadow-lg active:scale-[0.99]'
                 : 'bg-slate-200 text-slate-400 cursor-not-allowed'

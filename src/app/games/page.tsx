@@ -145,16 +145,16 @@ export default function GamesPage() {
       {/* 头部标题与筛选 */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-lg font-black text-slate-900 tracking-tight">
+          <h1 className="text-lg font-medium text-slate-900 tracking-tight">
             场次流水
           </h1>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-xs text-slate-500">
             共计 {games.length} 场 ｜ 累计房费 +{allTimeRoomFee}
           </p>
         </div>
 
         {/* 周期切换 */}
-        <div className="flex items-center gap-1 p-0.5 bg-slate-200 rounded-xl text-xs">
+        <div className="flex items-center gap-1 p-0.5 bg-slate-200 rounded-xl text-sm">
           {[
             { key: 'all', label: '全部' },
             { key: 'year', label: '本年' },
@@ -165,7 +165,7 @@ export default function GamesPage() {
               onClick={() => setPeriod(item.key)}
               className={`px-2 py-1 rounded-lg font-medium transition ${
                 period === item.key
-                  ? 'bg-white text-slate-900 shadow-sm font-bold'
+                  ? 'bg-white text-slate-900 shadow-sm'
                   : 'text-slate-600'
               }`}
             >
@@ -176,7 +176,7 @@ export default function GamesPage() {
             <select
               value={/^\d{4}-\d{2}$/.test(period) ? period : ''}
               onChange={(e) => e.target.value && setPeriod(e.target.value)}
-              className={`py-1 px-1.5 text-xs font-bold rounded-lg border-none focus:outline-none transition ${
+              className={`py-1 px-1.5 text-sm font-medium rounded-lg border-none focus:outline-none transition ${
                 /^\d{4}-\d{2}$/.test(period)
                   ? 'bg-white text-slate-900 shadow-sm'
                   : 'bg-transparent text-slate-600'
@@ -205,12 +205,12 @@ export default function GamesPage() {
             ))}
           </div>
         ) : games.length === 0 ? (
-          <div className="h-44 rounded-2xl bg-white border border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 text-xs lg:col-span-2">
+          <div className="h-44 rounded-2xl bg-white border border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 text-sm lg:col-span-2">
             <span>当前筛选暂无场次流水</span>
             {user?.role === 'ADMIN' && (
               <button
                 onClick={openGameEditor}
-                className="mt-2 text-amber-600 font-bold underline"
+                className="mt-2 text-amber-600 font-medium underline"
               >
                 点此记一局
               </button>
@@ -227,11 +227,11 @@ export default function GamesPage() {
                 {/* 单场头部：时间、备注、房费徽章、复制战报 */}
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-800">
+                    <span className="text-xs font-medium text-slate-800">
                       {formatDateTime(game.playedAt)}
                     </span>
                     {game.note && (
-                      <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px]">
+                      <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs">
                         {game.note}
                       </span>
                     )}
@@ -239,7 +239,7 @@ export default function GamesPage() {
 
                   <div className="flex items-center gap-1.5">
                     {/* 房费徽章 */}
-                    <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold text-[10px] border border-amber-200">
+                    <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-medium text-xs border border-amber-200">
                       🤖 房费 +{game.roomFee}
                     </span>
 
@@ -299,15 +299,15 @@ export default function GamesPage() {
                             isBigWinner={r.isBigWinner}
                           />
                           <span
-                            className={`text-xs truncate font-medium ${
-                              isMe ? 'text-amber-800 font-bold' : 'text-slate-700'
+                            className={`text-sm truncate font-medium ${
+                              isMe ? 'text-amber-800' : 'text-slate-700'
                             }`}
                           >
                             {r.nickname}
                           </span>
                         </div>
                         <span
-                          className={`text-sm font-black tracking-tight shrink-0 pl-1 ${getAmountColorClass(
+                          className={`text-base font-black tracking-tight shrink-0 pl-1 ${getAmountColorClass(
                             r.amount
                           )}`}
                         >

@@ -31,7 +31,7 @@ export function PlayerAvatar({
   return (
     <div className="relative inline-flex items-center justify-center shrink-0">
       <div
-        className={`${sizeClass} ${theme.bg} ${theme.text} rounded-full font-bold flex items-center justify-center shadow-sm ring-2 ${theme.ring}`}
+        className={`${sizeClass} ${theme.bg} ${theme.text} rounded-full font-medium flex items-center justify-center shadow-sm ring-2 ${theme.ring}`}
       >
         {label}
       </div>

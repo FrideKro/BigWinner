@@ -154,7 +154,7 @@ function StatsContent() {
       <div className="flex items-center gap-1.5 p-1 bg-slate-200 rounded-2xl">
         <button
           onClick={() => setActiveTab('personal')}
-          className={`flex-1 py-2 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition ${
+          className={`flex-1 py-2 text-sm font-medium rounded-xl flex items-center justify-center gap-1.5 transition ${
             activeTab === 'personal'
               ? 'bg-white text-slate-900 shadow-sm'
               : 'text-slate-600'
@@ -165,7 +165,7 @@ function StatsContent() {
         </button>
         <button
           onClick={() => setActiveTab('roomFee')}
-          className={`flex-1 py-2 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition ${
+          className={`flex-1 py-2 text-sm font-medium rounded-xl flex items-center justify-center gap-1.5 transition ${
             activeTab === 'roomFee'
               ? 'bg-white text-slate-900 shadow-sm'
               : 'text-slate-600'
@@ -193,14 +193,14 @@ function StatsContent() {
                   }`}
                 >
                   <PlayerAvatar nickname={p.nickname} color={p.avatarColor} size="sm" />
-                  <span className="text-xs font-medium">{p.nickname}</span>
+                  <span className="text-sm font-medium">{p.nickname}</span>
                 </button>
               );
             })}
           </div>
 
           {/* 时间周期筛选 */}
-          <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-xl text-xs">
+          <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-xl text-sm">
             {[
               { key: 'all', label: '全部' },
               { key: 'year', label: '本年' },
@@ -211,7 +211,7 @@ function StatsContent() {
                 onClick={() => setPeriod(item.key)}
                 className={`flex-1 py-1 rounded-lg font-medium transition ${
                   period === item.key
-                    ? 'bg-white text-slate-900 shadow-sm font-bold'
+                    ? 'bg-white text-slate-900 shadow-sm'
                     : 'text-slate-600'
                 }`}
               >
@@ -222,7 +222,7 @@ function StatsContent() {
               <select
                 value={/^\d{4}-\d{2}$/.test(period) ? period : ''}
                 onChange={(e) => e.target.value && setPeriod(e.target.value)}
-                className={`py-1 px-1.5 text-xs font-bold rounded-lg border-none focus:outline-none transition ${
+                className={`py-1 px-1.5 text-sm font-medium rounded-lg border-none focus:outline-none transition ${
                   /^\d{4}-\d{2}$/.test(period)
                     ? 'bg-white text-slate-900 shadow-sm'
                     : 'bg-transparent text-slate-600'
@@ -252,10 +252,10 @@ function StatsContent() {
                     isBigWinner={personalStats.bigWinnerCount > 0}
                   />
                   <div>
-                    <h2 className="text-base font-bold text-slate-900">
+                    <h2 className="text-base font-medium text-slate-900">
                       {targetPlayer.nickname}
                     </h2>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-xs text-slate-400">
                       出勤 {personalStats.gamesPlayed} 场 ｜ 👑大赢家{' '}
                       {personalStats.bigWinnerCount} 次
                     </p>
@@ -263,7 +263,7 @@ function StatsContent() {
                 </div>
 
                 <div className="text-right">
-                  <span className="text-[10px] text-slate-400 block">累计总净额</span>
+                  <span className="text-xs text-slate-400 block">累计总净额</span>
                   <span
                     className={`text-2xl font-black tracking-tight ${getAmountColorClass(
                       personalStats.netAmount
@@ -277,13 +277,13 @@ function StatsContent() {
               {/* 关键指标四宫格 */}
               <div className="grid grid-cols-4 gap-2 text-center">
                 <div className="p-2 rounded-2xl bg-slate-50">
-                  <span className="text-[10px] text-slate-400 block">胜率</span>
+                  <span className="text-xs text-slate-400 block">胜率</span>
                   <span className="text-sm font-bold text-slate-800">
                     {personalStats.winRate}%
                   </span>
                 </div>
                 <div className="p-2 rounded-2xl bg-slate-50">
-                  <span className="text-[10px] text-slate-400 block">场均盈亏</span>
+                  <span className="text-xs text-slate-400 block">场均盈亏</span>
                   <span
                     className={`text-sm font-bold ${getAmountColorClass(
                       personalStats.avgAmount
@@ -293,14 +293,14 @@ function StatsContent() {
                   </span>
                 </div>
                 <div className="p-2 rounded-2xl bg-slate-50">
-                  <span className="text-[10px] text-slate-400 block">赢 / 输局</span>
+                  <span className="text-xs text-slate-400 block">赢 / 输局</span>
                   <span className="text-sm font-bold text-slate-800">
                     <b className="text-red-600">{personalStats.winCount}</b>/
                     <b className="text-emerald-600">{personalStats.lossCount}</b>
                   </span>
                 </div>
                 <div className="p-2 rounded-2xl bg-slate-50">
-                  <span className="text-[10px] text-slate-400 block">大赢家率</span>
+                  <span className="text-xs text-slate-400 block">大赢家率</span>
                   <span className="text-sm font-bold text-amber-600">
                     {personalStats.bigWinnerRate}%
                   </span>
@@ -308,11 +308,11 @@ function StatsContent() {
               </div>
 
               {/* 连红/连黑状态 */}
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 text-xs">
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 text-sm">
                 <div className="flex items-center gap-1.5">
                   <Flame size={16} className="text-amber-500" />
                   <span className="text-slate-600">当前状态：</span>
-                  <span className="font-bold">
+                  <span className="font-medium">
                     {personalStats.currentStreak.type === 'WIN' && (
                       <span className="text-red-600">
                         连红 {personalStats.currentStreak.count} 场 🔥
@@ -328,7 +328,7 @@ function StatsContent() {
                     )}
                   </span>
                 </div>
-                <div className="text-[11px] text-slate-400">
+                <div className="text-xs text-slate-400">
                   最长连胜 {personalStats.longestWinStreak} ｜ 最长连败{' '}
                   {personalStats.longestLossStreak}
                 </div>
@@ -337,7 +337,7 @@ function StatsContent() {
               {/* 巅峰与至暗局 */}
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="p-3 rounded-2xl bg-red-50/60 border border-red-100">
-                  <div className="flex items-center gap-1 text-red-700 font-bold mb-1">
+                  <div className="flex items-center gap-1 text-red-700 font-medium mb-1">
                     <TrendingUp size={14} />
                     <span>单场最高赢</span>
                   </div>
@@ -345,14 +345,14 @@ function StatsContent() {
                     +{personalStats.maxWin}
                   </div>
                   {personalStats.maxWinRecord && (
-                    <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                    <div className="text-xs text-slate-400 truncate mt-0.5">
                       {formatDateTime(personalStats.maxWinRecord.playedAt)}
                     </div>
                   )}
                 </div>
 
                 <div className="p-3 rounded-2xl bg-emerald-50/60 border border-emerald-100">
-                  <div className="flex items-center gap-1 text-emerald-700 font-bold mb-1">
+                  <div className="flex items-center gap-1 text-emerald-700 font-medium mb-1">
                     <TrendingDown size={14} />
                     <span>单场最高输</span>
                   </div>
@@ -360,7 +360,7 @@ function StatsContent() {
                     {personalStats.maxLoss}
                   </div>
                   {personalStats.maxLossRecord && (
-                    <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                    <div className="text-xs text-slate-400 truncate mt-0.5">
                       {formatDateTime(personalStats.maxLossRecord.playedAt)}
                     </div>
                   )}
@@ -372,11 +372,11 @@ function StatsContent() {
           {/* 累计盈亏走势折线图 */}
           <div className="rounded-3xl bg-white border border-slate-100 p-5 shadow-sm space-y-3 lg:col-span-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <h3 className="text-sm font-medium text-slate-800 flex items-center gap-1.5">
                 <TrendingUp size={15} className="text-amber-500" />
                 <span>资金累计盈亏走势曲线</span>
               </h3>
-              <span className="text-[10px] text-slate-400">点击节点查看单场</span>
+              <span className="text-xs text-slate-400">点击节点查看单场</span>
             </div>
             {personalStats && <TrendChart data={personalStats.trend} />}
           </div>
@@ -389,31 +389,31 @@ function StatsContent() {
           {/* 房费汇总三卡片 */}
           <div className="grid grid-cols-3 gap-2 text-center">
             <div className="p-3.5 rounded-3xl bg-white border border-slate-100 shadow-sm">
-              <span className="text-[10px] text-slate-400 block mb-1">历史总房费</span>
+              <span className="text-xs text-slate-400 block mb-1">历史总房费</span>
               <span className="text-base font-black text-amber-600">
                 +{summary.allTimeRoomFee}
               </span>
-              <span className="text-[10px] text-slate-400 block mt-0.5">
+              <span className="text-xs text-slate-400 block mt-0.5">
                 {summary.allTimeGames} 场
               </span>
             </div>
 
             <div className="p-3.5 rounded-3xl bg-white border border-slate-100 shadow-sm">
-              <span className="text-[10px] text-slate-400 block mb-1">本年房费</span>
+              <span className="text-xs text-slate-400 block mb-1">本年房费</span>
               <span className="text-base font-black text-amber-600">
                 +{summary.thisYearRoomFee}
               </span>
-              <span className="text-[10px] text-slate-400 block mt-0.5">
+              <span className="text-xs text-slate-400 block mt-0.5">
                 {summary.thisYearGames} 场
               </span>
             </div>
 
             <div className="p-3.5 rounded-3xl bg-white border border-slate-100 shadow-sm">
-              <span className="text-[10px] text-slate-400 block mb-1">本月房费</span>
+              <span className="text-xs text-slate-400 block mb-1">本月房费</span>
               <span className="text-base font-black text-amber-600">
                 +{summary.thisMonthRoomFee}
               </span>
-              <span className="text-[10px] text-slate-400 block mt-0.5">
+              <span className="text-xs text-slate-400 block mt-0.5">
                 {summary.thisMonthGames} 场
               </span>
             </div>
@@ -421,11 +421,11 @@ function StatsContent() {
 
           {/* 房费规则说明 */}
           <div className="p-4 rounded-3xl bg-amber-50/70 border border-amber-200/60 text-xs text-amber-900 space-y-1.5">
-            <div className="font-bold flex items-center gap-1 text-amber-800">
+            <div className="text-sm font-medium flex items-center gap-1 text-amber-800">
               <Coins size={14} />
               <span>房费“固定赢家”铁律</span>
             </div>
-            <p className="text-[11px] text-amber-800/80 leading-relaxed">
+            <p className="text-sm text-amber-800/80 leading-relaxed">
               每场房费由牌桌机器人自动抽取，纳入公共蓄水池（人人有份）。
               每场严格满足：各玩家最终输赢总和 ＋ 本场房费 ＝ 0。
             </p>
@@ -433,13 +433,13 @@ function StatsContent() {
 
           {/* 月度房费明细表 */}
           <div className="rounded-3xl bg-white border border-slate-100 p-5 shadow-sm space-y-3">
-            <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+            <h3 className="text-sm font-medium text-slate-800 flex items-center gap-1.5">
               <Calendar size={15} className="text-amber-500" />
               <span>按月份房费明细</span>
             </h3>
 
             {monthlyRoomFees.length === 0 ? (
-              <div className="text-center py-6 text-xs text-slate-400">
+              <div className="text-center py-6 text-sm text-slate-400">
                 暂无月度房费数据
               </div>
             ) : (
@@ -450,14 +450,14 @@ function StatsContent() {
                     className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100"
                   >
                     <div>
-                      <div className="text-xs font-bold text-slate-800">
+                      <div className="text-xs font-medium text-slate-800">
                         {m.month}
                       </div>
-                      <div className="text-[10px] text-slate-400">
+                      <div className="text-xs text-slate-400">
                         打牌 {m.gamesCount} 场 ｜ 场均房费 {m.avgRoomFee}
                       </div>
                     </div>
-                    <div className="text-sm font-black text-amber-600">
+                    <div className="text-base font-black text-amber-600">
                       +{m.totalRoomFee}
                     </div>
                   </div>
@@ -475,7 +475,7 @@ export default function StatsPage() {
   return (
     <Suspense
       fallback={
-        <div className="p-6 text-center text-slate-400 text-xs">加载看板中…</div>
+        <div className="p-6 text-center text-slate-400 text-sm">加载看板中…</div>
       }
     >
       <StatsContent />

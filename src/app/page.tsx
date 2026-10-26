@@ -110,16 +110,16 @@ export default function HomePage() {
         <div className="flex items-center gap-2">
           <LogoMark size={30} />
           <div>
-            <h1 className="text-lg font-black text-slate-900 tracking-tight">
+            <h1 className="text-lg font-medium text-slate-900 tracking-tight">
               大赢家 · 战绩榜
             </h1>
-            <p className="text-[11px] text-slate-500">熟人麻将 · 房费守护</p>
+            <p className="text-xs text-slate-500">熟人麻将 · 房费守护</p>
           </div>
         </div>
 
         <button
           onClick={handleShareLeaderboard}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-white border border-slate-200 text-xs font-semibold text-slate-700 shadow-sm active:scale-95 transition"
+          className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-white border border-slate-200 text-sm font-medium text-slate-700 shadow-sm active:scale-95 transition"
         >
           {copied ? (
             <>
@@ -145,7 +145,7 @@ export default function HomePage() {
           <button
             key={item.key}
             onClick={() => setPeriod(item.key)}
-            className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition ${
+            className={`flex-1 py-1.5 text-sm font-medium rounded-xl transition ${
               period === item.key
                 ? 'bg-white text-slate-900 shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
@@ -158,7 +158,7 @@ export default function HomePage() {
           <select
             value={/^\d{4}-\d{2}$/.test(period) ? period : ''}
             onChange={(e) => e.target.value && setPeriod(e.target.value)}
-            className={`py-1 px-2 text-xs font-bold rounded-xl border-none focus:outline-none transition ${
+            className={`py-1 px-2 text-sm font-medium rounded-xl border-none focus:outline-none transition ${
               /^\d{4}-\d{2}$/.test(period)
                 ? 'bg-white text-slate-900 shadow-sm'
                 : 'bg-transparent text-slate-600'
@@ -180,7 +180,7 @@ export default function HomePage() {
 
         <div className="relative flex items-center justify-between pb-4 border-b border-white/10">
           <div>
-            <span className="text-[11px] uppercase tracking-wider text-amber-300/80 font-medium">
+            <span className="text-xs uppercase tracking-wider text-amber-300/80 font-medium">
               🤖 {periodLabel}房费总池
             </span>
             <div className="text-3xl font-black tracking-tight text-amber-400 mt-0.5">
@@ -188,7 +188,7 @@ export default function HomePage() {
             </div>
           </div>
           <div className="text-right">
-            <span className="text-[11px] text-slate-400">总场次</span>
+            <span className="text-xs text-slate-400">总场次</span>
             <div className="text-2xl font-bold text-white mt-0.5">
               {summary?.totalGames ?? 0} <span className="text-xs font-normal text-slate-400">局</span>
             </div>
@@ -208,17 +208,17 @@ export default function HomePage() {
                 size="sm"
                 isBigWinner
               />
-              <div className="text-xs">
-                <div className="flex items-center gap-1 font-bold text-amber-200">
+              <div className="text-sm">
+                <div className="flex items-center gap-1 font-medium text-amber-200">
                   <Sparkles size={12} className="text-amber-400" />
                   <span>头号赢家：{topWinner.nickname}</span>
                 </div>
-                <div className="text-[10px] text-slate-400">
+                <div className="text-xs text-slate-400">
                   胜率 {topWinner.winRate}% ｜ 👑大赢家 {topWinner.bigWinnerCount} 次
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-1 text-sm font-black text-rose-400">
+            <div className="flex items-center gap-1 text-base font-black text-rose-400">
               <span>{formatSignedAmount(topWinner.netAmount)}</span>
               <ChevronRight size={14} className="text-slate-500" />
             </div>
@@ -229,10 +229,10 @@ export default function HomePage() {
       {/* 排行榜列表 */}
       <div className="grid grid-cols-1 gap-2 md:grid-cols-2 pb-6">
         <div className="flex items-center justify-between px-1 md:col-span-2">
-          <h2 className="text-xs font-bold text-slate-500 tracking-wider">
+          <h2 className="text-sm font-medium text-slate-500 tracking-wider">
             玩家输赢排行榜 ({leaderboard.length})
           </h2>
-          <span className="text-[10px] text-slate-400">红赢 ｜ 绿输</span>
+          <span className="text-xs text-slate-400">红赢 ｜ 绿输</span>
         </div>
 
         {loading ? (
@@ -245,12 +245,12 @@ export default function HomePage() {
             ))}
           </div>
         ) : leaderboard.length === 0 ? (
-          <div className="h-36 rounded-2xl bg-white border border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 text-xs md:col-span-2">
+          <div className="h-36 rounded-2xl bg-white border border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 text-sm md:col-span-2">
             <span>暂无战绩记录</span>
             {user?.role === 'ADMIN' && (
               <button
                 onClick={openGameEditor}
-                className="mt-2 text-amber-600 font-bold underline"
+                className="mt-2 text-amber-600 font-medium underline"
               >
                 点此记第一局
               </button>
@@ -292,21 +292,21 @@ export default function HomePage() {
 
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-bold text-slate-900 truncate">
+                      <span className="text-base font-medium text-slate-900 truncate">
                         {player.nickname}
                       </span>
                       {isMe && (
-                        <span className="px-1.5 py-0.2 rounded-full bg-slate-900 text-amber-300 text-[10px] font-medium scale-90">
+                        <span className="px-1.5 py-0.2 rounded-full bg-slate-900 text-amber-300 text-xs font-medium scale-90">
                           我
                         </span>
                       )}
                       {player.bigWinnerCount > 0 && (
-                        <span className="text-[11px] text-amber-500 font-semibold flex items-center">
+                        <span className="text-xs text-amber-500 font-semibold flex items-center">
                           👑x{player.bigWinnerCount}
                         </span>
                       )}
                     </div>
-                    <div className="text-[11px] text-slate-400 mt-0.5">
+                    <div className="text-xs text-slate-400 mt-0.5">
                       {player.gamesPlayed}场 ｜ 胜率 {player.winRate}% ｜ 场均{' '}
                       {formatSignedAmount(player.avgAmount)}
                     </div>
@@ -322,7 +322,7 @@ export default function HomePage() {
                   >
                     {formatSignedAmount(player.netAmount)}
                   </div>
-                  <div className="text-[10px] text-slate-400 flex items-center justify-end gap-0.5">
+                  <div className="text-xs text-slate-400 flex items-center justify-end gap-0.5">
                     <span>详情</span>
                     <ChevronRight size={12} />
                   </div>

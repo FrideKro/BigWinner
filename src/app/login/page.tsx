@@ -59,10 +59,10 @@ export default function LoginPage() {
           className="w-20 h-20 short:w-14 short:h-14 drop-shadow-2xl"
         />
         <div>
-          <h1 className="text-2xl font-black tracking-wider bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 bg-clip-text text-transparent">
+          <h1 className="text-2xl font-medium tracking-wider bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 bg-clip-text text-transparent">
             大赢家
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-sm text-slate-400 mt-1">
             熟人麻将 · 输赢账本 · 房费统计
           </p>
         </div>
@@ -72,7 +72,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm mx-auto bg-slate-900/80 border border-slate-800 rounded-3xl p-6 short:p-4 shadow-xl backdrop-blur">
         <form onSubmit={handleLogin} className="space-y-4 short:space-y-2.5">
           <div>
-            <label className="text-xs font-medium text-slate-400 block mb-1.5">
+            <label className="text-sm font-medium text-slate-400 block mb-1.5">
               登录账号
             </label>
             <div className="relative">
@@ -87,13 +87,13 @@ export default function LoginPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="管理员分配的用户名"
-                className="w-full pl-11 pr-4 py-3 bg-slate-800/80 border border-slate-700 rounded-2xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                className="w-full pl-11 pr-4 py-3 bg-slate-800/80 border border-slate-700 rounded-2xl text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
               />
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-medium text-slate-400 block mb-1.5">
+            <label className="text-sm font-medium text-slate-400 block mb-1.5">
               密码
             </label>
             <div className="relative">
@@ -106,13 +106,13 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="请输入登录密码"
-                className="w-full pl-11 pr-4 py-3 bg-slate-800/80 border border-slate-700 rounded-2xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                className="w-full pl-11 pr-4 py-3 bg-slate-800/80 border border-slate-700 rounded-2xl text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
               />
             </div>
           </div>
 
           {error && (
-            <div className="text-xs text-rose-400 bg-rose-950/40 border border-rose-800/60 rounded-xl px-3.5 py-2.5">
+            <div className="text-sm text-rose-400 bg-rose-950/40 border border-rose-800/60 rounded-xl px-3.5 py-2.5">
               {error}
             </div>
           )}
@@ -120,7 +120,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full mt-2 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-red-600 font-bold text-slate-950 text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/20 active:scale-[0.99] disabled:opacity-50 transition"
+            className="w-full mt-2 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-red-600 font-medium text-slate-950 text-base flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/20 active:scale-[0.99] disabled:opacity-50 transition"
           >
             <span>{loading ? '登录中…' : '进入大赢家'}</span>
             <ArrowRight size={16} />
@@ -128,7 +128,7 @@ export default function LoginPage() {
         </form>
 
         <div className="mt-5 pt-4 border-t border-slate-800/80 text-center">
-          <p className="text-[11px] text-slate-500 leading-relaxed">
+          <p className="text-sm text-slate-500 leading-relaxed">
             💡 微信中可向管理员索取专属免登链接
             <br />
             点开一次即可绑定微信永久免密访问
@@ -137,7 +137,7 @@ export default function LoginPage() {
       </div>
 
       {/* 底部版权 */}
-      <div className="text-center text-[10px] text-slate-600 pb-2 short:hidden">
+      <div className="text-center text-xs text-slate-600 pb-2 short:hidden">
         大赢家 · 零和记账守护者
       </div>
     </div>

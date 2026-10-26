@@ -63,27 +63,27 @@ function BindContent() {
         {status === 'loading' && (
           <div className="space-y-4">
             <Loader2 size={48} className="text-amber-400 animate-spin mx-auto" />
-            <h2 className="text-lg font-bold">微信免登绑定中</h2>
-            <p className="text-xs text-slate-400">{message}</p>
+            <h2 className="text-lg font-medium">微信免登绑定中</h2>
+            <p className="text-sm text-slate-400">{message}</p>
           </div>
         )}
 
         {status === 'success' && (
           <div className="space-y-4">
             <CheckCircle2 size={48} className="text-emerald-400 mx-auto" />
-            <h2 className="text-lg font-bold text-emerald-300">绑定成功</h2>
-            <p className="text-xs text-slate-300">{message}</p>
+            <h2 className="text-lg font-medium text-emerald-300">绑定成功</h2>
+            <p className="text-sm text-slate-300">{message}</p>
           </div>
         )}
 
         {status === 'error' && (
           <div className="space-y-4">
             <AlertCircle size={48} className="text-rose-400 mx-auto" />
-            <h2 className="text-lg font-bold text-rose-300">绑定失败</h2>
-            <p className="text-xs text-slate-400">{message}</p>
+            <h2 className="text-lg font-medium text-rose-300">绑定失败</h2>
+            <p className="text-sm text-slate-400">{message}</p>
             <button
               onClick={() => router.replace('/login')}
-              className="mt-4 px-6 py-2.5 rounded-xl bg-slate-800 text-xs font-semibold text-slate-200"
+              className="mt-4 px-6 py-2.5 rounded-xl bg-slate-800 text-sm font-medium text-slate-200"
             >
               使用账号密码登录
             </button>
