@@ -4,6 +4,14 @@
   "description": "熟人麻将输赢与房费统计系统",
   "start_url": "/",
   "display": "standalone",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
   "background_color": "#0f172a",
   "theme_color": "#111827",
   "orientation": "portrait"

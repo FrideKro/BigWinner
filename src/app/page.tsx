@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/components/AppShell';
 import { PlayerAvatar } from '@/components/PlayerAvatar';
+import { LogoMark } from '@/components/LogoMark';
 import {
   formatSignedAmount,
   getAmountColorClass,
@@ -107,7 +108,7 @@ export default function HomePage() {
       {/* 顶部标题栏 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-2xl">🀄</span>
+          <LogoMark size={30} />
           <div>
             <h1 className="text-lg font-black text-slate-900 tracking-tight">
               大赢家 · 战绩榜
@@ -174,7 +175,7 @@ export default function HomePage() {
       </div>
 
       {/* 黑金核心概览卡片 */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950 p-5 text-white shadow-xl border border-amber-900/40">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950 p-5 md:p-6 text-white shadow-xl border border-amber-900/40">
         <div className="absolute top-0 right-0 translate-x-4 -translate-y-4 w-32 h-32 rounded-full bg-amber-500/10 blur-2xl pointer-events-none" />
 
         <div className="relative flex items-center justify-between pb-4 border-b border-white/10">
@@ -226,8 +227,8 @@ export default function HomePage() {
       </div>
 
       {/* 排行榜列表 */}
-      <div className="space-y-2 pb-6">
-        <div className="flex items-center justify-between px-1">
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-2 pb-6">
+        <div className="flex items-center justify-between px-1 md:col-span-2">
           <h2 className="text-xs font-bold text-slate-500 tracking-wider">
             玩家输赢排行榜 ({leaderboard.length})
           </h2>
@@ -235,7 +236,7 @@ export default function HomePage() {
         </div>
 
         {loading ? (
-          <div className="space-y-2">
+          <div className="space-y-2 md:col-span-2">
             {[1, 2, 3, 4].map((i) => (
               <div
                 key={i}
@@ -244,7 +245,7 @@ export default function HomePage() {
             ))}
           </div>
         ) : leaderboard.length === 0 ? (
-          <div className="h-36 rounded-2xl bg-white border border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 text-xs">
+          <div className="h-36 rounded-2xl bg-white border border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 text-xs md:col-span-2">
             <span>暂无战绩记录</span>
             {user?.role === 'ADMIN' && (
               <button

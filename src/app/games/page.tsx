@@ -143,7 +143,7 @@ export default function GamesPage() {
   return (
     <div className="space-y-4 px-4 pt-4">
       {/* 头部标题与筛选 */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-lg font-black text-slate-900 tracking-tight">
             场次流水
@@ -194,9 +194,9 @@ export default function GamesPage() {
       </div>
 
       {/* 场次列表 */}
-      <div className="space-y-3 pb-8">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:items-start pb-8">
         {loading ? (
-          <div className="space-y-3">
+          <div className="space-y-3 lg:col-span-2">
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
@@ -205,7 +205,7 @@ export default function GamesPage() {
             ))}
           </div>
         ) : games.length === 0 ? (
-          <div className="h-44 rounded-2xl bg-white border border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 text-xs">
+          <div className="h-44 rounded-2xl bg-white border border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 text-xs lg:col-span-2">
             <span>当前筛选暂无场次流水</span>
             {user?.role === 'ADMIN' && (
               <button

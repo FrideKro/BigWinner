@@ -10,6 +10,7 @@ import React, {
 import { usePathname, useRouter } from 'next/navigation';
 import { Trophy, ListOrdered, BarChart3, User, Plus } from 'lucide-react';
 import { GameEditorModal, PlayerOption } from './GameEditorModal';
+import { LogoMark } from './LogoMark';
 
 export interface CurrentUser {
   id: number;
@@ -189,15 +190,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         gameSavedVersion,
       }}
     >
-      <div className="min-h-screen bg-slate-100 max-w-lg mx-auto relative shadow-2xl">
+      <div className="min-h-screen bg-slate-100 max-w-lg sm:max-w-xl md:max-w-2xl lg:max-w-4xl mx-auto relative shadow-2xl">
         {loading && !isPublicPage ? (
-          <div className="h-screen flex items-center justify-center">
-            <div className="text-4xl animate-pulse">🀄</div>
-            <span className="ml-2 text-slate-400 text-sm">加载中…</span>
+          <div className="h-screen flex flex-col items-center justify-center gap-3">
+            <LogoMark size={56} className="animate-pulse drop-shadow-lg" />
+            <span className="text-slate-400 text-sm">加载中…</span>
           </div>
         ) : user && !isPublicPage ? (
           <>
-            <main className="pb-24">{children}</main>
+            <main className="pb-24 md:pb-28">{children}</main>
             <BottomNav
               pathname={pathname}
               isAdmin={user.role === 'ADMIN'}
@@ -233,8 +234,8 @@ function BottomNav({
   const router = useRouter();
 
   return (
-    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg bg-white/95 backdrop-blur border-t border-slate-200 z-40 pb-[env(safe-area-inset-bottom)]">
-      <div className="flex items-center justify-between h-14 px-2">
+    <nav className="fixed bottom-0 md:bottom-5 left-1/2 -translate-x-1/2 w-full max-w-lg md:max-w-2xl bg-white/95 backdrop-blur border-t md:border md:border-slate-200/70 z-40 pb-[env(safe-area-inset-bottom)] md:pb-0 md:rounded-3xl md:shadow-xl md:shadow-slate-900/10">
+      <div className="flex items-center justify-between h-14 md:h-16 px-2 md:px-4">
         {/* 左侧 1: 总榜 */}
         <button
           onClick={() => router.push('/')}
@@ -272,7 +273,7 @@ function BottomNav({
         <div className="flex-1 flex flex-col items-center justify-center relative -top-3">
           <button
             onClick={onRecordClick}
-            className="w-13 h-13 p-3 rounded-full bg-gradient-to-tr from-amber-500 via-rose-600 to-red-600 text-white flex items-center justify-center shadow-lg shadow-red-500/35 border-4 border-white active:scale-90 transition-transform"
+            className="h-12 w-12 p-3 rounded-full bg-gradient-to-tr from-amber-500 via-rose-600 to-red-600 text-white flex items-center justify-center shadow-lg shadow-red-500/35 border-4 border-white active:scale-90 transition-transform"
             title={isAdmin ? '记一局' : '仅管理员可记账'}
           >
             <Plus size={24} strokeWidth={3} />

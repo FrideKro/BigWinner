@@ -283,6 +283,8 @@ export default function ProfilePage() {
         </button>
       </div>
 
+      {/* 双列区：窄屏纵向堆叠，lg 起资料修改与管理台并排 */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
       {/* 个人资料修改 */}
       <div className="rounded-3xl bg-white border border-slate-100 p-5 shadow-sm space-y-4">
         <h2 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
@@ -513,6 +515,7 @@ export default function ProfilePage() {
           </div>
         </div>
       )}
+      </div>
 
       {/* 新增玩家弹窗 */}
       {showAddUser && (
@@ -521,7 +524,7 @@ export default function ProfilePage() {
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={() => setShowAddUser(false)}
           />
-          <div className="relative w-full max-w-sm bg-white rounded-3xl p-5 shadow-2xl space-y-4">
+          <div className="relative w-full max-w-sm md:max-w-md bg-white rounded-3xl p-5 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900">新增牌友账号</h3>
             <form onSubmit={handleCreateUser} className="space-y-3">
               <div>

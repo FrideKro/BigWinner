@@ -318,12 +318,12 @@ export function GameEditorModal({
   const availablePlayers = modalPlayers.filter((p) => !selectedIds.includes(p.id));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center">
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative w-full max-w-lg bg-white rounded-t-3xl max-h-[92vh] flex flex-col shadow-2xl animate-slide-up">
+      <div className="relative w-full max-w-lg md:max-w-2xl bg-white rounded-t-3xl md:rounded-3xl max-h-[92vh] md:max-h-[88vh] flex flex-col shadow-2xl animate-slide-up">
         {/* 头部 */}
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-slate-100 shrink-0">
           <h2 className="text-lg font-bold text-slate-900">
@@ -432,6 +432,7 @@ export function GameEditorModal({
             <label className="text-xs font-medium text-slate-500">
               各玩家本场输赢（正为赢，负为输）
             </label>
+            <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 md:items-start">
             {selectedPlayers.map((p) => {
               const currentSign = signs[p.id] ?? 1;
               const rawVal = rawAmounts[p.id];
@@ -529,6 +530,7 @@ export function GameEditorModal({
                 </div>
               );
             })}
+            </div>
           </div>
         </div>
 

@@ -238,9 +238,11 @@ function StatsContent() {
             )}
           </div>
 
+          {/* 宽屏下面板与走势图并排，窄屏纵向堆叠 */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:items-start">
           {/* 个人核心数据面板 */}
           {personalStats && targetPlayer && (
-            <div className="rounded-3xl bg-white border border-slate-100 p-5 shadow-sm space-y-4">
+            <div className="rounded-3xl bg-white border border-slate-100 p-5 shadow-sm space-y-4 lg:col-span-3">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-3">
                   <PlayerAvatar
@@ -368,7 +370,7 @@ function StatsContent() {
           )}
 
           {/* 累计盈亏走势折线图 */}
-          <div className="rounded-3xl bg-white border border-slate-100 p-5 shadow-sm space-y-3">
+          <div className="rounded-3xl bg-white border border-slate-100 p-5 shadow-sm space-y-3 lg:col-span-2">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                 <TrendingUp size={15} className="text-amber-500" />
@@ -377,6 +379,7 @@ function StatsContent() {
               <span className="text-[10px] text-slate-400">点击节点查看单场</span>
             </div>
             {personalStats && <TrendChart data={personalStats.trend} />}
+          </div>
           </div>
         </div>
       )}

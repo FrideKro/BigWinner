@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/components/AppShell';
+import { LogoMark } from '@/components/LogoMark';
 import { Lock, User, ArrowRight } from 'lucide-react';
 
 export default function LoginPage() {
@@ -50,12 +51,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white flex flex-col justify-between px-6 py-12">
+    <div className="min-h-screen overflow-y-auto bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white flex flex-col justify-between px-6 py-12 short:py-5">
       {/* 顶部品牌 */}
-      <div className="text-center pt-8 space-y-3">
-        <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-br from-amber-400 via-amber-500 to-red-600 shadow-2xl shadow-amber-500/30 text-4xl">
-          🀄
-        </div>
+      <div className="text-center pt-8 short:pt-1 space-y-3 short:space-y-1.5">
+        <LogoMark
+          size={80}
+          className="w-20 h-20 short:w-14 short:h-14 drop-shadow-2xl"
+        />
         <div>
           <h1 className="text-2xl font-black tracking-wider bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 bg-clip-text text-transparent">
             大赢家
@@ -67,8 +69,8 @@ export default function LoginPage() {
       </div>
 
       {/* 登录卡片 */}
-      <div className="w-full max-w-sm mx-auto bg-slate-900/80 border border-slate-800 rounded-3xl p-6 shadow-xl backdrop-blur">
-        <form onSubmit={handleLogin} className="space-y-4">
+      <div className="w-full max-w-sm mx-auto bg-slate-900/80 border border-slate-800 rounded-3xl p-6 short:p-4 shadow-xl backdrop-blur">
+        <form onSubmit={handleLogin} className="space-y-4 short:space-y-2.5">
           <div>
             <label className="text-xs font-medium text-slate-400 block mb-1.5">
               登录账号
@@ -135,7 +137,7 @@ export default function LoginPage() {
       </div>
 
       {/* 底部版权 */}
-      <div className="text-center text-[10px] text-slate-600 pb-2">
+      <div className="text-center text-[10px] text-slate-600 pb-2 short:hidden">
         大赢家 · 零和记账守护者
       </div>
     </div>

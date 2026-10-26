@@ -9,6 +9,10 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      screens: {
+        // 矮屏（手机横屏等）专用断点
+        short: { raw: '(max-height: 640px)' },
+      },
       colors: {
         gold: {
           50: '#fbf8eb',
