@@ -15,6 +15,7 @@ import {
   Check,
   Settings,
   Users,
+  Pencil,
 } from 'lucide-react';
 
 interface ManagedUser {
@@ -59,6 +60,16 @@ export default function ProfilePage() {
   const [newColor, setNewColor] = useState('red');
   const [addSaving, setAddSaving] = useState(false);
   const [addErr, setAddErr] = useState('');
+
+  // 编辑玩家弹窗
+  const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
+  const [editUsername, setEditUsername] = useState('');
+  const [editNickname, setEditNickname] = useState('');
+  const [editColor, setEditColor] = useState('red');
+  const [editRole, setEditRole] = useState<'PLAYER' | 'ADMIN'>('PLAYER');
+  const [editIsActive, setEditIsActive] = useState(true);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editErr, setEditErr] = useState('');
 
   // 初始化当前用户数据
   useEffect(() => {
@@ -205,6 +216,63 @@ export default function ProfilePage() {
     if (res.ok) {
       loadAdminData();
       await refreshUser();
+    }
+  }
+
+  // 打开编辑玩家弹窗
+  function handleStartEdit(u: ManagedUser) {
+    setEditingUser(u);
+    setEditUsername(u.username);
+    setEditNickname(u.nickname);
+    setEditColor(u.avatarColor || 'red');
+    setEditRole(u.role);
+    setEditIsActive(u.isActive);
+    setEditErr('');
+  }
+
+  function handleCloseEdit() {
+    if (editSaving) return;
+    setEditingUser(null);
+    setEditErr('');
+  }
+
+  // 保存玩家资料
+  async function handleSaveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingUser) return;
+    setEditErr('');
+
+    if (!editUsername.trim() || !editNickname.trim()) {
+      setEditErr('登录用户名和牌桌昵称不能为空');
+      return;
+    }
+
+    setEditSaving(true);
+    try {
+      const res = await fetch(`/api/users/${editingUser.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: editUsername.trim(),
+          nickname: editNickname.trim(),
+          avatarColor: editColor,
+          role: editRole,
+          isActive: editIsActive,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setEditErr(data.error || '保存失败');
+        return;
+      }
+
+      setEditingUser(null);
+      await loadAdminData();
+      await refreshUser();
+    } catch {
+      setEditErr('网络错误，保存失败');
+    } finally {
+      setEditSaving(false);
     }
   }
 
@@ -468,6 +536,14 @@ export default function ProfilePage() {
                       {/* 操作小工具行 */}
                       <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-200/60 text-xs text-slate-500">
                         <button
+                          onClick={() => handleStartEdit(u)}
+                          className="hover:text-slate-800 flex items-center gap-0.5"
+                        >
+                          <Pencil size={11} />
+                          编辑
+                        </button>
+                        <span>·</span>
+                        <button
                           onClick={() => handleResetPassword(u)}
                           className="hover:text-slate-800 flex items-center gap-0.5"
                         >
@@ -500,6 +576,152 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
+
+      {/* 编辑玩家弹窗 */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={handleCloseEdit}
+          />
+          <div className="relative w-full max-w-sm md:max-w-md bg-white rounded-3xl p-5 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center gap-2">
+              <PlayerAvatar
+                nickname={editNickname || editingUser.nickname}
+                color={editColor}
+                size="sm"
+              />
+              <h3 className="text-base font-medium text-slate-900">
+                编辑玩家 · {editingUser.nickname}
+              </h3>
+            </div>
+            <form onSubmit={handleSaveEdit} className="space-y-3">
+              <div>
+                <label className="text-sm text-slate-500 mb-1 block">登录用户名</label>
+                <input
+                  type="text"
+                  value={editUsername}
+                  onChange={(e) => setEditUsername(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm text-slate-500 mb-1 block">牌桌显示昵称</label>
+                <input
+                  type="text"
+                  value={editNickname}
+                  onChange={(e) => setEditNickname(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm text-slate-500 mb-1.5 block">头像配色</label>
+                <div className="flex gap-2">
+                  {AVATAR_THEMES.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setEditColor(t.id)}
+                      className={`w-7 h-7 rounded-full ${t.bg} flex items-center justify-center transition ${
+                        editColor === t.id
+                          ? 'ring-2 ring-slate-900 ring-offset-2 scale-110'
+                          : 'opacity-60'
+                      }`}
+                    >
+                      {editColor === t.id && <Check size={14} className="text-white drop-shadow" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm text-slate-500 mb-1 block">角色权限</label>
+                <div className="flex gap-2 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => setEditRole('PLAYER')}
+                    className={`flex-1 py-1.5 rounded-xl border ${
+                      editRole === 'PLAYER'
+                        ? 'bg-slate-900 text-white font-medium'
+                        : 'bg-white text-slate-600'
+                    }`}
+                  >
+                    普通玩家
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditRole('ADMIN')}
+                    className={`flex-1 py-1.5 rounded-xl border ${
+                      editRole === 'ADMIN'
+                        ? 'bg-amber-500 text-slate-950 font-medium'
+                        : 'bg-white text-slate-600'
+                    }`}
+                  >
+                    管理员
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm text-slate-500 mb-1 block">账号状态</label>
+                <div className="flex gap-2 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => setEditIsActive(true)}
+                    className={`flex-1 py-1.5 rounded-xl border ${
+                      editIsActive
+                        ? 'bg-slate-900 text-white font-medium'
+                        : 'bg-white text-slate-600'
+                    }`}
+                  >
+                    正常显示
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditIsActive(false)}
+                    className={`flex-1 py-1.5 rounded-xl border ${
+                      !editIsActive
+                        ? 'bg-slate-900 text-white font-medium'
+                        : 'bg-white text-slate-600'
+                    }`}
+                  >
+                    从选人隐藏
+                  </button>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  隐藏后不出现在记账与看板的选人列表，历史战绩保留
+                </p>
+              </div>
+
+              {editErr && (
+                <div className="text-sm text-rose-600 bg-rose-50 px-3 py-2 rounded-xl">
+                  {editErr}
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={handleCloseEdit}
+                  disabled={editSaving}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-600 text-sm font-medium disabled:opacity-50"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSaving}
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-red-600 text-white text-sm font-medium disabled:opacity-50"
+                >
+                  {editSaving ? '保存中…' : '保存修改'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* 新增玩家弹窗 */}
       {showAddUser && (

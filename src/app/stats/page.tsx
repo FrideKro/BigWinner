@@ -82,14 +82,17 @@ function StatsContent() {
       const res = await fetch('/api/users');
       if (res.ok) {
         const data = await res.json();
-        const activeList = data.users.map(
-          (u: { id: number; nickname: string; avatarColor: string; isActive: boolean }) => ({
+        // 从选人隐藏的玩家不出现在看板选择条，但保留本人查看自己战绩的入口
+        const activeList = data.users
+          .filter(
+            (u: { id: number; isActive: boolean }) => u.isActive !== false || u.id === user?.id,
+          )
+          .map((u: { id: number; nickname: string; avatarColor: string; isActive: boolean }) => ({
             id: u.id,
             nickname: u.nickname,
             avatarColor: u.avatarColor,
             isActive: u.isActive,
-          }),
-        );
+          }));
         setPlayers(activeList);
 
         const paramId = searchParams.get('userId');

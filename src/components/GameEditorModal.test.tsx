@@ -83,6 +83,33 @@ describe('GameEditorModal', () => {
     expect(screen.getByRole('button', { name: '确认记账' })).toBeDisabled();
   });
 
+  it('隐藏玩家不出现在候选列表，也不会被默认选中', async () => {
+    stubFetch({ ok: true, body: {} });
+    renderModal();
+
+    await waitFor(() => expect(screen.getByText('上桌玩家（已选 4 人）')).toBeInTheDocument());
+    expect(screen.queryByText('钱七')).not.toBeInTheDocument();
+  });
+
+  it('编辑历史场次时仍会显示已隐藏的玩家', async () => {
+    stubFetch({ ok: true, body: {} });
+    renderModal({
+      initial: {
+        id: 9,
+        playedAt: '2026-01-01T10:00:00.000Z',
+        roomFee: 0,
+        note: '',
+        records: [
+          { userId: 1, amount: 100 },
+          { userId: 5, amount: -100 },
+        ],
+      },
+    });
+
+    await waitFor(() => expect(screen.getByText('上桌玩家（已选 2 人）')).toBeInTheDocument());
+    expect(screen.getAllByText('钱七').length).toBeGreaterThan(0);
+  });
+
   it('一键配平后可保存：POST /api/games 载荷正确并回调 onSaved', async () => {
     const fetchMock = stubFetch({ ok: true, body: { id: 9 } });
     const user = userEvent.setup();

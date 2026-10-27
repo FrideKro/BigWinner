@@ -133,9 +133,7 @@ export function GameEditorModal({
       // 新建：默认选择活跃玩家的前 4 名
       const pool = modalPlayers.length > 0 ? modalPlayers : players;
       const activePlayers = pool.filter((p) => p.isActive !== false);
-      const first4 = (activePlayers.length >= 4 ? activePlayers : pool)
-        .slice(0, 4)
-        .map((p) => p.id);
+      const first4 = activePlayers.slice(0, 4).map((p) => p.id);
 
       setSelectedIds(first4);
       const rMap: Record<number, number | null> = {};
@@ -313,8 +311,10 @@ export function GameEditorModal({
       },
   );
 
-  // 未选玩家候选（新建时优先活跃玩家）
-  const availablePlayers = modalPlayers.filter((p) => !selectedIds.includes(p.id));
+  // 未选玩家候选（仅显示启用中的玩家）
+  const availablePlayers = modalPlayers.filter(
+    (p) => p.isActive !== false && !selectedIds.includes(p.id),
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
