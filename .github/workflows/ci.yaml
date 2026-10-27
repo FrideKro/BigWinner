@@ -1,0 +1,152 @@
+# =============================================================================
+# 大赢家 持续集成（GitHub Actions）
+#
+# 触发：
+#   pull_request → test（PR 门禁）
+#   push main    → test
+#   push v* tag  → test → build-images（推送 GHCR）→ release（GitHub Release）
+#
+# 并发控制：同一分支/PR 连续推送时自动取消前次运行
+#
+# Jobs
+#   test          ubuntu-latest  格式 / lint / 类型 / 单测 / 生产构建
+#   build-images  ubuntu-latest  构建并推送 ghcr.io/<owner>/<repo>（仅 v* tag）
+#   release       ubuntu-latest  创建 GitHub Release（仅 v* tag）
+#
+# 权限最小化：
+#   顶层 contents: read（PR 不接触任何写权限）
+#   build-images 额外 packages: write（推送 GHCR）
+#   release 额外 contents: write（创建 Release）
+#
+# 无需自定义 secrets：GHCR 使用仓库内置 GITHUB_TOKEN 登录
+# =============================================================================
+
+name: CI
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_TELEMETRY_DISABLED: '1'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.21'
+      - uses: pnpm/setup@v3
+        with:
+          # pnpm 11+ 使用 pnpm/setup（旧的 pnpm/action-setup 仅支持到 v10）
+          # 版本与 Dockerfile 的 corepack 固定版本、本地开发保持一致
+          version: 12.6.0
+          cache: true
+          cache-dependency-path: pnpm-lock.yaml
+          install: false
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+      - name: 格式 / Lint / 类型检查
+        run: |
+          pnpm format:check
+          pnpm lint
+          pnpm typecheck
+      - name: 单元测试
+        run: pnpm test
+      - name: 生产构建
+        run: |
+          # Next 15.5 在部分文件系统上偶发 _not-found/page.js.nft.json 缺失，
+          # 清理 .next 后重试一次；仍失败视为真实错误
+          if ! pnpm build; then
+            echo "首次构建失败，清理 .next 后重试..."
+            rm -rf .next
+            pnpm build
+          fi
+
+  # =============================================================================
+  # 发版构建：仅 v* tag push 触发；test 失败即不构建
+  #   镜像 tag = semver（v1.2.3 → 1.2.3、1.2）+ latest
+  #   层缓存走 GitHub Actions Cache（type=gha），无需额外 registry 凭据
+  #   默认仅构建 linux/amd64；生产机为 ARM 时设置仓库变量
+  #   BUILD_PLATFORMS=linux/amd64,linux/arm64（QEMU 模拟构建，耗时明显增加）
+  # =============================================================================
+  build-images:
+    needs: test
+    if: github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: 计算小写镜像名
+        # GHCR 要求仓库路径全小写；GitHub 仓库名可能含大写（如 BigWinner）
+        run: echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      - name: 登录 GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: 初始化 QEMU（仅 ARM 构建需要）
+        if: contains(vars.BUILD_PLATFORMS, 'arm64')
+        uses: docker/setup-qemu-action@v4
+      - name: 初始化 buildx
+        uses: docker/setup-buildx-action@v4
+      - name: 生成镜像 tag
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+      - name: 构建并推送
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: ${{ vars.BUILD_PLATFORMS || 'linux/amd64' }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # =============================================================================
+  # 发版说明：镜像推送成功后创建 GitHub Release
+  #   generate_release_notes 自动汇总本次 tag 的提交与 PR
+  # =============================================================================
+  release:
+    needs: build-images
+    if: github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: 创建 GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          generate_release_notes: true

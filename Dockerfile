@@ -4,7 +4,8 @@ WORKDIR /app
 
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable pnpm
+# 固定 pnpm 版本，与 CI（pnpm/setup）和本地开发保持一致
+RUN corepack enable pnpm && corepack prepare pnpm@12.6.0 --activate
 
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
@@ -15,7 +16,7 @@ WORKDIR /app
 
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable pnpm
+RUN corepack enable pnpm && corepack prepare pnpm@12.6.0 --activate
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .

@@ -1,0 +1,29 @@
+# =============================================================================
+# Dependabot 依赖更新
+#
+# 每周一检查 npm、Docker 与 GitHub Actions 依赖并提交 PR。
+# npm 按生产/开发依赖分组，避免每个小版本单独开 PR 造成噪音。
+# =============================================================================
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      production-dependencies:
+        dependency-type: production
+      development-dependencies:
+        dependency-type: development
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday

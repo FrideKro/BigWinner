@@ -1,5 +1,8 @@
 services:
   app:
+    # 生产部署由 deploy-prod.sh 按 GHCR 镜像 tag 拉取（IMAGE_NAME 由 deploy workflow 注入）；
+    # 本地开发仍可用 docker compose up -d --build（镜像标记为 localhost/big-winner:latest）
+    image: ${IMAGE_NAME:-localhost/big-winner}:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: Dockerfile

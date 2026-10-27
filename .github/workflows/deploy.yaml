@@ -1,0 +1,172 @@
+# =============================================================================
+# 大赢家 生产部署——仅手动触发（Actions → Deploy Prod → Run workflow）
+#
+# 面向仓库所有者（fork 者无需配置）：把 GHCR 镜像部署到自己的服务器
+#
+# 触发选择与部署版本：
+#   - 选 main 分支            → 部署 latest（最新一次发版构建），也可在「部署镜像版本」填
+#                              指定 semver（如 1.2.3，须已由 CI 发版构建）
+#   - 选 v* tag（如 v1.2.3）  → 部署对应该 tag 的版本（镜像 tag = 去掉 v 前缀的版本号，
+#                              如 v1.2.3 → 1.2.3）；「部署镜像版本」留空即自动取 tag 版本，
+#                              填写则覆盖
+#
+# 镜像：ghcr.io/<owner>/<repo>:<tag>（CI 在 v* tag 时构建推送）
+#   - GHCR 包默认 private：workflow 会用 GITHUB_TOKEN 在生产机登录后拉取
+#   - 也可在仓库 Packages 设置把包改为 public，生产机即可匿名拉取
+#
+# 行为：把 scripts/deploy-prod.sh 与 docker-compose.yml 分发到生产机
+#       （默认 /opt/big-winner）覆盖，校验 compose 后执行部署
+#       （登录 GHCR → 拉镜像 → 重启 → 健康检查 → 失败自动回滚）
+#
+# 生产机前置条件（见 README「CI/CD → 部署」）：
+#   /opt/big-winner 下的根 .env（数据库配置），且已安装 docker + compose 插件；
+#   本 workflow 只分发脚本与 compose，.env 不覆盖
+#
+# 分支门禁：job 内显式放行 refs/heads/main 与 refs/tags/v<数字>*，其余 ref 直接失败
+#           （不用 job 级 if：静默跳过易被误读为部署成功）。部署镜像 tag 必须存在
+#           （由 CI v* tag 构建），否则部署脚本在 compose pull 阶段失败
+#
+# 注意：workflow_dispatch 的 inputs 定义在默认分支上生效，改动合并到默认分支后刷新
+#       Actions 页面方可选择新输入
+#
+# 仓库 Secrets（仅所有者需要）
+#   PROD_HOST / PROD_SSH_PRIVATE_KEY / PROD_SSH_HOST_KEY  必填（host key 严格校验防 MITM）
+#   PROD_SSH_USER         可选，默认 root（建议改为最小权限专用账号）
+#   PROD_SSH_PORT         可选，默认 22
+#   PROD_COMPOSE_DIR      可选，默认 /opt/big-winner
+#
+# 环境：job 绑定 production environment，可在仓库 Settings → Environments 配置
+#       必需审批人；未配置时行为不变（有写权限者均可触发）
+#
+# 凭据：远端 docker login 会把 GITHUB_TOKEN 写入该主机的默认 docker 配置
+#       （可能覆盖同机其他项目的 GHCR 登录；token 随 job 结束失效）
+#
+# 并发控制：deploy-prod 全局互斥排队（cancel-in-progress: false），部署不可被中途打断，
+#           后续触发在前次完成后自动开始
+# =============================================================================
+
+name: Deploy Prod
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 部署镜像版本（semver，如 1.2.3；留空 = latest；选 v* tag 触发时留空自动取 tag 版本）
+        required: false
+        default: ''
+        type: string
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy-prod:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      # GITHUB_TOKEN 需要读取 GHCR 包（private 包登录用）
+      packages: read
+    env:
+      REF_NAME: ${{ github.ref_name }}
+      INPUT_IMAGE_TAG: ${{ inputs.image_tag }}
+      PROD_HOST: ${{ secrets.PROD_HOST }}
+      PROD_SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+      PROD_SSH_HOST_KEY: ${{ secrets.PROD_SSH_HOST_KEY }}
+      PROD_SSH_USER: ${{ secrets.PROD_SSH_USER }}
+      PROD_SSH_PORT: ${{ secrets.PROD_SSH_PORT }}
+      PROD_COMPOSE_DIR: ${{ secrets.PROD_COMPOSE_DIR }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: 校验触发分支
+        # 放行生产分支 main 与发版 tag（v<数字>*）；其余 ref 不允许部署
+        # 注意：workflow_dispatch 下 github.ref_type 不可靠，按 GITHUB_REF 完整前缀判断
+        run: |
+          if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            echo "触发 ref: main（生产分支）"
+          elif [[ "$GITHUB_REF" == refs/tags/v[0-9]* ]]; then
+            echo "触发 ref: $REF_NAME（发版 tag）"
+          else
+            echo "错误：生产部署仅允许从 main 或 v* tag 触发，当前 ref 为 $GITHUB_REF"
+            exit 1
+          fi
+      - name: 解析部署镜像版本
+        run: |
+          # 优先级：手动输入 image_tag > tag 自带版本（v1.2.3 → 1.2.3）> latest
+          if [ -n "$INPUT_IMAGE_TAG" ]; then
+            # 白名单校验：仅允许字母/数字/./_/-，防输入拼入远端 shell 命令行
+            case "$INPUT_IMAGE_TAG" in
+              *[!A-Za-z0-9._-]*)
+                echo "错误：部署镜像版本仅允许字母/数字/. _ -，收到: $INPUT_IMAGE_TAG"
+                exit 1 ;;
+            esac
+            IMAGE_TAG="$INPUT_IMAGE_TAG"
+          elif [[ "$GITHUB_REF" == refs/tags/v[0-9]* ]]; then
+            IMAGE_TAG="${REF_NAME#v}"
+          else
+            IMAGE_TAG="latest"
+          fi
+          printf 'IMAGE_TAG=%s\n' "$IMAGE_TAG" >>"$GITHUB_ENV"
+          echo "部署镜像版本: $IMAGE_TAG"
+      - name: 计算小写镜像名
+        # GHCR 要求仓库路径全小写；GitHub 仓库名可能含大写
+        run: echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      - name: 配置 SSH 客户端并校验 host key
+        run: |
+          if [ -z "${PROD_HOST:-}" ] || [ -z "${PROD_SSH_PRIVATE_KEY:-}" ]; then
+            echo "错误：未配置仓库 Secret PROD_HOST / PROD_SSH_PRIVATE_KEY"
+            exit 1
+          fi
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          # 去除 CRLF，避免从 Windows 复制的私钥被 ssh 判为格式错误
+          printf '%s\n' "$PROD_SSH_PRIVATE_KEY" | tr -d '\r' >~/.ssh/prod_key
+          chmod 600 ~/.ssh/prod_key
+          # 未配置 host key 直接失败（不用 StrictHostKeyChecking=no，防内网 MITM）
+          if [ -z "${PROD_SSH_HOST_KEY:-}" ]; then
+            echo "错误：未配置仓库 Secret PROD_SSH_HOST_KEY（执行 ssh-keyscan -p ${PROD_SSH_PORT:-22} -H ${PROD_HOST} 获取；非 22 端口时 known_hosts 条目为 [host]:port 格式）"
+            exit 1
+          fi
+          printf '%s\n' "$PROD_SSH_HOST_KEY" | tr -d '\r' >~/.ssh/known_hosts
+          # scp 用 -P、ssh 用 -p 指定端口；BatchMode 防 ssh 卡在交互提示
+          printf 'SSH_ARGS=-i %s/.ssh/prod_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=%s/.ssh/known_hosts\n' \
+            "$HOME" "$HOME" >>"$GITHUB_ENV"
+      - name: 准备生产目录
+        run: |
+          # SSH_ARGS 含多个参数，需按空格拆分
+          # shellcheck disable=SC2086
+          ssh $SSH_ARGS -p "${PROD_SSH_PORT:-22}" \
+            "${PROD_SSH_USER:-root}@${PROD_HOST}" \
+            "mkdir -p '${PROD_COMPOSE_DIR:-/opt/big-winner}'"
+      - name: 生产机登录 GHCR
+        # token 经 stdin 传给远端 docker login，不出现在命令行/日志
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: |
+          # SSH_ARGS 含多个参数，需按空格拆分
+          # shellcheck disable=SC2086
+          printf '%s' "$GHCR_TOKEN" | ssh $SSH_ARGS -p "${PROD_SSH_PORT:-22}" \
+            "${PROD_SSH_USER:-root}@${PROD_HOST}" \
+            "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
+      - name: 分发部署脚本与 docker-compose.yml
+        run: |
+          # SSH_ARGS 含多个参数，需按空格拆分
+          # shellcheck disable=SC2086
+          scp $SSH_ARGS -P "${PROD_SSH_PORT:-22}" \
+            scripts/deploy-prod.sh \
+            docker-compose.yml \
+            "${PROD_SSH_USER:-root}@${PROD_HOST}:${PROD_COMPOSE_DIR:-/opt/big-winner}/"
+      - name: 校验 compose 并执行部署
+        run: |
+          # SSH_ARGS 含多个参数，需按空格拆分
+          # shellcheck disable=SC2086
+          ssh $SSH_ARGS -p "${PROD_SSH_PORT:-22}" \
+            "${PROD_SSH_USER:-root}@${PROD_HOST}" \
+            "cd '${PROD_COMPOSE_DIR:-/opt/big-winner}' && docker compose config -q && IMAGE_NAME='$IMAGE_NAME' IMAGE_TAG='$IMAGE_TAG' bash deploy-prod.sh"
