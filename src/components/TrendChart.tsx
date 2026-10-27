@@ -21,7 +21,7 @@ interface TrendChartProps {
 
 export function TrendChart({ data }: TrendChartProps) {
   const [selectedIdx, setSelectedIdx] = useState<number | null>(
-    data.length > 0 ? data.length - 1 : null
+    data.length > 0 ? data.length - 1 : null,
   );
 
   if (data.length === 0) {
@@ -66,18 +66,17 @@ export function TrendChart({ data }: TrendChartProps) {
   const plotH = height - padTop - padBottom;
 
   const getX = (i: number) =>
-    padLeft +
-    (pointsWithZero.length <= 1
-      ? plotW / 2
-      : (i / (pointsWithZero.length - 1)) * plotW);
+    padLeft + (pointsWithZero.length <= 1 ? plotW / 2 : (i / (pointsWithZero.length - 1)) * plotW);
 
-  const getY = (val: number) =>
-    padTop + ((maxVal - val) / (maxVal - minVal || 1)) * plotH;
+  const getY = (val: number) => padTop + ((maxVal - val) / (maxVal - minVal || 1)) * plotH;
 
   const zeroY = getY(0);
 
   const pathD = pointsWithZero
-    .map((pt, i) => `${i === 0 ? 'M' : 'L'} ${getX(i).toFixed(1)} ${getY(pt.cumulativeAmount).toFixed(1)}`)
+    .map(
+      (pt, i) =>
+        `${i === 0 ? 'M' : 'L'} ${getX(i).toFixed(1)} ${getY(pt.cumulativeAmount).toFixed(1)}`,
+    )
     .join(' ');
 
   const areaD = `${pathD} L ${getX(pointsWithZero.length - 1).toFixed(1)} ${zeroY.toFixed(1)} L ${getX(0).toFixed(1)} ${zeroY.toFixed(1)} Z`;
@@ -87,9 +86,7 @@ export function TrendChart({ data }: TrendChartProps) {
   const strokeColor = isPositive ? '#dc2626' : '#059669';
 
   const activePoint =
-    selectedIdx !== null && data[selectedIdx]
-      ? data[selectedIdx]
-      : data[data.length - 1];
+    selectedIdx !== null && data[selectedIdx] ? data[selectedIdx] : data[data.length - 1];
 
   return (
     <div className="space-y-2.5">
@@ -106,19 +103,13 @@ export function TrendChart({ data }: TrendChartProps) {
               </span>
             )}
             {activePoint.note && (
-              <span className="text-slate-400 truncate max-w-[90px]">
-                · {activePoint.note}
-              </span>
+              <span className="text-slate-400 truncate max-w-[90px]">· {activePoint.note}</span>
             )}
           </div>
           <div className="flex items-center gap-3 shrink-0">
             <span>
               本场:{' '}
-              <b
-                className={
-                  activePoint.amount >= 0 ? 'text-rose-400' : 'text-emerald-400'
-                }
-              >
+              <b className={activePoint.amount >= 0 ? 'text-rose-400' : 'text-emerald-400'}>
                 {formatSignedAmount(activePoint.amount)}
               </b>
             </span>
@@ -126,9 +117,7 @@ export function TrendChart({ data }: TrendChartProps) {
               累计:{' '}
               <b
                 className={
-                  activePoint.cumulativeAmount >= 0
-                    ? 'text-amber-300'
-                    : 'text-emerald-400'
+                  activePoint.cumulativeAmount >= 0 ? 'text-amber-300' : 'text-emerald-400'
                 }
               >
                 {formatSignedAmount(activePoint.cumulativeAmount)}
@@ -139,10 +128,7 @@ export function TrendChart({ data }: TrendChartProps) {
       )}
 
       <div className="relative w-full overflow-hidden bg-slate-50/80 rounded-xl border border-slate-100 p-1">
-        <svg
-          viewBox={`0 0 ${width} ${height}`}
-          className="w-full h-auto select-none"
-        >
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto select-none">
           <defs>
             <linearGradient id="trendGradRed" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#dc2626" stopOpacity="0.24" />
@@ -215,10 +201,7 @@ export function TrendChart({ data }: TrendChartProps) {
           </text>
 
           {/* 面积填充 */}
-          <path
-            d={areaD}
-            fill={isPositive ? 'url(#trendGradRed)' : 'url(#trendGradGreen)'}
-          />
+          <path d={areaD} fill={isPositive ? 'url(#trendGradRed)' : 'url(#trendGradGreen)'} />
 
           {/* 折线主体 */}
           <path
@@ -234,25 +217,16 @@ export function TrendChart({ data }: TrendChartProps) {
           {data.map((pt, idx) => {
             const cx = getX(idx + 1);
             const cy = getY(pt.cumulativeAmount);
-            const isSelected =
-              (selectedIdx ?? data.length - 1) === idx;
+            const isSelected = (selectedIdx ?? data.length - 1) === idx;
             return (
-              <g
-                key={pt.gameId}
-                className="cursor-pointer"
-                onClick={() => setSelectedIdx(idx)}
-              >
+              <g key={pt.gameId} className="cursor-pointer" onClick={() => setSelectedIdx(idx)}>
                 <circle cx={cx} cy={cy} r={12} fill="transparent" />
                 <circle
                   cx={cx}
                   cy={cy}
                   r={isSelected ? 5 : pt.isBigWinner ? 4 : 3}
                   fill={
-                    pt.isBigWinner
-                      ? '#f59e0b'
-                      : pt.cumulativeAmount >= 0
-                        ? '#dc2626'
-                        : '#059669'
+                    pt.isBigWinner ? '#f59e0b' : pt.cumulativeAmount >= 0 ? '#dc2626' : '#059669'
                   }
                   stroke="#ffffff"
                   strokeWidth={isSelected ? 2 : 1.5}

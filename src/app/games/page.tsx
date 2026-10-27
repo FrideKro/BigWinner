@@ -70,12 +70,14 @@ export default function GamesPage() {
       if (uRes.ok) {
         const udata = await uRes.json();
         setPlayers(
-          udata.users.map((u: { id: number; nickname: string; avatarColor: string; isActive: boolean }) => ({
-            id: u.id,
-            nickname: u.nickname,
-            avatarColor: u.avatarColor,
-            isActive: u.isActive,
-          }))
+          udata.users.map(
+            (u: { id: number; nickname: string; avatarColor: string; isActive: boolean }) => ({
+              id: u.id,
+              nickname: u.nickname,
+              avatarColor: u.avatarColor,
+              isActive: u.isActive,
+            }),
+          ),
         );
       }
       if (sRes.ok) {
@@ -145,9 +147,7 @@ export default function GamesPage() {
       {/* 头部标题与筛选 */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-lg font-medium text-slate-900 tracking-tight">
-            场次流水
-          </h1>
+          <h1 className="text-lg font-medium text-slate-900 tracking-tight">场次流水</h1>
           <p className="text-xs text-slate-500">
             共计 {games.length} 场 ｜ 累计房费 +{allTimeRoomFee}
           </p>
@@ -164,9 +164,7 @@ export default function GamesPage() {
               key={item.key}
               onClick={() => setPeriod(item.key)}
               className={`px-2 py-1 rounded-lg font-medium transition ${
-                period === item.key
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-600'
+                period === item.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
               }`}
             >
               {item.label}
@@ -308,7 +306,7 @@ export default function GamesPage() {
                         </div>
                         <span
                           className={`text-base font-black tracking-tight shrink-0 pl-1 ${getAmountColorClass(
-                            r.amount
+                            r.amount,
                           )}`}
                         >
                           {formatSignedAmount(r.amount)}

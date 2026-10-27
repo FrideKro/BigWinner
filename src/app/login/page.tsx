@@ -54,17 +54,12 @@ export default function LoginPage() {
     <div className="min-h-screen overflow-y-auto bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white flex flex-col justify-between px-6 py-12 short:py-5">
       {/* 顶部品牌 */}
       <div className="text-center pt-8 short:pt-1 space-y-3 short:space-y-1.5">
-        <LogoMark
-          size={80}
-          className="w-20 h-20 short:w-14 short:h-14 drop-shadow-2xl"
-        />
+        <LogoMark size={80} className="w-20 h-20 short:w-14 short:h-14 drop-shadow-2xl" />
         <div>
           <h1 className="text-2xl font-medium tracking-wider bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 bg-clip-text text-transparent">
             大赢家
           </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            熟人麻将 · 输赢账本 · 房费统计
-          </p>
+          <p className="text-sm text-slate-400 mt-1">熟人麻将 · 输赢账本 · 房费统计</p>
         </div>
       </div>
 
@@ -72,9 +67,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm mx-auto bg-slate-900/80 border border-slate-800 rounded-3xl p-6 short:p-4 shadow-xl backdrop-blur">
         <form onSubmit={handleLogin} className="space-y-4 short:space-y-2.5">
           <div>
-            <label className="text-sm font-medium text-slate-400 block mb-1.5">
-              登录账号
-            </label>
+            <label className="text-sm font-medium text-slate-400 block mb-1.5">登录账号</label>
             <div className="relative">
               <User
                 size={18}
@@ -93,9 +86,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="text-sm font-medium text-slate-400 block mb-1.5">
-              密码
-            </label>
+            <label className="text-sm font-medium text-slate-400 block mb-1.5">密码</label>
             <div className="relative">
               <Lock
                 size={18}

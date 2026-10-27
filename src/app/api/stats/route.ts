@@ -27,17 +27,11 @@ export async function GET(req: NextRequest) {
               COALESCE(SUM(g.room_fee), 0)::text AS total_room_fee
        FROM games g
        WHERE 1=1 ${clause}`,
-      params
+      params,
     );
 
-    const totalGames = parseInt(
-      periodSummaryRes.rows[0]?.total_games || '0',
-      10
-    );
-    const totalRoomFee = parseInt(
-      periodSummaryRes.rows[0]?.total_room_fee || '0',
-      10
-    );
+    const totalGames = parseInt(periodSummaryRes.rows[0]?.total_games || '0', 10);
+    const totalRoomFee = parseInt(periodSummaryRes.rows[0]?.total_room_fee || '0', 10);
 
     // 2. 全局房费概览（全部、本年、本月）+ 可选月份列表
     const now = new Date();
@@ -66,7 +60,7 @@ export async function GET(req: NextRequest) {
          COUNT(*) FILTER (WHERE TO_CHAR(played_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM') = $2)::text AS month_games,
          COALESCE(SUM(room_fee) FILTER (WHERE TO_CHAR(played_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM') = $2), 0)::text AS month_fee
        FROM games`,
-      [currentYear, currentMonth]
+      [currentYear, currentMonth],
     );
 
     const gRow = globalRoomFeeRes.rows[0];
@@ -83,7 +77,7 @@ export async function GET(req: NextRequest) {
        FROM games
        GROUP BY 1
        ORDER BY 1 DESC
-       LIMIT 36`
+       LIMIT 36`,
     );
 
     const monthlyRoomFees = monthlyFeeRes.rows.map((m) => {
@@ -140,7 +134,7 @@ export async function GET(req: NextRequest) {
                 COUNT(gr.id) FILTER (WHERE gr.is_big_winner = TRUE) DESC,
                 COUNT(gr.id) DESC,
                 u.id ASC`,
-      params
+      params,
     );
 
     const leaderboard = leaderboardRes.rows.map((row, index) => {
@@ -163,14 +157,10 @@ export async function GET(req: NextRequest) {
         winCount,
         drawCount,
         lossCount,
-        winRate:
-          gamesPlayed > 0 ? Math.round((winCount / gamesPlayed) * 1000) / 10 : 0,
+        winRate: gamesPlayed > 0 ? Math.round((winCount / gamesPlayed) * 1000) / 10 : 0,
         avgAmount: gamesPlayed > 0 ? Math.round(netAmount / gamesPlayed) : 0,
         bigWinnerCount,
-        bigWinnerRate:
-          gamesPlayed > 0
-            ? Math.round((bigWinnerCount / gamesPlayed) * 1000) / 10
-            : 0,
+        bigWinnerRate: gamesPlayed > 0 ? Math.round((bigWinnerCount / gamesPlayed) * 1000) / 10 : 0,
         maxWin: parseInt(row.max_win, 10),
         maxLoss: parseInt(row.max_loss, 10),
       };
@@ -199,7 +189,7 @@ export async function GET(req: NextRequest) {
        WHERE gr.user_id = $${personalParams.length}
          ${clause}
        ORDER BY g.played_at ASC, g.id ASC`,
-      personalParams
+      personalParams,
     );
 
     let cumulative = 0;
@@ -280,9 +270,7 @@ export async function GET(req: NextRequest) {
       currentStreak = { type: 'LOSS', count: tempLossStreak };
     }
 
-    const targetPlayerSummary = leaderboard.find(
-      (p) => p.userId === targetUserId
-    ) || {
+    const targetPlayerSummary = leaderboard.find((p) => p.userId === targetUserId) || {
       rank: 0,
       userId: targetUserId,
       username: '',

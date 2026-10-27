@@ -8,10 +8,7 @@ export async function POST(req: NextRequest) {
     const bindToken = String(body.bindToken || '').trim();
 
     if (!bindToken) {
-      return NextResponse.json(
-        { error: '缺少专属绑定凭证' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: '缺少专属绑定凭证' }, { status: 400 });
     }
 
     const userRes = await query<{
@@ -27,13 +24,13 @@ export async function POST(req: NextRequest) {
        FROM users
        WHERE bind_token = $1
        LIMIT 1`,
-      [bindToken]
+      [bindToken],
     );
 
     if (userRes.rowCount === 0) {
       return NextResponse.json(
         { error: '该专属绑定链接已失效，请联系管理员重新获取' },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -58,9 +55,6 @@ export async function POST(req: NextRequest) {
     return res;
   } catch (error) {
     console.error('Bind error:', error);
-    return NextResponse.json(
-      { error: '设备绑定失败，请稍后重试' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: '设备绑定失败，请稍后重试' }, { status: 500 });
   }
 }

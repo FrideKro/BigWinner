@@ -52,9 +52,7 @@ export const AVATAR_THEMES: AvatarTheme[] = [
 ];
 
 export function getAvatarTheme(colorId?: string): AvatarTheme {
-  return (
-    AVATAR_THEMES.find((t) => t.id === colorId) || AVATAR_THEMES[0]
-  );
+  return AVATAR_THEMES.find((t) => t.id === colorId) || AVATAR_THEMES[0];
 }
 
 export function formatSignedAmount(amount: number): string {
@@ -154,7 +152,7 @@ export function buildGameShareText(
       isBigWinner: boolean;
     }>;
   },
-  allTimeRoomFee?: number
+  allTimeRoomFee?: number,
 ): string {
   const dateStr = formatDateTime(game.playedAt);
   const bigWinners = game.records
@@ -200,7 +198,7 @@ export function buildLeaderboardShareText(
     netAmount: number;
     gamesPlayed: number;
     bigWinnerCount: number;
-  }>
+  }>,
 ): string {
   const activeRows = leaderboard.filter((r) => r.gamesPlayed > 0);
   const lines: string[] = [
@@ -210,11 +208,10 @@ export function buildLeaderboardShareText(
   ];
 
   activeRows.forEach((p, idx) => {
-    const medal =
-      idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`;
+    const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`;
     const bwTag = p.bigWinnerCount > 0 ? ` (👑x${p.bigWinnerCount})` : '';
     lines.push(
-      `${medal} ${p.nickname}：${formatSignedAmount(p.netAmount)} [${p.gamesPlayed}场]${bwTag}`
+      `${medal} ${p.nickname}：${formatSignedAmount(p.netAmount)} [${p.gamesPlayed}场]${bwTag}`,
     );
   });
 

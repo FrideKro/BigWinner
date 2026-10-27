@@ -92,7 +92,7 @@ export default function HomePage() {
       periodLabel,
       summary.totalGames,
       summary.totalRoomFee,
-      leaderboard
+      leaderboard,
     );
     const ok = await copyTextToClipboard(text);
     if (ok) {
@@ -110,9 +110,7 @@ export default function HomePage() {
         <div className="flex items-center gap-2">
           <LogoMark size={30} />
           <div>
-            <h1 className="text-lg font-medium text-slate-900 tracking-tight">
-              大赢家 · 战绩榜
-            </h1>
+            <h1 className="text-lg font-medium text-slate-900 tracking-tight">大赢家 · 战绩榜</h1>
             <p className="text-xs text-slate-500">熟人麻将 · 房费守护</p>
           </div>
         </div>
@@ -190,7 +188,8 @@ export default function HomePage() {
           <div className="text-right">
             <span className="text-xs text-slate-400">总场次</span>
             <div className="text-2xl font-bold text-white mt-0.5">
-              {summary?.totalGames ?? 0} <span className="text-xs font-normal text-slate-400">局</span>
+              {summary?.totalGames ?? 0}{' '}
+              <span className="text-xs font-normal text-slate-400">局</span>
             </div>
           </div>
         </div>
@@ -317,7 +316,7 @@ export default function HomePage() {
                 <div className="text-right shrink-0 pl-2">
                   <div
                     className={`text-base font-black tracking-tight ${getAmountColorClass(
-                      player.netAmount
+                      player.netAmount,
                     )}`}
                   >
                     {formatSignedAmount(player.netAmount)}

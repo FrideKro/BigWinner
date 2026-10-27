@@ -1,12 +1,6 @@
 'use client';
 
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-} from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Trophy, ListOrdered, BarChart3, User, Plus } from 'lucide-react';
 import { GameEditorModal, PlayerOption } from './GameEditorModal';
@@ -104,19 +98,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const loadPlayersAndSettings = useCallback(async () => {
     try {
-      const [uRes, sRes] = await Promise.all([
-        fetch('/api/users'),
-        fetch('/api/settings'),
-      ]);
+      const [uRes, sRes] = await Promise.all([fetch('/api/users'), fetch('/api/settings')]);
       if (uRes.ok) {
         const udata = await uRes.json();
         setPlayers(
-          udata.users.map((u: { id: number; nickname: string; avatarColor: string; isActive: boolean }) => ({
-            id: u.id,
-            nickname: u.nickname,
-            avatarColor: u.avatarColor,
-            isActive: u.isActive,
-          }))
+          udata.users.map(
+            (u: { id: number; nickname: string; avatarColor: string; isActive: boolean }) => ({
+              id: u.id,
+              nickname: u.nickname,
+              avatarColor: u.avatarColor,
+              isActive: u.isActive,
+            }),
+          ),
         );
       }
       if (sRes.ok) {
@@ -244,9 +237,7 @@ function BottomNav({
           }`}
         >
           <Trophy size={19} strokeWidth={pathname === '/' ? 2.5 : 2} />
-          <span className={`text-xs ${pathname === '/' ? 'font-medium' : ''}`}>
-            总榜
-          </span>
+          <span className={`text-xs ${pathname === '/' ? 'font-medium' : ''}`}>总榜</span>
         </button>
 
         {/* 左侧 2: 流水 */}
@@ -256,15 +247,8 @@ function BottomNav({
             pathname.startsWith('/games') ? 'text-red-600' : 'text-slate-400'
           }`}
         >
-          <ListOrdered
-            size={19}
-            strokeWidth={pathname.startsWith('/games') ? 2.5 : 2}
-          />
-          <span
-            className={`text-xs ${
-              pathname.startsWith('/games') ? 'font-medium' : ''
-            }`}
-          >
+          <ListOrdered size={19} strokeWidth={pathname.startsWith('/games') ? 2.5 : 2} />
+          <span className={`text-xs ${pathname.startsWith('/games') ? 'font-medium' : ''}`}>
             流水
           </span>
         </button>
@@ -278,9 +262,7 @@ function BottomNav({
           >
             <Plus size={24} strokeWidth={3} />
           </button>
-          <span className="text-xs font-medium text-red-600 mt-0.5">
-            记一局
-          </span>
+          <span className="text-xs font-medium text-red-600 mt-0.5">记一局</span>
         </div>
 
         {/* 右侧 1: 看板 */}
@@ -290,15 +272,8 @@ function BottomNav({
             pathname.startsWith('/stats') ? 'text-red-600' : 'text-slate-400'
           }`}
         >
-          <BarChart3
-            size={19}
-            strokeWidth={pathname.startsWith('/stats') ? 2.5 : 2}
-          />
-          <span
-            className={`text-xs ${
-              pathname.startsWith('/stats') ? 'font-medium' : ''
-            }`}
-          >
+          <BarChart3 size={19} strokeWidth={pathname.startsWith('/stats') ? 2.5 : 2} />
+          <span className={`text-xs ${pathname.startsWith('/stats') ? 'font-medium' : ''}`}>
             看板
           </span>
         </button>
@@ -310,15 +285,8 @@ function BottomNav({
             pathname.startsWith('/profile') ? 'text-red-600' : 'text-slate-400'
           }`}
         >
-          <User
-            size={19}
-            strokeWidth={pathname.startsWith('/profile') ? 2.5 : 2}
-          />
-          <span
-            className={`text-xs ${
-              pathname.startsWith('/profile') ? 'font-medium' : ''
-            }`}
-          >
+          <User size={19} strokeWidth={pathname.startsWith('/profile') ? 2.5 : 2} />
+          <span className={`text-xs ${pathname.startsWith('/profile') ? 'font-medium' : ''}`}>
             我的
           </span>
         </button>

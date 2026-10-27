@@ -11,15 +11,12 @@ export async function GET() {
         database: 'CONNECTED',
       });
     }
-    return NextResponse.json(
-      { status: 'DOWN', database: 'UNEXPECTED_RESULT' },
-      { status: 503 }
-    );
+    return NextResponse.json({ status: 'DOWN', database: 'UNEXPECTED_RESULT' }, { status: 503 });
   } catch (error: unknown) {
     const err = error as { message?: string };
     return NextResponse.json(
       { status: 'DOWN', database: 'ERROR', error: err.message },
-      { status: 503 }
+      { status: 503 },
     );
   }
 }

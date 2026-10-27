@@ -5,7 +5,7 @@ export interface GameRecordInput {
 
 export function validateAndComputeRecords(
   rawRecords: unknown,
-  rawRoomFee: unknown
+  rawRoomFee: unknown,
 ): {
   error?: string;
   roomFee: number;
@@ -79,7 +79,7 @@ export function validateAndComputeRecords(
 
 export function buildPeriodFilter(
   period: string,
-  paramStartIndex: number
+  paramStartIndex: number,
 ): { clause: string; params: unknown[] } {
   const now = new Date();
   const shanghaiFormatter = new Intl.DateTimeFormat('en-CA', {

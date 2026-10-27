@@ -3,9 +3,8 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 
 declare global {
-  // eslint-disable-next-line no-var
   var __bigWinnerPool: Pool | undefined;
-  // eslint-disable-next-line no-var
+
   var __bigWinnerInitPromise: Promise<void> | undefined;
 }
 
@@ -129,13 +128,11 @@ async function runInitialization(): Promise<void> {
       `INSERT INTO system_settings (key, value)
        VALUES ('default_room_fee', $1)
        ON CONFLICT (key) DO NOTHING`,
-      [String(Number.isNaN(defaultRoomFee) ? 100 : defaultRoomFee)]
+      [String(Number.isNaN(defaultRoomFee) ? 100 : defaultRoomFee)],
     );
 
     // 检查是否存在管理员账号，不存在则自动创建初始管理员
-    const adminCheck = await client.query(
-      `SELECT id FROM users WHERE role = 'ADMIN' LIMIT 1`
-    );
+    const adminCheck = await client.query(`SELECT id FROM users WHERE role = 'ADMIN' LIMIT 1`);
     if (adminCheck.rowCount === 0) {
       const adminUsername = (process.env.ADMIN_USERNAME || 'admin').trim();
       const adminNickname = (process.env.ADMIN_NICKNAME || '群主管理员').trim();
@@ -147,13 +144,13 @@ async function runInitialization(): Promise<void> {
         `INSERT INTO users (username, nickname, password_hash, role, avatar_color, is_active, bind_token)
          VALUES ($1, $2, $3, 'ADMIN', 'amber', TRUE, $4)
          ON CONFLICT (username) DO UPDATE SET role = 'ADMIN'`,
-        [adminUsername, adminNickname, passwordHash, bindToken]
+        [adminUsername, adminNickname, passwordHash, bindToken],
       );
     }
 
     // 为没有 bind_token 的历史用户补齐 bind_token
     const missingTokenUsers = await client.query<{ id: number }>(
-      `SELECT id FROM users WHERE bind_token IS NULL`
+      `SELECT id FROM users WHERE bind_token IS NULL`,
     );
     for (const row of missingTokenUsers.rows) {
       await client.query(`UPDATE users SET bind_token = $1 WHERE id = $2`, [
@@ -171,13 +168,13 @@ async function runInitialization(): Promise<void> {
     if (pgErr.code === '42501') {
       console.error(
         '\n============================================================\n' +
-        '❌ PostgreSQL 权限不足：当前数据库用户没有 public schema 的建表权限。\n' +
-        '请在 PostgreSQL 超级用户 (postgres) 下执行以下授权命令：\n\n' +
-        `  \\c ${process.env.DB_NAME || 'big_winner'}\n` +
-        `  GRANT ALL ON SCHEMA public TO ${process.env.DB_USER || 'big_winner'};\n` +
-        `  -- 或直接移交数据库所有权：\n` +
-        `  ALTER DATABASE ${process.env.DB_NAME || 'big_winner'} OWNER TO ${process.env.DB_USER || 'big_winner'};\n` +
-        '============================================================\n'
+          '❌ PostgreSQL 权限不足：当前数据库用户没有 public schema 的建表权限。\n' +
+          '请在 PostgreSQL 超级用户 (postgres) 下执行以下授权命令：\n\n' +
+          `  \\c ${process.env.DB_NAME || 'big_winner'}\n` +
+          `  GRANT ALL ON SCHEMA public TO ${process.env.DB_USER || 'big_winner'};\n` +
+          `  -- 或直接移交数据库所有权：\n` +
+          `  ALTER DATABASE ${process.env.DB_NAME || 'big_winner'} OWNER TO ${process.env.DB_USER || 'big_winner'};\n` +
+          '============================================================\n',
       );
     }
     throw err;
@@ -195,15 +192,13 @@ export async function ensureDbInitialized(): Promise<void> {
 
 export async function query<T extends QueryResultRow = QueryResultRow>(
   text: string,
-  params?: unknown[]
+  params?: unknown[],
 ): Promise<QueryResult<T>> {
   await ensureDbInitialized();
   return getPool().query<T>(text, params);
 }
 
-export async function withTransaction<T>(
-  fn: (client: PoolClient) => Promise<T>
-): Promise<T> {
+export async function withTransaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
   await ensureDbInitialized();
   const client = await getPool().connect();
   try {

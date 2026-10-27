@@ -15,10 +15,7 @@ export async function GET(req: NextRequest) {
     const userIdFilter = searchParams.get('userId')
       ? parseInt(searchParams.get('userId')!, 10)
       : null;
-    const limit = Math.min(
-      Math.max(parseInt(searchParams.get('limit') || '100', 10), 1),
-      500
-    );
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '100', 10), 1), 500);
 
     const { clause, params } = buildPeriodFilter(period, 1);
     const queryParams: unknown[] = [...params];
@@ -79,7 +76,7 @@ export async function GET(req: NextRequest) {
        GROUP BY g.id, cu.nickname
        ORDER BY g.played_at DESC, g.id DESC
        LIMIT $${queryParams.length}`,
-      queryParams
+      queryParams,
     );
 
     const totalRoomFeeRes = await query<{
@@ -88,7 +85,7 @@ export async function GET(req: NextRequest) {
     }>(
       `SELECT COUNT(*)::text AS total_games,
               COALESCE(SUM(room_fee), 0)::text AS total_room_fee
-       FROM games`
+       FROM games`,
     );
 
     return NextResponse.json({
@@ -102,14 +99,8 @@ export async function GET(req: NextRequest) {
         createdAt: g.created_at,
         records: g.records,
       })),
-      allTimeTotalGames: parseInt(
-        totalRoomFeeRes.rows[0]?.total_games || '0',
-        10
-      ),
-      allTimeTotalRoomFee: parseInt(
-        totalRoomFeeRes.rows[0]?.total_room_fee || '0',
-        10
-      ),
+      allTimeTotalGames: parseInt(totalRoomFeeRes.rows[0]?.total_games || '0', 10),
+      allTimeTotalRoomFee: parseInt(totalRoomFeeRes.rows[0]?.total_room_fee || '0', 10),
     });
   } catch (error) {
     console.error('Get games error:', error);
@@ -144,7 +135,7 @@ export async function POST(req: NextRequest) {
         `INSERT INTO games (played_at, room_fee, note, created_by)
          VALUES ($1, $2, $3, $4)
          RETURNING id`,
-        [playedAt.toISOString(), validation.roomFee, note, user.id]
+        [playedAt.toISOString(), validation.roomFee, note, user.id],
       );
       const gameId = gameInsert.rows[0].id;
 
@@ -152,7 +143,7 @@ export async function POST(req: NextRequest) {
         await client.query(
           `INSERT INTO game_records (game_id, user_id, amount, is_big_winner)
            VALUES ($1, $2, $3, $4)`,
-          [gameId, rec.userId, rec.amount, rec.isBigWinner]
+          [gameId, rec.userId, rec.amount, rec.isBigWinner],
         );
       }
 

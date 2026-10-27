@@ -23,13 +23,16 @@
 项目基于 **Node.js 24 (node:24.21-trixie-slim)** 与 **pnpm**，通过多阶段构建输出 Next.js Standalone 生产环境容器
 
 ### 1. 本地开发 (可选)
+
 ```bash
 pnpm install
 pnpm dev
 ```
 
 ### 2. 配置环境变量
+
 确保根目录存在 `.env`（可参考 `.env.example`）：
+
 ```dotenv
 DB_HOST=192.168.1.11
 DB_PORT=5432
@@ -46,11 +49,14 @@ PORT=3000
 ```
 
 ### 3. 构建与运行
+
 ```bash
 docker compose up -d --build
 ```
+
 容器启动时会自动连接 PostgreSQL 执行幂等建表与管理员初始化，无需手动执行数据库脚本
 
 访问地址：`http://服务器IP:3000`
+
 - 初始管理员账号：`admin`
 - 初始密码：`admin123`（或你设置的 `ADMIN_PASSWORD`）

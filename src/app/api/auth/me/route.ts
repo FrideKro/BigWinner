@@ -26,7 +26,7 @@ export async function GET() {
        WHERE user_id = $1 AND expires_at > NOW()
        ORDER BY last_seen_at DESC
        LIMIT 10`,
-      [user.id, user.deviceToken]
+      [user.id, user.deviceToken],
     );
 
     const res = NextResponse.json({
@@ -66,15 +66,10 @@ export async function PATCH(req: NextRequest) {
     }
 
     const body = await req.json();
-    const nickname =
-      body.nickname !== undefined ? String(body.nickname).trim() : undefined;
+    const nickname = body.nickname !== undefined ? String(body.nickname).trim() : undefined;
     const avatarColor =
-      body.avatarColor !== undefined
-        ? String(body.avatarColor).trim()
-        : undefined;
-    const currentPassword = body.currentPassword
-      ? String(body.currentPassword)
-      : undefined;
+      body.avatarColor !== undefined ? String(body.avatarColor).trim() : undefined;
+    const currentPassword = body.currentPassword ? String(body.currentPassword) : undefined;
     const newPassword = body.newPassword ? String(body.newPassword) : undefined;
 
     if (nickname !== undefined && !nickname) {
@@ -83,36 +78,21 @@ export async function PATCH(req: NextRequest) {
 
     if (newPassword) {
       if (!currentPassword) {
-        return NextResponse.json(
-          { error: '修改密码必须输入当前原密码' },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: '修改密码必须输入当前原密码' }, { status: 400 });
       }
       if (newPassword.length < 4) {
-        return NextResponse.json(
-          { error: '新密码长度至少 4 位' },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: '新密码长度至少 4 位' }, { status: 400 });
       }
       const pwRes = await query<{ password_hash: string }>(
         `SELECT password_hash FROM users WHERE id = $1`,
-        [user.id]
+        [user.id],
       );
-      const match = await bcrypt.compare(
-        currentPassword,
-        pwRes.rows[0]?.password_hash || ''
-      );
+      const match = await bcrypt.compare(currentPassword, pwRes.rows[0]?.password_hash || '');
       if (!match) {
-        return NextResponse.json(
-          { error: '原密码不正确' },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: '原密码不正确' }, { status: 400 });
       }
       const newHash = await bcrypt.hash(newPassword, 10);
-      await query(`UPDATE users SET password_hash = $1 WHERE id = $2`, [
-        newHash,
-        user.id,
-      ]);
+      await query(`UPDATE users SET password_hash = $1 WHERE id = $2`, [newHash, user.id]);
     }
 
     if (nickname !== undefined || avatarColor !== undefined) {
@@ -121,7 +101,7 @@ export async function PATCH(req: NextRequest) {
          SET nickname = COALESCE($1, nickname),
              avatar_color = COALESCE($2, avatar_color)
          WHERE id = $3`,
-        [nickname ?? null, avatarColor ?? null, user.id]
+        [nickname ?? null, avatarColor ?? null, user.id],
       );
     }
 

@@ -10,10 +10,7 @@ export async function POST(req: NextRequest) {
     const password = String(body.password || '');
 
     if (!username || !password) {
-      return NextResponse.json(
-        { error: '请输入账号和密码' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: '请输入账号和密码' }, { status: 400 });
     }
 
     const userRes = await query<{
@@ -30,23 +27,17 @@ export async function POST(req: NextRequest) {
        FROM users
        WHERE LOWER(username) = LOWER($1)
        LIMIT 1`,
-      [username]
+      [username],
     );
 
     if (userRes.rowCount === 0) {
-      return NextResponse.json(
-        { error: '账号或密码错误' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: '账号或密码错误' }, { status: 401 });
     }
 
     const user = userRes.rows[0];
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
-      return NextResponse.json(
-        { error: '账号或密码错误' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: '账号或密码错误' }, { status: 401 });
     }
 
     const userAgent = req.headers.get('user-agent') || '';
@@ -69,9 +60,6 @@ export async function POST(req: NextRequest) {
     return res;
   } catch (error) {
     console.error('Login error:', error);
-    return NextResponse.json(
-      { error: '登录失败，请稍后重试' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: '登录失败，请稍后重试' }, { status: 500 });
   }
 }

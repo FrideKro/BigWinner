@@ -36,15 +36,12 @@ export function clearDeviceCookie(res: NextResponse): void {
   });
 }
 
-export async function createDeviceSession(
-  userId: number,
-  userAgent: string
-): Promise<string> {
+export async function createDeviceSession(userId: number, userAgent: string): Promise<string> {
   const deviceToken = generateToken(32);
   await query(
     `INSERT INTO user_devices (user_id, device_token, user_agent, last_seen_at, expires_at)
      VALUES ($1, $2, $3, NOW(), NOW() + INTERVAL '365 days')`,
-    [userId, deviceToken, (userAgent || '').slice(0, 500)]
+    [userId, deviceToken, (userAgent || '').slice(0, 500)],
   );
   return deviceToken;
 }
@@ -54,9 +51,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   const headerStore = await headers();
 
   const token =
-    cookieStore.get(DEVICE_COOKIE_NAME)?.value ||
-    headerStore.get('x-device-token') ||
-    '';
+    cookieStore.get(DEVICE_COOKIE_NAME)?.value || headerStore.get('x-device-token') || '';
 
   if (!token) {
     return null;
@@ -65,9 +60,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   return verifyAndExtendDeviceToken(token);
 }
 
-export async function verifyAndExtendDeviceToken(
-  deviceToken: string
-): Promise<AuthUser | null> {
+export async function verifyAndExtendDeviceToken(deviceToken: string): Promise<AuthUser | null> {
   if (!deviceToken) return null;
 
   const result = await query<{
@@ -88,7 +81,7 @@ export async function verifyAndExtendDeviceToken(
        AND ud.device_token = $1
        AND ud.expires_at > NOW()
      RETURNING u.id, u.username, u.nickname, u.role, u.avatar_color, u.is_active, u.bind_token, ud.device_token`,
-    [deviceToken]
+    [deviceToken],
   );
 
   if (result.rowCount === 0) {

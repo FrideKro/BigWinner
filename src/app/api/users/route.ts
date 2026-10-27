@@ -35,7 +35,7 @@ export async function GET() {
        FROM users u
        LEFT JOIN user_devices ud ON ud.user_id = u.id
        GROUP BY u.id
-       ORDER BY u.is_active DESC, u.id ASC`
+       ORDER BY u.is_active DESC, u.id ASC`,
     );
 
     return NextResponse.json({
@@ -76,28 +76,18 @@ export async function POST(req: NextRequest) {
     const isActive = body.isActive !== undefined ? Boolean(body.isActive) : true;
 
     if (!username || !nickname) {
-      return NextResponse.json(
-        { error: '登录账号和牌桌昵称不能为空' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: '登录账号和牌桌昵称不能为空' }, { status: 400 });
     }
 
     if (password.length < 4) {
-      return NextResponse.json(
-        { error: '初始密码长度至少为 4 位' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: '初始密码长度至少为 4 位' }, { status: 400 });
     }
 
-    const existing = await query(
-      `SELECT id FROM users WHERE LOWER(username) = LOWER($1)`,
-      [username]
-    );
+    const existing = await query(`SELECT id FROM users WHERE LOWER(username) = LOWER($1)`, [
+      username,
+    ]);
     if ((existing.rowCount ?? 0) > 0) {
-      return NextResponse.json(
-        { error: `登录账号 "${username}" 已存在` },
-        { status: 409 }
-      );
+      return NextResponse.json({ error: `登录账号 "${username}" 已存在` }, { status: 409 });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
@@ -116,7 +106,7 @@ export async function POST(req: NextRequest) {
       `INSERT INTO users (username, nickname, password_hash, role, avatar_color, is_active, bind_token)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id, username, nickname, role, avatar_color, is_active, bind_token, created_at`,
-      [username, nickname, passwordHash, role, avatarColor, isActive, bindToken]
+      [username, nickname, passwordHash, role, avatarColor, isActive, bindToken],
     );
 
     const u = insertRes.rows[0];
@@ -134,7 +124,7 @@ export async function POST(req: NextRequest) {
           createdAt: u.created_at,
         },
       },
-      { status: 201 }
+      { status: 201 },
     );
   } catch (error) {
     console.error('Create user error:', error);

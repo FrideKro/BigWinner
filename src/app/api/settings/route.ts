@@ -10,7 +10,7 @@ export async function GET() {
     }
 
     const res = await query<{ key: string; value: string }>(
-      `SELECT key, value FROM system_settings WHERE key = 'default_room_fee'`
+      `SELECT key, value FROM system_settings WHERE key = 'default_room_fee'`,
     );
     const defaultRoomFee = parseInt(res.rows[0]?.value || '100', 10);
 
@@ -37,17 +37,14 @@ export async function PUT(req: NextRequest) {
     const defaultRoomFee = Number(body.defaultRoomFee);
 
     if (!Number.isInteger(defaultRoomFee) || defaultRoomFee < 0) {
-      return NextResponse.json(
-        { error: '默认每场房费必须为非负整数' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: '默认每场房费必须为非负整数' }, { status: 400 });
     }
 
     await query(
       `INSERT INTO system_settings (key, value, updated_at)
        VALUES ('default_room_fee', $1, NOW())
        ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
-      [String(defaultRoomFee)]
+      [String(defaultRoomFee)],
     );
 
     return NextResponse.json({ defaultRoomFee });

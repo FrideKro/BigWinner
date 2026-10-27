@@ -3,10 +3,7 @@ import bcrypt from 'bcryptjs';
 import { query, generateToken } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 
-export async function PATCH(
-  req: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser) {
@@ -27,10 +24,7 @@ export async function PATCH(
     // 重置专属绑定链接并清除已绑定设备（可选）
     if (body.regenerateBindToken) {
       const newToken = generateToken(24);
-      await query(`UPDATE users SET bind_token = $1 WHERE id = $2`, [
-        newToken,
-        targetId,
-      ]);
+      await query(`UPDATE users SET bind_token = $1 WHERE id = $2`, [newToken, targetId]);
       if (body.revokeDevices) {
         await query(`DELETE FROM user_devices WHERE user_id = $1`, [targetId]);
       }
@@ -40,34 +34,18 @@ export async function PATCH(
     if (body.password) {
       const newPassword = String(body.password);
       if (newPassword.length < 4) {
-        return NextResponse.json(
-          { error: '密码长度至少为 4 位' },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: '密码长度至少为 4 位' }, { status: 400 });
       }
       const passwordHash = await bcrypt.hash(newPassword, 10);
-      await query(`UPDATE users SET password_hash = $1 WHERE id = $2`, [
-        passwordHash,
-        targetId,
-      ]);
+      await query(`UPDATE users SET password_hash = $1 WHERE id = $2`, [passwordHash, targetId]);
     }
 
-    const nickname =
-      body.nickname !== undefined ? String(body.nickname).trim() : undefined;
-    const username =
-      body.username !== undefined ? String(body.username).trim() : undefined;
-    const role =
-      body.role !== undefined
-        ? body.role === 'ADMIN'
-          ? 'ADMIN'
-          : 'PLAYER'
-        : undefined;
+    const nickname = body.nickname !== undefined ? String(body.nickname).trim() : undefined;
+    const username = body.username !== undefined ? String(body.username).trim() : undefined;
+    const role = body.role !== undefined ? (body.role === 'ADMIN' ? 'ADMIN' : 'PLAYER') : undefined;
     const avatarColor =
-      body.avatarColor !== undefined
-        ? String(body.avatarColor).trim()
-        : undefined;
-    const isActive =
-      body.isActive !== undefined ? Boolean(body.isActive) : undefined;
+      body.avatarColor !== undefined ? String(body.avatarColor).trim() : undefined;
+    const isActive = body.isActive !== undefined ? Boolean(body.isActive) : undefined;
 
     if (username !== undefined && !username) {
       return NextResponse.json({ error: '用户名不能为空' }, { status: 400 });
@@ -79,26 +57,23 @@ export async function PATCH(
     if (username !== undefined) {
       const dup = await query(
         `SELECT id FROM users WHERE LOWER(username) = LOWER($1) AND id != $2`,
-        [username, targetId]
+        [username, targetId],
       );
       if ((dup.rowCount ?? 0) > 0) {
-        return NextResponse.json(
-          { error: `登录账号 "${username}" 已被占用` },
-          { status: 409 }
-        );
+        return NextResponse.json({ error: `登录账号 "${username}" 已被占用` }, { status: 409 });
       }
     }
 
     if (role === 'PLAYER') {
       const adminCountRes = await query<{ count: string }>(
         `SELECT COUNT(*)::text AS count FROM users WHERE role = 'ADMIN' AND id != $1`,
-        [targetId]
+        [targetId],
       );
       const remainingAdmins = parseInt(adminCountRes.rows[0]?.count || '0', 10);
       if (remainingAdmins === 0) {
         return NextResponse.json(
           { error: '系统中必须保留至少一位管理员，无法降级' },
-          { status: 400 }
+          { status: 400 },
         );
       }
     }
@@ -128,7 +103,7 @@ export async function PATCH(
         avatarColor ?? null,
         isActive ?? null,
         targetId,
-      ]
+      ],
     );
 
     if (updatedRes.rowCount === 0) {

@@ -81,7 +81,7 @@ export function GameEditorModal({
               nickname: u.nickname,
               avatarColor: u.avatarColor,
               isActive: u.isActive,
-            })
+            }),
           );
           setModalPlayers(list);
         }
@@ -92,7 +92,7 @@ export function GameEditorModal({
   function toLocalInputValue(date: Date): string {
     const pad = (n: number) => String(n).padStart(2, '0');
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
-      date.getDate()
+      date.getDate(),
     )}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
   }
 
@@ -151,6 +151,8 @@ export function GameEditorModal({
       setPlayedAt(toLocalInputValue(new Date()));
       setNote('');
     }
+    // 故意不依赖 players/modalPlayers：仅在打开弹窗或切换编辑场次时重置表单，避免后台拉取玩家覆盖用户输入
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initial, defaultRoomFee]);
 
   // 计算每位玩家的带符号最终金额
@@ -188,7 +190,7 @@ export function GameEditorModal({
       selectedIds.length >= 2 &&
       selectedIds.every((id) => rawAmounts[id] !== null && rawAmounts[id] !== undefined) &&
       roomFee >= 0,
-    [selectedIds, rawAmounts, roomFee]
+    [selectedIds, rawAmounts, roomFee],
   );
 
   function togglePlayer(id: number) {
@@ -279,14 +281,11 @@ export function GameEditorModal({
 
     setSaving(true);
     try {
-      const res = await fetch(
-        isEdit ? `/api/games/${initial!.id}` : '/api/games',
-        {
-          method: isEdit ? 'PUT' : 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        }
-      );
+      const res = await fetch(isEdit ? `/api/games/${initial!.id}` : '/api/games', {
+        method: isEdit ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || '保存失败');
@@ -311,7 +310,7 @@ export function GameEditorModal({
         nickname: `玩家 #${id}`,
         avatarColor: 'slate',
         isActive: false,
-      }
+      },
   );
 
   // 未选玩家候选（新建时优先活跃玩家）
@@ -319,20 +318,14 @@ export function GameEditorModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-lg md:max-w-2xl bg-white rounded-t-3xl md:rounded-3xl max-h-[92vh] md:max-h-[88vh] flex flex-col shadow-2xl animate-slide-up">
         {/* 头部 */}
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-slate-100 shrink-0">
           <h2 className="text-lg font-medium text-slate-900">
             {isEdit ? '编辑场次战绩' : '记一局'}
           </h2>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-full hover:bg-slate-100 text-slate-500"
-          >
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 text-slate-500">
             <X size={20} />
           </button>
         </div>
@@ -341,9 +334,7 @@ export function GameEditorModal({
           {/* 时间与备注 */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-sm font-medium text-slate-500 mb-1 block">
-                打牌时间
-              </label>
+              <label className="text-sm font-medium text-slate-500 mb-1 block">打牌时间</label>
               <input
                 type="datetime-local"
                 value={playedAt}
@@ -352,9 +343,7 @@ export function GameEditorModal({
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-500 mb-1 block">
-                备注
-              </label>
+              <label className="text-sm font-medium text-slate-500 mb-1 block">备注</label>
               <input
                 type="text"
                 value={note}
@@ -433,103 +422,99 @@ export function GameEditorModal({
               各玩家本场输赢（正为赢，负为输）
             </label>
             <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 md:items-start">
-            {selectedPlayers.map((p) => {
-              const currentSign = signs[p.id] ?? 1;
-              const rawVal = rawAmounts[p.id];
-              const isFilled = rawVal !== null && rawVal !== undefined;
-              const signedVal = signedAmounts[p.id];
-              const isBigWinner =
-                isFilled &&
-                maxPositiveScore > 0 &&
-                signedVal === maxPositiveScore;
+              {selectedPlayers.map((p) => {
+                const currentSign = signs[p.id] ?? 1;
+                const rawVal = rawAmounts[p.id];
+                const isFilled = rawVal !== null && rawVal !== undefined;
+                const signedVal = signedAmounts[p.id];
+                const isBigWinner =
+                  isFilled && maxPositiveScore > 0 && signedVal === maxPositiveScore;
 
-              return (
-                <div
-                  key={p.id}
-                  className={`flex items-center gap-2.5 p-2.5 rounded-2xl border ${
-                    isBigWinner
-                      ? 'bg-amber-50/80 border-amber-300 ring-1 ring-amber-200'
-                      : 'bg-slate-50 border-slate-100'
-                  }`}
-                >
-                  <PlayerAvatar
-                    nickname={p.nickname}
-                    color={p.avatarColor}
-                    size="md"
-                    isBigWinner={isBigWinner}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-slate-800 truncate flex items-center gap-1">
-                      <span>{p.nickname}</span>
-                      {isBigWinner && (
-                        <span className="text-xs text-amber-600 font-medium">
-                          👑大赢家
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* 独立正负号切换 */}
-                  <div className="flex rounded-lg overflow-hidden border border-slate-200 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setPlayerSign(p.id, 1)}
-                      className={`px-2 py-1.5 text-xs font-bold transition ${
-                        currentSign === 1
-                          ? 'bg-red-600 text-white'
-                          : 'bg-white text-slate-400 hover:text-red-500'
-                      }`}
-                    >
-                      <Plus size={12} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPlayerSign(p.id, -1)}
-                      className={`px-2 py-1.5 text-xs font-bold transition ${
-                        currentSign === -1
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-white text-slate-400 hover:text-emerald-500'
-                      }`}
-                    >
-                      <Minus size={12} />
-                    </button>
-                  </div>
-
-                  {/* 绝对值金额输入 */}
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={rawVal === null || rawVal === undefined ? '' : String(rawVal)}
-                    onChange={(e) => {
-                      const cleaned = e.target.value.replace(/[^0-9]/g, '');
-                      if (cleaned === '') {
-                        setRawAmount(p.id, null);
-                      } else {
-                        setRawAmount(p.id, parseInt(cleaned, 10));
-                      }
-                    }}
-                    placeholder="金额"
-                    className={`w-20 px-2 py-1.5 rounded-lg border text-right text-base font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400 ${
-                      !isFilled
-                        ? 'border-slate-200 bg-white text-slate-700'
-                        : currentSign === 1
-                          ? 'border-red-200 bg-red-50 text-red-600'
-                          : 'border-emerald-200 bg-emerald-50 text-emerald-600'
+                return (
+                  <div
+                    key={p.id}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-2xl border ${
+                      isBigWinner
+                        ? 'bg-amber-50/80 border-amber-300 ring-1 ring-amber-200'
+                        : 'bg-slate-50 border-slate-100'
                     }`}
-                  />
-
-                  {/* 配平此玩家 */}
-                  <button
-                    type="button"
-                    onClick={() => balancePlayer(p.id)}
-                    title="按其他人+房费自动配平"
-                    className="shrink-0 p-1.5 rounded-lg bg-slate-200 text-slate-600 hover:bg-amber-400 hover:text-white transition"
                   >
-                    <Wand2 size={14} />
-                  </button>
-                </div>
-              );
-            })}
+                    <PlayerAvatar
+                      nickname={p.nickname}
+                      color={p.avatarColor}
+                      size="md"
+                      isBigWinner={isBigWinner}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-slate-800 truncate flex items-center gap-1">
+                        <span>{p.nickname}</span>
+                        {isBigWinner && (
+                          <span className="text-xs text-amber-600 font-medium">👑大赢家</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 独立正负号切换 */}
+                    <div className="flex rounded-lg overflow-hidden border border-slate-200 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setPlayerSign(p.id, 1)}
+                        className={`px-2 py-1.5 text-xs font-bold transition ${
+                          currentSign === 1
+                            ? 'bg-red-600 text-white'
+                            : 'bg-white text-slate-400 hover:text-red-500'
+                        }`}
+                      >
+                        <Plus size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPlayerSign(p.id, -1)}
+                        className={`px-2 py-1.5 text-xs font-bold transition ${
+                          currentSign === -1
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-white text-slate-400 hover:text-emerald-500'
+                        }`}
+                      >
+                        <Minus size={12} />
+                      </button>
+                    </div>
+
+                    {/* 绝对值金额输入 */}
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={rawVal === null || rawVal === undefined ? '' : String(rawVal)}
+                      onChange={(e) => {
+                        const cleaned = e.target.value.replace(/[^0-9]/g, '');
+                        if (cleaned === '') {
+                          setRawAmount(p.id, null);
+                        } else {
+                          setRawAmount(p.id, parseInt(cleaned, 10));
+                        }
+                      }}
+                      placeholder="金额"
+                      className={`w-20 px-2 py-1.5 rounded-lg border text-right text-base font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400 ${
+                        !isFilled
+                          ? 'border-slate-200 bg-white text-slate-700'
+                          : currentSign === 1
+                            ? 'border-red-200 bg-red-50 text-red-600'
+                            : 'border-emerald-200 bg-emerald-50 text-emerald-600'
+                      }`}
+                    />
+
+                    {/* 配平此玩家 */}
+                    <button
+                      type="button"
+                      onClick={() => balancePlayer(p.id)}
+                      title="按其他人+房费自动配平"
+                      className="shrink-0 p-1.5 rounded-lg bg-slate-200 text-slate-600 hover:bg-amber-400 hover:text-white transition"
+                    >
+                      <Wand2 size={14} />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

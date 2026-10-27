@@ -22,11 +22,7 @@ export function PlayerAvatar({
   const label = (nickname || '牌').trim().slice(0, 2);
 
   const sizeClass =
-    size === 'sm'
-      ? 'w-8 h-8 text-xs'
-      : size === 'lg'
-        ? 'w-12 h-12 text-base'
-        : 'w-10 h-10 text-sm';
+    size === 'sm' ? 'w-8 h-8 text-xs' : size === 'lg' ? 'w-12 h-12 text-base' : 'w-10 h-10 text-sm';
 
   return (
     <div className="relative inline-flex items-center justify-center shrink-0">

@@ -53,20 +53,8 @@ export function LogoMark({
           <stop offset="0" stopColor="#e23430" />
           <stop offset="1" stopColor="#c81e1e" />
         </linearGradient>
-        <filter
-          id={shadowId}
-          x="-40%"
-          y="-40%"
-          width="180%"
-          height="180%"
-        >
-          <feDropShadow
-            dx="0"
-            dy="6"
-            stdDeviation="10"
-            floodColor="#0f172a"
-            floodOpacity="0.3"
-          />
+        <filter id={shadowId} x="-40%" y="-40%" width="180%" height="180%">
+          <feDropShadow dx="0" dy="6" stdDeviation="10" floodColor="#0f172a" floodOpacity="0.3" />
         </filter>
         <clipPath id={clipId}>
           <rect x="86" y="32" width="340" height="428" rx="50" />
@@ -79,14 +67,7 @@ export function LogoMark({
       </g>
 
       {/* 牌侧面（厚度 18px，上亮下暗） */}
-      <rect
-        x="86"
-        y="50"
-        width="340"
-        height="428"
-        rx="50"
-        fill={`url(#${sideId})`}
-      />
+      <rect x="86" y="50" width="340" height="428" rx="50" fill={`url(#${sideId})`} />
 
       {/* 牌面 */}
       <rect
@@ -103,13 +84,7 @@ export function LogoMark({
       {/* 牌面光泽（顶部）与底部接触阴影 */}
       <g clipPath={`url(#${clipId})`}>
         <rect x="86" y="32" width="340" height="170" fill={`url(#${sheenId})`} />
-        <rect
-          x="86"
-          y="340"
-          width="340"
-          height="120"
-          fill={`url(#${contactId})`}
-        />
+        <rect x="86" y="340" width="340" height="120" fill={`url(#${contactId})`} />
       </g>
 
       {/* 内倒角亮线 */}

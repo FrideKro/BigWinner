@@ -254,23 +254,15 @@ export default function ProfilePage() {
       {/* 头部身份卡片 */}
       <div className="rounded-3xl bg-white border border-slate-100 p-5 shadow-sm flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <PlayerAvatar
-            nickname={user?.nickname || '我'}
-            color={user?.avatarColor}
-            size="lg"
-          />
+          <PlayerAvatar nickname={user?.nickname || '我'} color={user?.avatarColor} size="lg" />
           <div>
             <div className="flex items-center gap-1.5">
-              <h1 className="text-base font-medium text-slate-900">
-                {user?.nickname}
-              </h1>
+              <h1 className="text-base font-medium text-slate-900">{user?.nickname}</h1>
               <span className="px-2 py-0.5 rounded-full bg-slate-900 text-amber-300 text-xs font-medium">
                 {user?.role === 'ADMIN' ? '管理员' : '玩家'}
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              账号：{user?.username}
-            </p>
+            <p className="text-xs text-slate-400 mt-0.5">账号：{user?.username}</p>
           </div>
         </div>
 
@@ -285,236 +277,228 @@ export default function ProfilePage() {
 
       {/* 双列区：窄屏纵向堆叠，lg 起资料修改与管理台并排 */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
-      {/* 个人资料修改 */}
-      <div className="rounded-3xl bg-white border border-slate-100 p-5 shadow-sm space-y-4">
-        <h2 className="text-sm font-medium text-slate-800 flex items-center gap-1.5">
-          <User size={15} className="text-amber-500" />
-          <span>修改个人设置</span>
-        </h2>
+        {/* 个人资料修改 */}
+        <div className="rounded-3xl bg-white border border-slate-100 p-5 shadow-sm space-y-4">
+          <h2 className="text-sm font-medium text-slate-800 flex items-center gap-1.5">
+            <User size={15} className="text-amber-500" />
+            <span>修改个人设置</span>
+          </h2>
 
-        <form onSubmit={handleSaveProfile} className="space-y-3.5">
-          <div>
-            <label className="text-sm text-slate-500 mb-1 block">牌桌昵称</label>
-            <input
-              type="text"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
-            />
-          </div>
-
-          <div>
-            <label className="text-sm text-slate-500 mb-1.5 block">头像主题色</label>
-            <div className="flex flex-wrap gap-2">
-              {AVATAR_THEMES.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setAvatarColor(t.id)}
-                  className={`w-7 h-7 rounded-full ${t.bg} flex items-center justify-center transition ${
-                    avatarColor === t.id
-                      ? 'ring-2 ring-slate-900 ring-offset-2 scale-110'
-                      : 'opacity-70'
-                  }`}
-                >
-                  {avatarColor === t.id && (
-                    <Check size={14} className="text-white drop-shadow" />
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-slate-100 space-y-2">
-            <span className="text-sm text-slate-400 block">修改登录密码（不改请留空）</span>
-            <input
-              type="password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              placeholder="当前密码"
-              className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
-            />
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="新密码（至少 4 位）"
-              className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
-            />
-          </div>
-
-          {profileErr && (
-            <div className="text-sm text-rose-600 bg-rose-50 px-3 py-2 rounded-xl">
-              {profileErr}
-            </div>
-          )}
-          {profileMsg && (
-            <div className="text-sm text-emerald-600 bg-emerald-50 px-3 py-2 rounded-xl">
-              {profileMsg}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={profileSaving}
-            className="w-full py-2.5 rounded-xl bg-slate-900 text-white text-sm font-medium active:scale-[0.99] transition disabled:opacity-50"
-          >
-            {profileSaving ? '保存中…' : '保存设置'}
-          </button>
-        </form>
-      </div>
-
-      {/* 管理员专区 */}
-      {user?.role === 'ADMIN' && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-1.5 px-1 pt-2">
-            <Shield size={16} className="text-amber-500" />
-            <h2 className="text-sm font-medium text-slate-800 tracking-wider">
-              管理员控制台
-            </h2>
-          </div>
-
-          {/* 默认房费配置 */}
-          <div className="rounded-3xl bg-white border border-slate-100 p-5 shadow-sm space-y-3">
-            <h3 className="text-sm font-medium text-slate-800 flex items-center gap-1.5">
-              <Settings size={15} className="text-amber-500" />
-              <span>默认每场房费设置</span>
-            </h3>
-            <div className="flex items-center gap-2">
-              <div className="flex-1 relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
-                  +
-                </span>
-                <input
-                  type="number"
-                  value={defaultRoomFee}
-                  onChange={(e) => setDefaultRoomFee(parseInt(e.target.value || '0', 10))}
-                  className="w-full pl-7 pr-3 py-2 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400 font-semibold"
-                />
-              </div>
-              <button
-                onClick={handleSaveFee}
-                disabled={feeSaving}
-                className="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium shrink-0"
-              >
-                {feeSaving ? '保存中' : '更新'}
-              </button>
-            </div>
-            {feeMsg && (
-              <span className="text-sm text-emerald-600 block">{feeMsg}</span>
-            )}
-          </div>
-
-          {/* 玩家账号管理 */}
-          <div className="rounded-3xl bg-white border border-slate-100 p-5 shadow-sm space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-slate-800 flex items-center gap-1.5">
-                <Users size={15} className="text-amber-500" />
-                <span>玩家账号与微信免密链接 ({managedUsers.length})</span>
-              </h3>
-              <button
-                onClick={() => setShowAddUser(true)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-slate-900 text-white text-sm font-medium shadow-sm"
-              >
-                <Plus size={14} />
-                <span>新增玩家</span>
-              </button>
+          <form onSubmit={handleSaveProfile} className="space-y-3.5">
+            <div>
+              <label className="text-sm text-slate-500 mb-1 block">牌桌昵称</label>
+              <input
+                type="text"
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
             </div>
 
-            <div className="space-y-2.5">
-              {managedUsers.map((u) => {
-                const isCopied = copiedTokenId === u.id;
-                return (
-                  <div
-                    key={u.id}
-                    className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-2"
+            <div>
+              <label className="text-sm text-slate-500 mb-1.5 block">头像主题色</label>
+              <div className="flex flex-wrap gap-2">
+                {AVATAR_THEMES.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setAvatarColor(t.id)}
+                    className={`w-7 h-7 rounded-full ${t.bg} flex items-center justify-center transition ${
+                      avatarColor === t.id
+                        ? 'ring-2 ring-slate-900 ring-offset-2 scale-110'
+                        : 'opacity-70'
+                    }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <PlayerAvatar
-                          nickname={u.nickname}
-                          color={u.avatarColor}
-                          size="sm"
-                        />
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-medium text-slate-800">
-                              {u.nickname}
-                            </span>
-                            <span className="text-xs text-slate-400 font-mono">
-                              ({u.username})
-                            </span>
-                            {u.role === 'ADMIN' && (
-                              <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-700 text-xs font-medium">
-                                官
+                    {avatarColor === t.id && <Check size={14} className="text-white drop-shadow" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 space-y-2">
+              <span className="text-sm text-slate-400 block">修改登录密码（不改请留空）</span>
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                placeholder="当前密码"
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="新密码（至少 4 位）"
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
+            </div>
+
+            {profileErr && (
+              <div className="text-sm text-rose-600 bg-rose-50 px-3 py-2 rounded-xl">
+                {profileErr}
+              </div>
+            )}
+            {profileMsg && (
+              <div className="text-sm text-emerald-600 bg-emerald-50 px-3 py-2 rounded-xl">
+                {profileMsg}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={profileSaving}
+              className="w-full py-2.5 rounded-xl bg-slate-900 text-white text-sm font-medium active:scale-[0.99] transition disabled:opacity-50"
+            >
+              {profileSaving ? '保存中…' : '保存设置'}
+            </button>
+          </form>
+        </div>
+
+        {/* 管理员专区 */}
+        {user?.role === 'ADMIN' && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-1.5 px-1 pt-2">
+              <Shield size={16} className="text-amber-500" />
+              <h2 className="text-sm font-medium text-slate-800 tracking-wider">管理员控制台</h2>
+            </div>
+
+            {/* 默认房费配置 */}
+            <div className="rounded-3xl bg-white border border-slate-100 p-5 shadow-sm space-y-3">
+              <h3 className="text-sm font-medium text-slate-800 flex items-center gap-1.5">
+                <Settings size={15} className="text-amber-500" />
+                <span>默认每场房费设置</span>
+              </h3>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
+                    +
+                  </span>
+                  <input
+                    type="number"
+                    value={defaultRoomFee}
+                    onChange={(e) => setDefaultRoomFee(parseInt(e.target.value || '0', 10))}
+                    className="w-full pl-7 pr-3 py-2 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400 font-semibold"
+                  />
+                </div>
+                <button
+                  onClick={handleSaveFee}
+                  disabled={feeSaving}
+                  className="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium shrink-0"
+                >
+                  {feeSaving ? '保存中' : '更新'}
+                </button>
+              </div>
+              {feeMsg && <span className="text-sm text-emerald-600 block">{feeMsg}</span>}
+            </div>
+
+            {/* 玩家账号管理 */}
+            <div className="rounded-3xl bg-white border border-slate-100 p-5 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-slate-800 flex items-center gap-1.5">
+                  <Users size={15} className="text-amber-500" />
+                  <span>玩家账号与微信免密链接 ({managedUsers.length})</span>
+                </h3>
+                <button
+                  onClick={() => setShowAddUser(true)}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-slate-900 text-white text-sm font-medium shadow-sm"
+                >
+                  <Plus size={14} />
+                  <span>新增玩家</span>
+                </button>
+              </div>
+
+              <div className="space-y-2.5">
+                {managedUsers.map((u) => {
+                  const isCopied = copiedTokenId === u.id;
+                  return (
+                    <div
+                      key={u.id}
+                      className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <PlayerAvatar nickname={u.nickname} color={u.avatarColor} size="sm" />
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm font-medium text-slate-800">
+                                {u.nickname}
                               </span>
-                            )}
-                            {!u.isActive && (
-                              <span className="px-1.5 py-0.2 rounded bg-slate-200 text-slate-500 text-xs">
-                                已隐藏
+                              <span className="text-xs text-slate-400 font-mono">
+                                ({u.username})
                               </span>
+                              {u.role === 'ADMIN' && (
+                                <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-700 text-xs font-medium">
+                                  官
+                                </span>
+                              )}
+                              {!u.isActive && (
+                                <span className="px-1.5 py-0.2 rounded bg-slate-200 text-slate-500 text-xs">
+                                  已隐藏
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-slate-400 mt-0.5">
+                              已绑微信/设备：{u.deviceCount ?? 0} 台
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          {/* 复制微信专属免登链接 */}
+                          <button
+                            onClick={() => handleCopyBindUrl(u)}
+                            title="复制微信专属免登激活链接"
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-400 text-slate-950 font-medium text-xs shadow-sm active:scale-95 transition"
+                          >
+                            {isCopied ? (
+                              <>
+                                <Check size={12} />
+                                <span>已复制</span>
+                              </>
+                            ) : (
+                              <>
+                                <Link size={12} />
+                                <span>微信免登链</span>
+                              </>
                             )}
-                          </div>
-                          <div className="text-xs text-slate-400 mt-0.5">
-                            已绑微信/设备：{u.deviceCount ?? 0} 台
-                          </div>
+                          </button>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1">
-                        {/* 复制微信专属免登链接 */}
+                      {/* 操作小工具行 */}
+                      <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-200/60 text-xs text-slate-500">
                         <button
-                          onClick={() => handleCopyBindUrl(u)}
-                          title="复制微信专属免登激活链接"
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-400 text-slate-950 font-medium text-xs shadow-sm active:scale-95 transition"
+                          onClick={() => handleResetPassword(u)}
+                          className="hover:text-slate-800 flex items-center gap-0.5"
                         >
-                          {isCopied ? (
-                            <>
-                              <Check size={12} />
-                              <span>已复制</span>
-                            </>
-                          ) : (
-                            <>
-                              <Link size={12} />
-                              <span>微信免登链</span>
-                            </>
-                          )}
+                          <KeyRound size={11} />
+                          重置密码
+                        </button>
+                        <span>·</span>
+                        <button
+                          onClick={() => handleRegenerateToken(u)}
+                          className="hover:text-slate-800 flex items-center gap-0.5"
+                        >
+                          <RefreshCw size={11} />
+                          换新链接
+                        </button>
+                        <span>·</span>
+                        <button
+                          onClick={() => handleToggleActive(u)}
+                          className={
+                            u.isActive ? 'hover:text-rose-600' : 'text-emerald-600 font-medium'
+                          }
+                        >
+                          {u.isActive ? '从选人隐藏' : '恢复选人'}
                         </button>
                       </div>
                     </div>
-
-                    {/* 操作小工具行 */}
-                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-200/60 text-xs text-slate-500">
-                      <button
-                        onClick={() => handleResetPassword(u)}
-                        className="hover:text-slate-800 flex items-center gap-0.5"
-                      >
-                        <KeyRound size={11} />
-                        重置密码
-                      </button>
-                      <span>·</span>
-                      <button
-                        onClick={() => handleRegenerateToken(u)}
-                        className="hover:text-slate-800 flex items-center gap-0.5"
-                      >
-                        <RefreshCw size={11} />
-                        换新链接
-                      </button>
-                      <span>·</span>
-                      <button
-                        onClick={() => handleToggleActive(u)}
-                        className={u.isActive ? 'hover:text-rose-600' : 'text-emerald-600 font-medium'}
-                      >
-                        {u.isActive ? '从选人隐藏' : '恢复选人'}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
       </div>
 
       {/* 新增玩家弹窗 */}
@@ -528,9 +512,7 @@ export default function ProfilePage() {
             <h3 className="text-base font-medium text-slate-900">新增牌友账号</h3>
             <form onSubmit={handleCreateUser} className="space-y-3">
               <div>
-                <label className="text-sm text-slate-500 mb-1 block">
-                  登录用户名
-                </label>
+                <label className="text-sm text-slate-500 mb-1 block">登录用户名</label>
                 <input
                   type="text"
                   value={newUsername}
@@ -541,9 +523,7 @@ export default function ProfilePage() {
               </div>
 
               <div>
-                <label className="text-sm text-slate-500 mb-1 block">
-                  牌桌显示昵称
-                </label>
+                <label className="text-sm text-slate-500 mb-1 block">牌桌显示昵称</label>
                 <input
                   type="text"
                   value={newNickname}
@@ -554,9 +534,7 @@ export default function ProfilePage() {
               </div>
 
               <div>
-                <label className="text-sm text-slate-500 mb-1 block">
-                  初始密码（默认 123456）
-                </label>
+                <label className="text-sm text-slate-500 mb-1 block">初始密码（默认 123456）</label>
                 <input
                   type="text"
                   value={newInitPassword}
@@ -566,9 +544,7 @@ export default function ProfilePage() {
               </div>
 
               <div>
-                <label className="text-sm text-slate-500 mb-1.5 block">
-                  头像配色
-                </label>
+                <label className="text-sm text-slate-500 mb-1.5 block">头像配色</label>
                 <div className="flex gap-2">
                   {AVATAR_THEMES.map((t) => (
                     <button

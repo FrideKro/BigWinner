@@ -3,10 +3,7 @@ import { query, withTransaction } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 import { validateAndComputeRecords } from '@/lib/gameLogic';
 
-export async function PUT(
-  req: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
+export async function PUT(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const user = await getCurrentUser();
     if (!user) {
@@ -42,22 +39,20 @@ export async function PUT(
              note = $3,
              updated_at = NOW()
          WHERE id = $4`,
-        [playedAt.toISOString(), validation.roomFee, note, gameId]
+        [playedAt.toISOString(), validation.roomFee, note, gameId],
       );
 
       if (updateRes.rowCount === 0) {
         throw new Error('NOT_FOUND');
       }
 
-      await client.query(`DELETE FROM game_records WHERE game_id = $1`, [
-        gameId,
-      ]);
+      await client.query(`DELETE FROM game_records WHERE game_id = $1`, [gameId]);
 
       for (const rec of validation.records) {
         await client.query(
           `INSERT INTO game_records (game_id, user_id, amount, is_big_winner)
            VALUES ($1, $2, $3, $4)`,
-          [gameId, rec.userId, rec.amount, rec.isBigWinner]
+          [gameId, rec.userId, rec.amount, rec.isBigWinner],
         );
       }
     });
@@ -72,10 +67,7 @@ export async function PUT(
   }
 }
 
-export async function DELETE(
-  _req: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const user = await getCurrentUser();
     if (!user) {
