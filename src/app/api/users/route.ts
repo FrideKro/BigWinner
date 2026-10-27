@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     const isActive = body.isActive !== undefined ? Boolean(body.isActive) : true;
 
     if (!username || !nickname) {
-      return NextResponse.json({ error: '登录账号和牌桌昵称不能为空' }, { status: 400 });
+      return NextResponse.json({ error: '登录账号和显示昵称不能为空' }, { status: 400 });
     }
 
     if (password.length < 4) {

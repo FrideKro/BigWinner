@@ -1,6 +1,6 @@
 # AGENTS.md
 
-大赢家（BigWinner）：熟人麻将输赢战绩与房费记账系统。移动端优先（主要在微信内置浏览器使用），全中文 UI，红=赢、绿=输
+大赢家（BigWinner）：好友娱乐战绩与房费记账系统。移动端优先（主要在微信内置浏览器使用），全中文 UI，红=赢、绿=输
 
 ## 技术栈
 
@@ -27,6 +27,8 @@ node scripts/test-db-connection.mjs  # 验证 .env 数据库连通性
 **改动后必须跑 `pnpm lint` + `pnpm typecheck` + `pnpm test`，涉及服务端逻辑再跑 `pnpm build`**；格式统一交给 Prettier（跑 `pnpm format`），不要手写格式化提交
 
 **开发服务器固定使用 3000 端口**：启动 `pnpm dev` 前若 3000 被占用（通常是残留的旧 dev 实例），先杀掉旧进程再启动，不得改用其他端口。清理命令：`kill $(ss -tlnp | grep :3000 | grep -oP 'pid=\K\d+') 2>/dev/null`（本机 WSL2 下 `lsof -i` 与 `fuser` 不可用，勿用）。另外后台运行时用 `tail -f /dev/null | pnpm dev` 保持 stdin 打开，否则 Next.js dev 检测到 stdin 关闭会自动退出
+
+**跑 `pnpm build` 前先停掉 `pnpm dev`**：两者共用 `.next` 目录，dev 运行期间执行生产构建会覆写 dev 正在引用的 webpack chunk，导致页面运行时报 `Cannot find module './xx.js'`。若已发生，杀进程后 `rm -rf .next` 再重启 dev 即可恢复
 
 ## 工作原则
 

@@ -78,7 +78,7 @@ describe('buildGameShareText', () => {
   it('包含标题、时间、备注与大赢家行', () => {
     const text = buildGameShareText(game);
 
-    expect(text).toContain('🀄 【大赢家·麻将战报】');
+    expect(text).toContain('🏆 【大赢家·本场战报】');
     expect(text).toContain('📅 时间：2026/01/02 00:00 (茶楼)');
     expect(text).toContain('👑 本场大赢家：张三');
   });
@@ -114,19 +114,29 @@ describe('buildLeaderboardShareText', () => {
     { rank: 3, nickname: '王五', netAmount: 0, gamesPlayed: 0, bigWinnerCount: 0 },
   ];
 
-  it('包含标题、场次与累计房费', () => {
-    const text = buildLeaderboardShareText('10月', 5, 300, leaderboard);
+  it('包含标题与总场次，不突出房费', () => {
+    const text = buildLeaderboardShareText('10月', 5, leaderboard);
 
     expect(text).toContain('🏆 【大赢家·10月风云榜】');
     expect(text).toContain('共计 5 场');
-    expect(text).toContain('累计房费 300');
+    expect(text).not.toContain('房费');
   });
 
-  it('前三名用奖牌，附场次与 👑 次数', () => {
-    const text = buildLeaderboardShareText('10月', 5, 300, leaderboard);
+  it('榜首盈利者标注头号赢家，前三名用奖牌，附场次与 👑 次数', () => {
+    const text = buildLeaderboardShareText('10月', 5, leaderboard);
 
-    expect(text).toContain('🥇 张三：+500 [3场] (👑x2)');
+    expect(text).toContain('🥇 张三：+500 [3场] (👑x2) 👑头号赢家');
     expect(text).toContain('🥈 李四：-100 [2场]');
+  });
+
+  it('榜首亏损时不标注头号赢家', () => {
+    const losers = [
+      { rank: 1, nickname: '李四', netAmount: -100, gamesPlayed: 2, bigWinnerCount: 0 },
+    ];
+    const text = buildLeaderboardShareText('10月', 2, losers);
+
+    expect(text).not.toContain('头号赢家');
+    expect(text).toContain('🥇 李四：-100 [2场]');
   });
 
   it('过滤 0 场玩家，第四名起用数字序号', () => {
@@ -135,7 +145,7 @@ describe('buildLeaderboardShareText', () => {
       { rank: 4, nickname: '赵六', netAmount: -400, gamesPlayed: 4, bigWinnerCount: 0 },
       { rank: 5, nickname: '陈八', netAmount: 0, gamesPlayed: 1, bigWinnerCount: 0 },
     ];
-    const text = buildLeaderboardShareText('10月', 9, 300, withMore);
+    const text = buildLeaderboardShareText('10月', 9, withMore);
 
     expect(text).not.toContain('王五');
     expect(text).toContain('🥉 赵六：-400 [4场]');

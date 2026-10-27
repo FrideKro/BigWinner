@@ -59,7 +59,7 @@ export default function LoginPage() {
           <h1 className="text-2xl font-medium tracking-wider bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 bg-clip-text text-transparent">
             大赢家
           </h1>
-          <p className="text-sm text-slate-400 mt-1">熟人麻将 · 输赢账本 · 房费统计</p>
+          <p className="text-sm text-slate-400 mt-1">好友娱乐战绩 · 输赢账本 · 房费统计</p>
         </div>
       </div>
 

@@ -1,7 +1,7 @@
 {
-  "name": "大赢家 - 麻将战绩账本",
+  "name": "大赢家 - 娱乐战绩账本",
   "short_name": "大赢家",
-  "description": "熟人麻将输赢与房费统计系统",
+  "description": "好友娱乐战绩与房费记账",
   "start_url": "/",
   "display": "standalone",
   "icons": [

@@ -2,7 +2,7 @@
   "name": "big-winner",
   "version": "1.0.0",
   "private": true,
-  "description": "大赢家 - 熟人麻将战绩与房费记账系统",
+  "description": "大赢家 - 好友娱乐战绩与房费记账",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

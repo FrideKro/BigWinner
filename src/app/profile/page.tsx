@@ -243,7 +243,7 @@ export default function ProfilePage() {
     setEditErr('');
 
     if (!editUsername.trim() || !editNickname.trim()) {
-      setEditErr('登录用户名和牌桌昵称不能为空');
+      setEditErr('登录用户名和显示昵称不能为空');
       return;
     }
 
@@ -354,7 +354,7 @@ export default function ProfilePage() {
 
           <form onSubmit={handleSaveProfile} className="space-y-3.5">
             <div>
-              <label className="text-sm text-slate-500 mb-1 block">牌桌昵称</label>
+              <label className="text-sm text-slate-500 mb-1 block">显示昵称</label>
               <input
                 type="text"
                 value={nickname}
@@ -607,7 +607,7 @@ export default function ProfilePage() {
               </div>
 
               <div>
-                <label className="text-sm text-slate-500 mb-1 block">牌桌显示昵称</label>
+                <label className="text-sm text-slate-500 mb-1 block">显示昵称</label>
                 <input
                   type="text"
                   value={editNickname}
@@ -731,7 +731,7 @@ export default function ProfilePage() {
             onClick={() => setShowAddUser(false)}
           />
           <div className="relative w-full max-w-sm md:max-w-md bg-white rounded-3xl p-5 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
-            <h3 className="text-base font-medium text-slate-900">新增牌友账号</h3>
+            <h3 className="text-base font-medium text-slate-900">新增玩家账号</h3>
             <form onSubmit={handleCreateUser} className="space-y-3">
               <div>
                 <label className="text-sm text-slate-500 mb-1 block">登录用户名</label>
@@ -745,7 +745,7 @@ export default function ProfilePage() {
               </div>
 
               <div>
-                <label className="text-sm text-slate-500 mb-1 block">牌桌显示昵称</label>
+                <label className="text-sm text-slate-500 mb-1 block">显示昵称</label>
                 <input
                   type="text"
                   value={newNickname}

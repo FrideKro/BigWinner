@@ -3,8 +3,8 @@ import './globals.css';
 import { AppShell } from '@/components/AppShell';
 
 export const metadata: Metadata = {
-  title: '大赢家 - 熟人麻将战绩与房费记账',
-  description: '熟人麻将输赢与房费统计系统，红赢绿输，智能配平与战报分享',
+  title: '大赢家 - 好友娱乐战绩与房费记账',
+  description: '好友娱乐战绩与房费记账系统，红赢绿输，智能配平与战报分享',
   manifest: '/manifest.json',
 };
 

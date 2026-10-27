@@ -64,7 +64,7 @@ describe('GameEditorModal', () => {
     renderModal();
 
     // 等待弹窗打开时的玩家列表兜底刷新完成
-    await waitFor(() => expect(screen.getByText('上桌玩家（已选 4 人）')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('本场玩家（已选 4 人）')).toBeInTheDocument());
 
     const amountInputs = screen.getAllByPlaceholderText('金额');
     expect(amountInputs).toHaveLength(4);
@@ -87,7 +87,7 @@ describe('GameEditorModal', () => {
     stubFetch({ ok: true, body: {} });
     renderModal();
 
-    await waitFor(() => expect(screen.getByText('上桌玩家（已选 4 人）')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('本场玩家（已选 4 人）')).toBeInTheDocument());
     expect(screen.queryByText('钱七')).not.toBeInTheDocument();
   });
 
@@ -106,7 +106,7 @@ describe('GameEditorModal', () => {
       },
     });
 
-    await waitFor(() => expect(screen.getByText('上桌玩家（已选 2 人）')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('本场玩家（已选 2 人）')).toBeInTheDocument());
     expect(screen.getAllByText('钱七').length).toBeGreaterThan(0);
   });
 

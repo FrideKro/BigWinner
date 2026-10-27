@@ -19,7 +19,7 @@ export function PlayerAvatar({
   rank,
 }: PlayerAvatarProps) {
   const theme = getAvatarTheme(color);
-  const label = (nickname || '牌').trim().slice(0, 2);
+  const label = (nickname || '友').trim().slice(0, 2);
 
   const sizeClass =
     size === 'sm' ? 'w-8 h-8 text-xs' : size === 'lg' ? 'w-12 h-12 text-base' : 'w-10 h-10 text-sm';

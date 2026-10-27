@@ -276,7 +276,7 @@ export default function GamesPage() {
                   </div>
                 </div>
 
-                {/* 上桌玩家网格 */}
+                {/* 本场玩家网格 */}
                 <div className="grid grid-cols-2 gap-2">
                   {game.records.map((r) => {
                     const isMe = user?.id === r.userId;

@@ -246,12 +246,12 @@ export function GameEditorModal({
   async function handleSave() {
     setError('');
     if (!playedAt) {
-      setError('请选择打牌时间');
+      setError('请选择开局时间');
       return;
     }
     const d = new Date(playedAt);
     if (Number.isNaN(d.getTime())) {
-      setError('打牌时间格式无效');
+      setError('开局时间格式无效');
       return;
     }
     if (selectedIds.length < 2) {
@@ -299,7 +299,7 @@ export function GameEditorModal({
 
   if (!open) return null;
 
-  // 上桌玩家映射，若玩家已被隐藏但本场包含他，也能正常显示
+  // 本场玩家映射，若玩家已被隐藏但本场包含他，也能正常显示
   const playerMap = new Map(modalPlayers.map((p) => [p.id, p]));
   const selectedPlayers = selectedIds.map(
     (id) =>
@@ -334,7 +334,7 @@ export function GameEditorModal({
           {/* 时间与备注 */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-sm font-medium text-slate-500 mb-1 block">打牌时间</label>
+              <label className="text-sm font-medium text-slate-500 mb-1 block">开局时间</label>
               <input
                 type="datetime-local"
                 value={playedAt}
@@ -358,7 +358,7 @@ export function GameEditorModal({
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-medium text-slate-500">
-                上桌玩家（已选 {selectedIds.length} 人）
+                本场玩家（已选 {selectedIds.length} 人）
               </label>
               <span className="text-xs text-slate-400">至少 2 人，可随时增减</span>
             </div>

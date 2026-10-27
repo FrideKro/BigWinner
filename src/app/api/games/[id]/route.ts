@@ -27,7 +27,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
 
     const playedAt = body.playedAt ? new Date(body.playedAt) : new Date();
     if (Number.isNaN(playedAt.getTime())) {
-      return NextResponse.json({ error: '打牌时间格式无效' }, { status: 400 });
+      return NextResponse.json({ error: '开局时间格式无效' }, { status: 400 });
     }
     const note = String(body.note || '').trim();
 

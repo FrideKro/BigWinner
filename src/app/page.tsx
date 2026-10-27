@@ -88,12 +88,7 @@ export default function HomePage() {
 
   async function handleShareLeaderboard() {
     if (!summary) return;
-    const text = buildLeaderboardShareText(
-      periodLabel,
-      summary.totalGames,
-      summary.totalRoomFee,
-      leaderboard,
-    );
+    const text = buildLeaderboardShareText(periodLabel, summary.totalGames, leaderboard);
     const ok = await copyTextToClipboard(text);
     if (ok) {
       setCopied(true);
@@ -111,7 +106,7 @@ export default function HomePage() {
           <LogoMark size={30} />
           <div>
             <h1 className="text-lg font-medium text-slate-900 tracking-tight">大赢家 · 战绩榜</h1>
-            <p className="text-xs text-slate-500">熟人麻将 · 房费守护</p>
+            <p className="text-xs text-slate-500">好友娱乐战绩 · 房费记账</p>
           </div>
         </div>
 
@@ -172,57 +167,68 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* 黑金核心概览卡片 */}
+      {/* 黑金核心概览卡片：头号赢家为主视觉 */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950 p-5 md:p-6 text-white shadow-xl border border-amber-900/40">
         <div className="absolute top-0 right-0 translate-x-4 -translate-y-4 w-32 h-32 rounded-full bg-amber-500/10 blur-2xl pointer-events-none" />
 
-        <div className="relative flex items-center justify-between pb-4 border-b border-white/10">
-          <div>
-            <span className="text-xs uppercase tracking-wider text-amber-300/80 font-medium">
-              🤖 {periodLabel}房费总池
-            </span>
-            <div className="text-3xl font-black tracking-tight text-amber-400 mt-0.5">
-              +{summary?.totalRoomFee ?? 0}
-            </div>
-          </div>
-          <div className="text-right">
-            <span className="text-xs text-slate-400">总场次</span>
-            <div className="text-2xl font-bold text-white mt-0.5">
-              {summary?.totalGames ?? 0}{' '}
-              <span className="text-xs font-normal text-slate-400">局</span>
-            </div>
-          </div>
-        </div>
-
-        {/* 头号大赢家 */}
-        {topWinner && (
+        {topWinner ? (
           <div
             onClick={() => router.push(`/stats?userId=${topWinner.userId}`)}
-            className="mt-3.5 flex items-center justify-between pt-1 cursor-pointer"
+            className="relative flex items-center gap-3 cursor-pointer active:opacity-90 transition"
           >
-            <div className="flex items-center gap-2.5">
-              <PlayerAvatar
-                nickname={topWinner.nickname}
-                color={topWinner.avatarColor}
-                size="sm"
-                isBigWinner
-              />
-              <div className="text-sm">
-                <div className="flex items-center gap-1 font-medium text-amber-200">
-                  <Sparkles size={12} className="text-amber-400" />
-                  <span>头号赢家：{topWinner.nickname}</span>
-                </div>
-                <div className="text-xs text-slate-400">
-                  胜率 {topWinner.winRate}% ｜ 👑大赢家 {topWinner.bigWinnerCount} 次
-                </div>
+            <PlayerAvatar
+              nickname={topWinner.nickname}
+              color={topWinner.avatarColor}
+              size="lg"
+              isBigWinner
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1 text-xs font-medium text-amber-300/90">
+                <Sparkles size={12} className="text-amber-400" />
+                <span>{periodLabel}头号赢家</span>
+              </div>
+              <div className="text-xl font-medium text-amber-100 mt-0.5 truncate">
+                {topWinner.nickname}
+              </div>
+              <div className="text-xs text-slate-400 mt-1 tabular-nums">
+                胜率 {topWinner.winRate}% ｜ 👑大赢家 {topWinner.bigWinnerCount} 次
               </div>
             </div>
-            <div className="flex items-center gap-1 text-base font-black text-rose-400">
-              <span>{formatSignedAmount(topWinner.netAmount)}</span>
-              <ChevronRight size={14} className="text-slate-500" />
+            <div className="shrink-0 flex items-center gap-0.5">
+              <span className="text-2xl md:text-3xl font-black tabular-nums text-rose-400">
+                {formatSignedAmount(topWinner.netAmount)}
+              </span>
+              <ChevronRight size={16} className="text-slate-500" />
+            </div>
+          </div>
+        ) : (
+          <div className="relative flex items-center gap-3 py-1">
+            <div className="w-12 h-12 shrink-0 rounded-full bg-white/5 border border-dashed border-white/20 flex items-center justify-center text-xl">
+              👑
+            </div>
+            <div className="min-w-0">
+              <div className="text-base text-slate-300">{periodLabel}头号赢家虚位以待</div>
+              <div className="text-xs text-slate-500 mt-0.5">赢分最高者将荣登此位</div>
             </div>
           </div>
         )}
+
+        {/* 辅助数据行：场次数与房费弱化为脚注 */}
+        <div className="relative flex items-center justify-between mt-4 pt-3 border-t border-white/10 text-xs text-slate-400">
+          <span>
+            {periodLabel}共{' '}
+            <span className="text-sm font-bold text-white tabular-nums">
+              {summary?.totalGames ?? 0}
+            </span>{' '}
+            场
+          </span>
+          <span>
+            🤖 房费池{' '}
+            <span className="text-sm font-bold text-amber-400/90 tabular-nums">
+              +{summary?.totalRoomFee ?? 0}
+            </span>
+          </span>
+        </div>
       </div>
 
       {/* 排行榜列表 */}

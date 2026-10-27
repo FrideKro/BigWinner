@@ -406,7 +406,7 @@ function StatsContent() {
               <span>房费“固定赢家”铁律</span>
             </div>
             <p className="text-sm text-amber-800/80 leading-relaxed">
-              每场房费由牌桌机器人自动抽取，纳入公共蓄水池（人人有份）。
+              每场房费由房费机器人自动抽取，纳入公共蓄水池（人人有份）。
               每场严格满足：各玩家最终输赢总和 ＋ 本场房费 ＝ 0。
             </p>
           </div>
@@ -430,7 +430,7 @@ function StatsContent() {
                     <div>
                       <div className="text-xs font-medium text-slate-800">{m.month}</div>
                       <div className="text-xs text-slate-400">
-                        打牌 {m.gamesCount} 场 ｜ 场均房费 {m.avgRoomFee}
+                        共 {m.gamesCount} 场 ｜ 场均房费 {m.avgRoomFee}
                       </div>
                     </div>
                     <div className="text-base font-black text-amber-600">+{m.totalRoomFee}</div>

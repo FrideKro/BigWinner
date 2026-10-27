@@ -161,7 +161,7 @@ export function buildGameShareText(
     .join('、');
 
   const lines: string[] = [
-    `🀄 【大赢家·麻将战报】`,
+    `🏆 【大赢家·本场战报】`,
     `📅 时间：${dateStr}${game.note ? ` (${game.note})` : ''}`,
   ];
 
@@ -191,7 +191,6 @@ export function buildGameShareText(
 export function buildLeaderboardShareText(
   periodLabel: string,
   totalGames: number,
-  totalRoomFee: number,
   leaderboard: Array<{
     rank: number;
     nickname: string;
@@ -203,15 +202,16 @@ export function buildLeaderboardShareText(
   const activeRows = leaderboard.filter((r) => r.gamesPlayed > 0);
   const lines: string[] = [
     `🏆 【大赢家·${periodLabel}风云榜】`,
-    `📊 共计 ${totalGames} 场 ｜ 🤖 累计房费 ${totalRoomFee}`,
+    `📊 共计 ${totalGames} 场`,
     `----------------`,
   ];
 
   activeRows.forEach((p, idx) => {
     const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`;
     const bwTag = p.bigWinnerCount > 0 ? ` (👑x${p.bigWinnerCount})` : '';
+    const topTag = idx === 0 && p.netAmount > 0 ? ' 👑头号赢家' : '';
     lines.push(
-      `${medal} ${p.nickname}：${formatSignedAmount(p.netAmount)} [${p.gamesPlayed}场]${bwTag}`,
+      `${medal} ${p.nickname}：${formatSignedAmount(p.netAmount)} [${p.gamesPlayed}场]${bwTag}${topTag}`,
     );
   });
 
