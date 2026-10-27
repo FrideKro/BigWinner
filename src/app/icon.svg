@@ -1,65 +1,76 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <!--
-    大赢家 Logo：🀄 款式——白色麻将牌 + 正中红「中」
-    宽牌身 + 侧面厚度 / 明暗渐变 / 倒角亮线，模拟实物立体感
+    大赢家 Logo：举杯欢聚——三杯相碰溅星 + 六人群像，前排冠军红衣金冠
+    深蓝黑底与金色渐变延续黑金榜单卡片视觉；红＝赢，与全站配色一致
     与 src/components/LogoMark.tsx 保持同一设计，改动请两处同步
   -->
   <defs>
-    <linearGradient id="bw-face" x1="0" y1="0" x2="0.6" y2="1">
-      <stop offset="0" stop-color="#fffefb"/>
-      <stop offset="0.55" stop-color="#f5f1e4"/>
-      <stop offset="1" stop-color="#e5dec8"/>
+    <linearGradient id="bw-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="0.55" stop-color="#101a30"/>
+      <stop offset="1" stop-color="#241b10"/>
     </linearGradient>
-    <linearGradient id="bw-side" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#d8cfb8"/>
-      <stop offset="1" stop-color="#ada17f"/>
+    <linearGradient id="bw-gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fde68a"/>
+      <stop offset="0.5" stop-color="#fbbf24"/>
+      <stop offset="1" stop-color="#d97706"/>
     </linearGradient>
-    <linearGradient id="bw-sheen" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.35"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
-    </linearGradient>
-    <linearGradient id="bw-contact" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#6b5c3d" stop-opacity="0"/>
-      <stop offset="1" stop-color="#6b5c3d" stop-opacity="0.2"/>
-    </linearGradient>
-    <linearGradient id="bw-zhong" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#e23430"/>
-      <stop offset="1" stop-color="#c81e1e"/>
-    </linearGradient>
-    <filter id="bw-shadow" x="-40%" y="-40%" width="180%" height="180%">
-      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#0f172a" flood-opacity="0.3"/>
-    </filter>
-    <clipPath id="bw-face-clip">
-      <rect x="86" y="32" width="340" height="428" rx="50"/>
-    </clipPath>
   </defs>
 
-  <!-- 牌影（本体被牌面覆盖，仅投影可见） -->
-  <g filter="url(#bw-shadow)">
-    <rect x="86" y="32" width="340" height="428" rx="50" fill="#0f172a"/>
+  <rect width="512" height="512" rx="112" fill="url(#bw-bg)"/>
+
+  <!-- 碰杯的金杯群：中杯直立，左右两杯倾向中央 -->
+  <g fill="url(#bw-gold)">
+    <g transform="translate(256 148) scale(0.72)">
+      <path d="M-52 -42 h104 l-14 64 a34 34 0 0 1 -76 0 z"/>
+      <rect x="-8" y="10" width="16" height="52" rx="6"/>
+      <rect x="-36" y="62" width="72" height="13" rx="6.5"/>
+    </g>
+    <g transform="translate(186 172) rotate(22) scale(0.62)">
+      <path d="M-52 -42 h104 l-14 64 a34 34 0 0 1 -76 0 z"/>
+      <rect x="-8" y="10" width="16" height="52" rx="6"/>
+      <rect x="-36" y="62" width="72" height="13" rx="6.5"/>
+    </g>
+    <g transform="translate(326 172) rotate(-22) scale(0.62)">
+      <path d="M-52 -42 h104 l-14 64 a34 34 0 0 1 -76 0 z"/>
+      <rect x="-8" y="10" width="16" height="52" rx="6"/>
+      <rect x="-36" y="62" width="72" height="13" rx="6.5"/>
+    </g>
   </g>
 
-  <!-- 牌侧面（厚度 18px，上亮下暗） -->
-  <rect x="86" y="50" width="340" height="428" rx="50" fill="url(#bw-side)"/>
-
-  <!-- 牌面 -->
-  <rect x="86" y="32" width="340" height="428" rx="50" fill="url(#bw-face)" stroke="#c9c1ab" stroke-width="5"/>
-
-  <!-- 牌面光泽（顶部）与底部接触阴影 -->
-  <g clip-path="url(#bw-face-clip)">
-    <rect x="86" y="32" width="340" height="170" fill="url(#bw-sheen)"/>
-    <rect x="86" y="340" width="340" height="120" fill="url(#bw-contact)"/>
+  <!-- 碰杯溅出的星点 -->
+  <g fill="#fef3c7">
+    <circle cx="256" cy="84" r="11"/>
+    <circle cx="216" cy="66" r="6.5"/>
+    <circle cx="296" cy="66" r="6.5"/>
+    <circle cx="256" cy="46" r="5"/>
   </g>
 
-  <!-- 内倒角亮线 -->
-  <rect x="94" y="40" width="324" height="412" rx="43" fill="none" stroke="#ffffff" stroke-opacity="0.5" stroke-width="3"/>
+  <!-- 后排三名好友（仅探头，深色） -->
+  <g fill="#475569">
+    <circle cx="168" cy="286" r="24"/>
+    <path d="M136 352 a32 32 0 0 1 64 0 z"/>
+    <circle cx="256" cy="264" r="24"/>
+    <path d="M224 330 a32 32 0 0 1 64 0 z"/>
+    <circle cx="344" cy="286" r="24"/>
+    <path d="M312 352 a32 32 0 0 1 64 0 z"/>
+  </g>
 
-  <!-- 红中（左竖 / 镂空 / 竖笔 / 镂空 / 右竖） -->
-  <g fill="url(#bw-zhong)">
-    <rect x="151" y="146" width="210" height="46" rx="6"/>
-    <rect x="151" y="248" width="210" height="46" rx="6"/>
-    <rect x="151" y="146" width="46" height="148" rx="6"/>
-    <rect x="315" y="146" width="46" height="148" rx="6"/>
-    <rect x="233" y="86" width="46" height="320" rx="8"/>
+  <!-- 前排两侧好友（浅色） -->
+  <g fill="#94a3b8">
+    <circle cx="92" cy="376" r="26"/>
+    <path d="M50 476 a42 42 0 0 1 84 0 z"/>
+    <circle cx="420" cy="376" r="26"/>
+    <path d="M378 476 a42 42 0 0 1 84 0 z"/>
+  </g>
+
+  <!-- 前排冠军：红衣（红＝赢），头顶金冠 -->
+  <g>
+    <circle cx="256" cy="378" r="32" fill="#ef4444"/>
+    <path d="M200 476 a56 56 0 0 1 112 0 z" fill="#ef4444"/>
+    <g fill="url(#bw-gold)">
+      <path d="M218 340 l-9 -32 24 14 11 -22 11 22 24 -14 -9 32 z"/>
+      <rect x="216" y="340" width="80" height="12" rx="6"/>
+    </g>
   </g>
 </svg>
