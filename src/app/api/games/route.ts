@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { PoolClient } from 'pg';
 import { query, withTransaction } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 import { validateAndComputeRecords, buildPeriodFilter } from '@/lib/gameLogic';
+
+// 校验本场全部玩家存在，避免命中外键约束后返回不友好的 500
+async function assertRecordsUsersExist(client: PoolClient, userIds: number[]): Promise<void> {
+  const found = await client.query<{ id: number }>(`SELECT id FROM users WHERE id = ANY($1)`, [
+    userIds,
+  ]);
+  if ((found.rowCount ?? 0) !== userIds.length) {
+    throw new Error('INVALID_PLAYERS');
+  }
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -131,6 +142,11 @@ export async function POST(req: NextRequest) {
     const note = String(body.note || '').trim();
 
     const createdGameId = await withTransaction(async (client) => {
+      await assertRecordsUsersExist(
+        client,
+        validation.records.map((r) => r.userId),
+      );
+
       const gameInsert = await client.query<{ id: number }>(
         `INSERT INTO games (played_at, room_fee, note, created_by)
          VALUES ($1, $2, $3, $4)
@@ -152,6 +168,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ id: createdGameId }, { status: 201 });
   } catch (error) {
+    if (error instanceof Error && error.message === 'INVALID_PLAYERS') {
+      return NextResponse.json({ error: '包含无效的玩家，请刷新玩家列表后重试' }, { status: 400 });
+    }
     console.error('Create game error:', error);
     return NextResponse.json({ error: '保存场次战绩失败' }, { status: 500 });
   }

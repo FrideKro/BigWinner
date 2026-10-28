@@ -191,9 +191,13 @@ export default function ProfilePage() {
     }
   }
 
-  // 重置指定玩家密码为 123456
+  // 重置指定玩家密码为 123456（同时下线其所有已绑定设备）
   async function handleResetPassword(u: ManagedUser) {
-    if (!window.confirm(`确定将【${u.nickname}】的登录密码重置为 "123456" 吗？`)) {
+    if (
+      !window.confirm(
+        `确定将【${u.nickname}】的登录密码重置为 "123456" 吗？其所有已绑定设备将被下线，需重新登录。`,
+      )
+    ) {
       return;
     }
     const res = await fetch(`/api/users/${u.id}`, {
@@ -202,7 +206,7 @@ export default function ProfilePage() {
       body: JSON.stringify({ password: '123456' }),
     });
     if (res.ok) {
-      alert(`已成功将 ${u.nickname} 的密码重置为 123456`);
+      alert(`已成功将 ${u.nickname} 的密码重置为 123456，其所有已绑定设备已下线`);
     }
   }
 

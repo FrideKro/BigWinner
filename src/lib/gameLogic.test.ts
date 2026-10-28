@@ -142,6 +142,54 @@ describe('validateAndComputeRecords', () => {
     expect(result.error).toBeUndefined();
     expect(result.records.every((r) => !r.isBigWinner)).toBe(true);
   });
+
+  it('拒绝超过系统上限的房费', () => {
+    const result = validateAndComputeRecords(
+      [
+        { userId: 1, amount: 100 },
+        { userId: 2, amount: -100 },
+      ],
+      2147483648,
+    );
+
+    expect(result.error).toBe('本场房费超出系统上限（不超过 2147483647）');
+  });
+
+  it('拒绝正向金额超出系统上限', () => {
+    const result = validateAndComputeRecords(
+      [
+        { userId: 1, amount: 2147483648 },
+        { userId: 2, amount: -2147483648 },
+      ],
+      0,
+    );
+
+    expect(result.error).toBe('单笔输赢金额超出系统上限（绝对值不超过 2147483647）');
+  });
+
+  it('拒绝负向金额低于系统下限', () => {
+    const result = validateAndComputeRecords(
+      [
+        { userId: 1, amount: -2147483648 },
+        { userId: 2, amount: 2147483648 },
+      ],
+      0,
+    );
+
+    expect(result.error).toBe('单笔输赢金额超出系统上限（绝对值不超过 2147483647）');
+  });
+
+  it('恰好等于上限的金额可配平通过', () => {
+    const result = validateAndComputeRecords(
+      [
+        { userId: 1, amount: 2147483647 },
+        { userId: 2, amount: -2147483647 },
+      ],
+      0,
+    );
+
+    expect(result.error).toBeUndefined();
+  });
 });
 
 describe('buildPeriodFilter', () => {

@@ -13,10 +13,8 @@ export async function GET() {
     }
     return NextResponse.json({ status: 'DOWN', database: 'UNEXPECTED_RESULT' }, { status: 503 });
   } catch (error: unknown) {
-    const err = error as { message?: string };
-    return NextResponse.json(
-      { status: 'DOWN', database: 'ERROR', error: err.message },
-      { status: 503 },
-    );
+    // 错误详情仅进服务端日志，避免向未认证调用者暴露数据库地址等内部信息
+    console.error('Health check failed:', error);
+    return NextResponse.json({ status: 'DOWN', database: 'ERROR' }, { status: 503 });
   }
 }

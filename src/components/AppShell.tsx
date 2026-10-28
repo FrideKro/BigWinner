@@ -45,6 +45,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [loading, setLoading] = useState(true);
+  // 网络异常 / 服务端不可用标记：此时不清空登录态、不误跳登录页
+  const [offline, setOffline] = useState(false);
 
   // 全局记账弹窗控制
   const [editorOpen, setEditorOpen] = useState(false);
@@ -60,6 +62,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       if (res.ok) {
         const data = await res.json();
         setUser(data.user);
+        setOffline(false);
         if (data.deviceToken) {
           try {
             localStorage.setItem(LS_DEVICE_TOKEN, data.deviceToken);
@@ -68,6 +71,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           }
         }
         return data.user as CurrentUser;
+      }
+
+      if (res.status !== 401) {
+        // 服务端异常（如 5xx）：视为暂时不可用，保留当前登录状态
+        setOffline(true);
+        return null;
       }
 
       // Cookie 失效 → 尝试 LocalStorage 自愈
@@ -81,15 +90,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         if (restoreRes.ok) {
           const data = await restoreRes.json();
           setUser(data.user);
+          setOffline(false);
           return data.user as CurrentUser;
         }
         localStorage.removeItem(LS_DEVICE_TOKEN);
       }
 
       setUser(null);
+      setOffline(false);
       return null;
     } catch {
-      setUser(null);
+      // 网络异常：不清空用户、不触发跳转登录页
+      setOffline(true);
       return null;
     } finally {
       setLoading(false);
@@ -131,15 +143,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [user, loadPlayersAndSettings]);
 
-  // 受保护页面未登录 → 跳登录
+  // 受保护页面未登录 → 跳登录（网络异常时除外，展示重连提示）
   useEffect(() => {
-    if (!loading && !user && !isPublicPage) {
+    if (!loading && !user && !isPublicPage && !offline) {
       router.replace('/login');
     }
     if (!loading && user && pathname === '/login') {
       router.replace('/');
     }
-  }, [loading, user, isPublicPage, pathname, router]);
+  }, [loading, user, isPublicPage, offline, pathname, router]);
 
   const logout = useCallback(async () => {
     const backup = localStorage.getItem(LS_DEVICE_TOKEN);
@@ -188,6 +200,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="h-screen flex flex-col items-center justify-center gap-3">
             <LogoMark size={56} className="animate-pulse drop-shadow-lg" />
             <span className="text-slate-400 text-sm">加载中…</span>
+          </div>
+        ) : offline && !user && !isPublicPage ? (
+          <div className="h-screen flex flex-col items-center justify-center gap-4 px-6 text-center">
+            <LogoMark size={48} className="opacity-40" />
+            <div className="text-sm text-slate-500">网络连接失败，请检查网络后重试</div>
+            <button
+              onClick={() => {
+                setOffline(false);
+                setLoading(true);
+                fetchMe();
+              }}
+              className="px-6 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-medium active:scale-[0.98] transition"
+            >
+              重新连接
+            </button>
           </div>
         ) : user && !isPublicPage ? (
           <>

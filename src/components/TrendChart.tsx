@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { formatSignedAmount } from '@/lib/format';
 
 export interface TrendPoint {
@@ -23,6 +23,11 @@ export function TrendChart({ data }: TrendChartProps) {
   const [selectedIdx, setSelectedIdx] = useState<number | null>(
     data.length > 0 ? data.length - 1 : null,
   );
+
+  // 数据源切换（玩家 / 周期）时把选中点重置为最后一场，避免高亮指向已不存在的下标
+  useEffect(() => {
+    setSelectedIdx(data.length > 0 ? data.length - 1 : null);
+  }, [data]);
 
   if (data.length === 0) {
     return (

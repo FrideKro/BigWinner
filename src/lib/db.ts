@@ -14,6 +14,7 @@ function createPool(): Pool {
       connectionString: process.env.DATABASE_URL,
       max: 15,
       idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 8000,
     });
   }
 
@@ -65,6 +66,8 @@ async function runInitialization(): Promise<void> {
 
     const tablesExist = checkRes.rows[0]?.exists ?? false;
 
+    // 注意：本 if 块仅负责全新数据库的首次建表。对已有库的 schema 演进
+    // （新增列 / 新增索引）必须把幂等 DDL 追加在本块之外，否则不会生效
     if (!tablesExist) {
       await client.query(`
         CREATE TABLE IF NOT EXISTS users (
@@ -137,6 +140,11 @@ async function runInitialization(): Promise<void> {
       const adminUsername = (process.env.ADMIN_USERNAME || 'admin').trim();
       const adminNickname = (process.env.ADMIN_NICKNAME || '群主管理员').trim();
       const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+      if (!process.env.ADMIN_PASSWORD) {
+        console.warn(
+          '⚠️ 未设置 ADMIN_PASSWORD，初始管理员将使用默认密码 admin123，请登录后立即修改',
+        );
+      }
       const passwordHash = await bcrypt.hash(adminPassword, 10);
       const bindToken = generateToken(24);
 

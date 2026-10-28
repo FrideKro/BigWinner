@@ -3,6 +3,9 @@ export interface GameRecordInput {
   amount: number;
 }
 
+// PostgreSQL INTEGER 列上限：超出后数据库写入会报 22003（integer out of range）
+const MAX_AMOUNT = 2147483647;
+
 export function validateAndComputeRecords(
   rawRecords: unknown,
   rawRoomFee: unknown,
@@ -16,6 +19,13 @@ export function validateAndComputeRecords(
     return {
       error: '本场房费必须为大于或等于 0 的整数',
       roomFee: 0,
+      records: [],
+    };
+  }
+  if (roomFee > MAX_AMOUNT) {
+    return {
+      error: `本场房费超出系统上限（不超过 ${MAX_AMOUNT}）`,
+      roomFee,
       records: [],
     };
   }
@@ -41,6 +51,13 @@ export function validateAndComputeRecords(
     if (!Number.isInteger(amount)) {
       return {
         error: '所有玩家的输赢金额必须为整数',
+        roomFee,
+        records: [],
+      };
+    }
+    if (Math.abs(amount) > MAX_AMOUNT) {
+      return {
+        error: `单笔输赢金额超出系统上限（绝对值不超过 ${MAX_AMOUNT}）`,
         roomFee,
         records: [],
       };

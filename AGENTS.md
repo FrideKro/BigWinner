@@ -53,13 +53,13 @@ node scripts/test-db-connection.mjs  # 验证 .env 数据库连通性
 1. **零和配平**：`Σ 玩家本场金额 + 房费 = 0`，否则拒绝写入（`validateAndComputeRecords`）
 2. **房费**是台面上的虚拟玩家，恒为整数且 ≥ 0（即“庄家”永远赢）
 3. **大赢家 👑**：单场最高分且 > 0，允许多人并列（`is_big_winner`）
-4. 所有输赢金额必须为整数；同一场次同一玩家不可重复
-5. **认证体系**：设备 Token（365 天滑动续期），Cookie `bw_device_token` 与 `x-device-token` header 双通道；管理员生成 `bind_token` 供好友免密绑定。新增 API 一律先 `getCurrentUser()`，未登录返回 401
+4. 所有输赢金额必须为整数，且绝对值不超过 2147483647（PostgreSQL INTEGER 上限）；同一场次同一玩家不可重复
+5. **认证体系**：设备 Token（365 天滑动续期），Cookie `bw_device_token` 与 `x-device-token` header 双通道；管理员生成 `bind_token` 供好友免密绑定。登录接口带进程内失败限流（同一「账号+IP」15 分钟内失败 5 次锁定 15 分钟，返回 429），重置玩家密码时同步下线其全部设备。新增 API 一律先 `getCurrentUser()`，未登录返回 401
 
 ## 架构约定
 
 - **分层**：SQL（`query` / `withTransaction`）只出现在 `src/app/api/` 路由层；页面与组件一律 `'use client'` 经 `fetch('/api/...')` 取数，不直接导入 `db.ts`；业务校验集中在 `src/lib/`，前端不重复实现
-- **数据库**：5 张表（users、user_devices、games、game_records、system_settings），schema 全部定义在 `db.ts` 的启动初始化中（`CREATE TABLE IF NOT EXISTS` + advisory lock 防并发）。改 schema 时必须在此处追加幂等 DDL，且保证对已有数据向后兼容（本项目无迁移框架）
+- **数据库**：5 张表（users、user_devices、games、game_records、system_settings），schema 全部定义在 `db.ts` 的启动初始化中（`CREATE TABLE IF NOT EXISTS` + advisory lock 防并发）。改 schema 时必须在此处追加幂等 DDL——注意首次建表 DDL 包在 `if (!tablesExist)` 块内，对已有库新增列/索引的幂等 DDL 必须放在该块之外才会生效，且保证对已有数据向后兼容（本项目无迁移框架）
 - **API 响应**：错误统一 `{ error: '中文消息' }` + 对应 HTTP 状态码；成功直接返回 JSON
 - **写操作**用 `withTransaction` 包裹；SQL 一律参数化（`$1` 占位），禁止字符串拼接
 - **时间**：业务周期（年/月）按 `Asia/Shanghai` 时区计算与过滤，用 `TO_CHAR(... AT TIME ZONE ...)`

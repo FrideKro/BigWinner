@@ -34,6 +34,7 @@ export default function GamesPage() {
   const { user, openGameEditor, gameSavedVersion } = useApp();
 
   const [games, setGames] = useState<GameItem[]>([]);
+  const [allTimeTotalGames, setAllTimeTotalGames] = useState(0);
   const [allTimeRoomFee, setAllTimeRoomFee] = useState(0);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<string>('all');
@@ -53,6 +54,8 @@ export default function GamesPage() {
       if (res.ok) {
         const data = await res.json();
         setGames(data.games || []);
+        // 场次总数用接口返回的全量统计，避免被列表 limit=100 截断失真
+        setAllTimeTotalGames(data.allTimeTotalGames || 0);
         setAllTimeRoomFee(data.allTimeTotalRoomFee || 0);
       }
     } finally {
@@ -149,7 +152,7 @@ export default function GamesPage() {
         <div>
           <h1 className="text-lg font-medium text-slate-900 tracking-tight">场次流水</h1>
           <p className="text-xs text-slate-500">
-            共计 {games.length} 场 ｜ 累计房费 +{allTimeRoomFee}
+            共计 {allTimeTotalGames} 场 ｜ 累计房费 +{allTimeRoomFee}
           </p>
         </div>
 

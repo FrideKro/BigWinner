@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { PoolClient } from 'pg';
 import { query, withTransaction } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 import { validateAndComputeRecords } from '@/lib/gameLogic';
+
+// 校验本场全部玩家存在，避免命中外键约束后返回不友好的 500
+async function assertRecordsUsersExist(client: PoolClient, userIds: number[]): Promise<void> {
+  const found = await client.query<{ id: number }>(`SELECT id FROM users WHERE id = ANY($1)`, [
+    userIds,
+  ]);
+  if ((found.rowCount ?? 0) !== userIds.length) {
+    throw new Error('INVALID_PLAYERS');
+  }
+}
 
 export async function PUT(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
@@ -46,6 +57,11 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
         throw new Error('NOT_FOUND');
       }
 
+      await assertRecordsUsersExist(
+        client,
+        validation.records.map((r) => r.userId),
+      );
+
       await client.query(`DELETE FROM game_records WHERE game_id = $1`, [gameId]);
 
       for (const rec of validation.records) {
@@ -61,6 +77,9 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
   } catch (error) {
     if (error instanceof Error && error.message === 'NOT_FOUND') {
       return NextResponse.json({ error: '场次记录不存在' }, { status: 404 });
+    }
+    if (error instanceof Error && error.message === 'INVALID_PLAYERS') {
+      return NextResponse.json({ error: '包含无效的玩家，请刷新玩家列表后重试' }, { status: 400 });
     }
     console.error('Update game error:', error);
     return NextResponse.json({ error: '修改场次战绩失败' }, { status: 500 });
