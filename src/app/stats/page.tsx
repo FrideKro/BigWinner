@@ -1,11 +1,10 @@
 'use client';
 
-import React, { Suspense, useCallback, useEffect, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useApp } from '@/components/AppShell';
 import { PlayerAvatar } from '@/components/PlayerAvatar';
 import { TrendChart, TrendPoint } from '@/components/TrendChart';
-import { PlayerOption } from '@/components/GameEditorModal';
 import { formatSignedAmount, getAmountColorClass, formatDateTime } from '@/lib/format';
 import { Flame, Award, TrendingUp, TrendingDown, Coins, Calendar } from 'lucide-react';
 
@@ -65,48 +64,32 @@ interface StatsSummary {
 
 function StatsContent() {
   const searchParams = useSearchParams();
-  const { user, gameSavedVersion } = useApp();
+  // 玩家列表由 AppShell 统一拉取并经 context 共享，本页不再重复请求
+  const { user, gameSavedVersion, players } = useApp();
 
   const [activeTab, setActiveTab] = useState<'personal' | 'roomFee'>('personal');
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [period, setPeriod] = useState<string>('all');
-  const [players, setPlayers] = useState<PlayerOption[]>([]);
   const [personalStats, setPersonalStats] = useState<PersonalStats | null>(null);
   const [monthlyRoomFees, setMonthlyRoomFees] = useState<MonthlyRoomFeeItem[]>([]);
   const [summary, setSummary] = useState<StatsSummary | null>(null);
   const [, setLoading] = useState(true);
 
-  // 初始化玩家
-  useEffect(() => {
-    async function loadUsers() {
-      const res = await fetch('/api/users');
-      if (res.ok) {
-        const data = await res.json();
-        // 从选人隐藏的玩家不出现在看板选择条，但保留本人查看自己战绩的入口
-        const activeList = data.users
-          .filter(
-            (u: { id: number; isActive: boolean }) => u.isActive !== false || u.id === user?.id,
-          )
-          .map((u: { id: number; nickname: string; avatarColor: string; isActive: boolean }) => ({
-            id: u.id,
-            nickname: u.nickname,
-            avatarColor: u.avatarColor,
-            isActive: u.isActive,
-          }));
-        setPlayers(activeList);
+  // 隐藏玩家不出现在看板选择条，但保留本人查看自己战绩的入口
+  const visiblePlayers = useMemo(
+    () => players.filter((p) => p.isActive !== false || p.id === user?.id),
+    [players, user],
+  );
 
-        const paramId = searchParams.get('userId');
-        if (paramId && !Number.isNaN(parseInt(paramId, 10))) {
-          setSelectedUserId(parseInt(paramId, 10));
-        } else if (user) {
-          setSelectedUserId(user.id);
-        } else if (activeList.length > 0) {
-          setSelectedUserId(activeList[0].id);
-        }
-      }
+  // 初始选中玩家：URL 指定 > 本人
+  useEffect(() => {
+    const paramId = searchParams.get('userId');
+    if (paramId && !Number.isNaN(parseInt(paramId, 10))) {
+      setSelectedUserId(parseInt(paramId, 10));
+    } else if (user) {
+      setSelectedUserId(user.id);
     }
-    loadUsers();
-  }, [searchParams, user, gameSavedVersion]);
+  }, [searchParams, user]);
 
   const fetchStats = useCallback(async () => {
     if (!selectedUserId) return;
@@ -131,7 +114,7 @@ function StatsContent() {
   }, [fetchStats, gameSavedVersion]);
 
   const targetPlayer =
-    players.find((p) => p.id === selectedUserId) ||
+    visiblePlayers.find((p) => p.id === selectedUserId) ||
     (personalStats
       ? {
           id: personalStats.userId,
@@ -168,7 +151,7 @@ function StatsContent() {
         <div className="space-y-4">
           {/* 玩家横向滚动选择条 */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-            {players.map((p) => {
+            {visiblePlayers.map((p) => {
               const isSelected = p.id === selectedUserId;
               return (
                 <button

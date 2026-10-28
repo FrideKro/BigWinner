@@ -205,19 +205,28 @@ describe('buildPeriodFilter', () => {
     }
   });
 
-  it('指定年份 YYYY 直接透传为参数', () => {
+  it('指定年份返回上海时区当年的 UTC 范围条件（sargable）', () => {
     const result = buildPeriodFilter('2025', 3);
 
-    expect(result.params).toEqual(['2025']);
-    expect(result.clause).toContain('$3');
-    expect(result.clause).toContain("TO_CHAR(g.played_at AT TIME ZONE 'Asia/Shanghai', 'YYYY')");
+    expect(result.clause).toContain('g.played_at >= $3');
+    expect(result.clause).toContain('g.played_at < $4');
+    // 2025-01-01 00:00+08 ~ 2026-01-01 00:00+08
+    expect(result.params).toEqual([
+      new Date('2024-12-31T16:00:00.000Z'),
+      new Date('2025-12-31T16:00:00.000Z'),
+    ]);
   });
 
-  it('指定月份 YYYY-MM 直接透传为参数', () => {
+  it('指定月份返回上海时区当月的 UTC 范围条件', () => {
     const result = buildPeriodFilter('2025-03', 2);
 
-    expect(result.params).toEqual(['2025-03']);
-    expect(result.clause).toContain('$2');
+    expect(result.clause).toContain('g.played_at >= $2');
+    expect(result.clause).toContain('g.played_at < $3');
+    // 2025-03-01 00:00+08 ~ 2025-04-01 00:00+08
+    expect(result.params).toEqual([
+      new Date('2025-02-28T16:00:00.000Z'),
+      new Date('2025-03-31T16:00:00.000Z'),
+    ]);
   });
 
   it('year 分支取上海时区当前年份（含跨年边界）', () => {
@@ -227,7 +236,10 @@ describe('buildPeriodFilter', () => {
 
     const result = buildPeriodFilter('year', 1);
 
-    expect(result.params).toEqual(['2027']);
+    expect(result.params).toEqual([
+      new Date('2026-12-31T16:00:00.000Z'),
+      new Date('2027-12-31T16:00:00.000Z'),
+    ]);
   });
 
   it('month 分支取上海时区当前年月', () => {
@@ -237,6 +249,10 @@ describe('buildPeriodFilter', () => {
 
     const result = buildPeriodFilter('month', 1);
 
-    expect(result.params).toEqual(['2026-02']);
+    // 2026-02 只有 28 天
+    expect(result.params).toEqual([
+      new Date('2026-01-31T16:00:00.000Z'),
+      new Date('2026-02-28T16:00:00.000Z'),
+    ]);
   });
 });

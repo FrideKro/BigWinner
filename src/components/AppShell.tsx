@@ -23,6 +23,9 @@ interface AppContextValue {
   logout: () => Promise<void>;
   openGameEditor: () => void;
   gameSavedVersion: number;
+  /** 全量玩家列表（含隐藏），供看板选人条、记账弹窗等复用，避免各页面重复请求 */
+  players: PlayerOption[];
+  defaultRoomFee: number;
 }
 
 const AppContext = createContext<AppContextValue>({
@@ -32,6 +35,8 @@ const AppContext = createContext<AppContextValue>({
   logout: async () => {},
   openGameEditor: () => {},
   gameSavedVersion: 0,
+  players: [],
+  defaultRoomFee: 100,
 });
 
 export function useApp() {
@@ -166,8 +171,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   const refreshUser = useCallback(async () => {
-    await fetchMe();
-    await loadPlayersAndSettings();
+    // 两类数据相互独立，并行拉取减少串行等待
+    await Promise.all([fetchMe(), loadPlayersAndSettings()]);
   }, [fetchMe, loadPlayersAndSettings]);
 
   const openGameEditor = useCallback(() => {
@@ -193,6 +198,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         logout,
         openGameEditor,
         gameSavedVersion,
+        players,
+        defaultRoomFee,
       }}
     >
       <div className="min-h-screen bg-slate-100 max-w-lg sm:max-w-xl md:max-w-2xl lg:max-w-4xl mx-auto relative shadow-2xl">

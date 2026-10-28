@@ -62,7 +62,8 @@ export default function HomePage() {
   const fetchStats = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/stats?period=${encodeURIComponent(period)}`);
+      // scope=board：首页只需要概览与总榜，跳过个人明细查询并减小响应体积
+      const res = await fetch(`/api/stats?period=${encodeURIComponent(period)}&scope=board`);
       if (res.ok) {
         const data = await res.json();
         setSummary(data.summary);

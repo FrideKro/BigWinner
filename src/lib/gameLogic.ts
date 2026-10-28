@@ -108,32 +108,32 @@ export function buildPeriodFilter(
   const currentYear = parts.find((p) => p.type === 'year')?.value || '2026';
   const currentMonth = `${currentYear}-${parts.find((p) => p.type === 'month')?.value || '01'}`;
 
-  if (!period || period === 'all') {
+  let year: number;
+  let month: number | null = null;
+  if (period === 'year' || /^\d{4}$/.test(period)) {
+    year = parseInt(period === 'year' ? currentYear : period, 10);
+  } else if (period === 'month' || /^\d{4}-\d{2}$/.test(period)) {
+    const ym = period === 'month' ? currentMonth : period;
+    year = parseInt(ym.slice(0, 4), 10);
+    month = parseInt(ym.slice(5, 7), 10);
+  } else {
     return { clause: '', params: [] };
   }
-  if (period === 'year') {
-    return {
-      clause: `AND TO_CHAR(g.played_at AT TIME ZONE 'Asia/Shanghai', 'YYYY') = $${paramStartIndex}`,
-      params: [currentYear],
-    };
-  }
-  if (period === 'month') {
-    return {
-      clause: `AND TO_CHAR(g.played_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM') = $${paramStartIndex}`,
-      params: [currentMonth],
-    };
-  }
-  if (/^\d{4}$/.test(period)) {
-    return {
-      clause: `AND TO_CHAR(g.played_at AT TIME ZONE 'Asia/Shanghai', 'YYYY') = $${paramStartIndex}`,
-      params: [period],
-    };
-  }
-  if (/^\d{4}-\d{2}$/.test(period)) {
-    return {
-      clause: `AND TO_CHAR(g.played_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM') = $${paramStartIndex}`,
-      params: [period],
-    };
-  }
-  return { clause: '', params: [] };
+
+  // 上海时区固定 UTC+8（无夏令时）：把年/月换算成 UTC 边界后用范围条件过滤，
+  // 避免 TO_CHAR 包裹列导致 played_at 索引失效；口径与原 TO_CHAR 写法完全等价
+  const SHANGHAI_OFFSET_MS = 8 * 60 * 60 * 1000;
+  const startMs =
+    month === null
+      ? Date.UTC(year, 0, 1) - SHANGHAI_OFFSET_MS
+      : Date.UTC(year, month - 1, 1) - SHANGHAI_OFFSET_MS;
+  const endMs =
+    month === null
+      ? Date.UTC(year + 1, 0, 1) - SHANGHAI_OFFSET_MS
+      : Date.UTC(year, month, 1) - SHANGHAI_OFFSET_MS;
+
+  return {
+    clause: `AND g.played_at >= $${paramStartIndex} AND g.played_at < $${paramStartIndex + 1}`,
+    params: [new Date(startMs), new Date(endMs)],
+  };
 }

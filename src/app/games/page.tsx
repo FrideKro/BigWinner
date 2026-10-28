@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useApp } from '@/components/AppShell';
 import { PlayerAvatar } from '@/components/PlayerAvatar';
-import { GameEditorModal, GameEditorInitial, PlayerOption } from '@/components/GameEditorModal';
+import { GameEditorModal, GameEditorInitial } from '@/components/GameEditorModal';
 import {
   formatDateTime,
   formatSignedAmount,
@@ -31,7 +31,8 @@ interface GameItem {
 }
 
 export default function GamesPage() {
-  const { user, openGameEditor, gameSavedVersion } = useApp();
+  // 玩家列表与默认房费由 AppShell 统一拉取并经 context 共享，本页不再重复请求
+  const { user, openGameEditor, gameSavedVersion, players, defaultRoomFee } = useApp();
 
   const [games, setGames] = useState<GameItem[]>([]);
   const [allTimeTotalGames, setAllTimeTotalGames] = useState(0);
@@ -44,8 +45,6 @@ export default function GamesPage() {
   // 单独编辑历史某场战绩
   const [editingGame, setEditingGame] = useState<GameEditorInitial | null>(null);
   const [editOpen, setEditOpen] = useState(false);
-  const [players, setPlayers] = useState<PlayerOption[]>([]);
-  const [defaultRoomFee, setDefaultRoomFee] = useState(100);
 
   const fetchGames = useCallback(async () => {
     try {
@@ -63,33 +62,13 @@ export default function GamesPage() {
     }
   }, [period]);
 
-  const fetchPlayersAndSettings = useCallback(async () => {
+  const fetchMonths = useCallback(async () => {
     try {
-      const [uRes, sRes, statsRes] = await Promise.all([
-        fetch('/api/users'),
-        fetch('/api/settings'),
-        fetch('/api/stats?period=all'),
-      ]);
-      if (uRes.ok) {
-        const udata = await uRes.json();
-        setPlayers(
-          udata.users.map(
-            (u: { id: number; nickname: string; avatarColor: string; isActive: boolean }) => ({
-              id: u.id,
-              nickname: u.nickname,
-              avatarColor: u.avatarColor,
-              isActive: u.isActive,
-            }),
-          ),
-        );
-      }
-      if (sRes.ok) {
-        const sdata = await sRes.json();
-        setDefaultRoomFee(sdata.defaultRoomFee || 100);
-      }
-      if (statsRes.ok) {
-        const stData = await statsRes.json();
-        setAvailableMonths(stData.summary?.availableMonths || []);
+      // scope=months：仅取月份列表，避免为下拉筛选拉取整个统计数据
+      const res = await fetch('/api/stats?scope=months');
+      if (res.ok) {
+        const data = await res.json();
+        setAvailableMonths(data.summary?.availableMonths || []);
       }
     } catch {
       /* ignore */
@@ -98,11 +77,8 @@ export default function GamesPage() {
 
   useEffect(() => {
     fetchGames();
-  }, [fetchGames, gameSavedVersion]);
-
-  useEffect(() => {
-    fetchPlayersAndSettings();
-  }, [fetchPlayersAndSettings]);
+    fetchMonths();
+  }, [fetchGames, fetchMonths, gameSavedVersion]);
 
   async function handleShareGame(game: GameItem) {
     const text = buildGameShareText(game, allTimeRoomFee);
@@ -131,7 +107,7 @@ export default function GamesPage() {
   }
 
   function handleOpenEdit(game: GameItem) {
-    fetchPlayersAndSettings();
+    // 玩家列表由 GameEditorModal 打开时自行兜底刷新，这里只负责回填表单
     setEditingGame({
       id: game.id,
       playedAt: game.playedAt,

@@ -64,13 +64,18 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
 
       await client.query(`DELETE FROM game_records WHERE game_id = $1`, [gameId]);
 
-      for (const rec of validation.records) {
-        await client.query(
-          `INSERT INTO game_records (game_id, user_id, amount, is_big_winner)
-           VALUES ($1, $2, $3, $4)`,
-          [gameId, rec.userId, rec.amount, rec.isBigWinner],
-        );
-      }
+      // 单条语句批量写入，避免事务内逐条往返
+      await client.query(
+        `INSERT INTO game_records (game_id, user_id, amount, is_big_winner)
+         SELECT $1, x.user_id, x.amount, x.is_big_winner
+         FROM UNNEST($2::int[], $3::int[], $4::bool[]) AS x(user_id, amount, is_big_winner)`,
+        [
+          gameId,
+          validation.records.map((r) => r.userId),
+          validation.records.map((r) => r.amount),
+          validation.records.map((r) => r.isBigWinner),
+        ],
+      );
     });
 
     return NextResponse.json({ id: gameId, ok: true });
