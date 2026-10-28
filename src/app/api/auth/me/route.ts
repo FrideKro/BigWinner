@@ -10,25 +10,6 @@ export async function GET() {
       return NextResponse.json({ user: null }, { status: 401 });
     }
 
-    const devicesRes = await query<{
-      id: number;
-      user_agent: string;
-      last_seen_at: string;
-      created_at: string;
-      is_current: boolean;
-    }>(
-      `SELECT id,
-              user_agent,
-              last_seen_at,
-              created_at,
-              (device_token = $2) AS is_current
-       FROM user_devices
-       WHERE user_id = $1 AND expires_at > NOW()
-       ORDER BY last_seen_at DESC
-       LIMIT 10`,
-      [user.id, user.deviceToken],
-    );
-
     const res = NextResponse.json({
       user: {
         id: user.id,
@@ -40,13 +21,6 @@ export async function GET() {
         bindToken: user.bindToken,
       },
       deviceToken: user.deviceToken,
-      devices: devicesRes.rows.map((d) => ({
-        id: d.id,
-        userAgent: d.user_agent,
-        lastSeenAt: d.last_seen_at,
-        createdAt: d.created_at,
-        isCurrent: d.is_current,
-      })),
     });
 
     // 每次访问自动顺延 Cookie 有效期 365 天

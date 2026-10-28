@@ -12,9 +12,11 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const period = searchParams.get('period') || 'all';
-    const targetUserId = searchParams.get('userId')
-      ? parseInt(searchParams.get('userId')!, 10)
-      : user.id;
+    const rawUserId = searchParams.get('userId');
+    const targetUserId = rawUserId ? parseInt(rawUserId, 10) : user.id;
+    if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
+      return NextResponse.json({ error: '无效的玩家 ID' }, { status: 400 });
+    }
 
     // scope：months=仅月度明细（流水页取月份列表）；board=概览+总榜（首页，省去个人明细查询与大 payload）；
     // full=完整数据（看板页，缺省值），保持向后兼容
@@ -95,7 +97,6 @@ export async function GET(req: NextRequest) {
         ),
         query<{
           user_id: number;
-          username: string;
           nickname: string;
           avatar_color: string;
           is_active: boolean;
@@ -109,7 +110,6 @@ export async function GET(req: NextRequest) {
           max_loss: string;
         }>(
           `SELECT u.id AS user_id,
-                  u.username,
                   u.nickname,
                   u.avatar_color,
                   u.is_active,
@@ -191,7 +191,6 @@ export async function GET(req: NextRequest) {
       return {
         rank: index + 1,
         userId: row.user_id,
-        username: row.username,
         nickname: row.nickname,
         avatarColor: row.avatar_color,
         isActive: row.is_active,
@@ -305,7 +304,6 @@ export async function GET(req: NextRequest) {
     const targetPlayerSummary = leaderboard.find((p) => p.userId === targetUserId) || {
       rank: 0,
       userId: targetUserId,
-      username: '',
       nickname: '未知玩家',
       avatarColor: 'red',
       isActive: true,

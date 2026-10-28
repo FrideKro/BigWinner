@@ -125,6 +125,11 @@ async function runInitialization(): Promise<void> {
       `);
     }
 
+    // 登录/绑定时会清理过期设备，对已有库补一个幂等索引
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS idx_user_devices_expires_at ON user_devices(expires_at)`,
+    );
+
     // 初始化默认房费设置
     const defaultRoomFee = parseInt(process.env.DEFAULT_ROOM_FEE || '100', 10);
     await client.query(

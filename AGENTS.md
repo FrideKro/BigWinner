@@ -44,9 +44,10 @@ node scripts/test-db-connection.mjs  # 验证 .env 数据库连通性
   - `db.ts`：连接池、`query` / `withTransaction`、启动时幂等建表 DDL
   - `auth.ts`：设备 Token 会话、`getCurrentUser`、Cookie 读写
   - `format.ts`：头像主题、展示格式化
-- `src/app/api/` — REST 路由：`auth`（login/logout/me/bind/restore）、`games`、`users`、`stats`、`settings`、`health`
+- `src/app/api/` — REST 路由：`auth`（login/logout/me/bind/restore）、`bootstrap`（冷启动聚合）、`games`、`users`、`stats`、`settings`、`health`
 - `src/app/` — 页面：首页 `/`、`/games`、`/stats`、`/profile`、`/login`、`/bind`
-- `src/components/` — AppShell、GameEditorModal、PlayerAvatar、TrendChart
+- `src/components/` — AppShell、GameEditorModal、PlayerAvatar、TrendChart、ConfirmDialog、CopyFallbackModal、Toast
+- `src/lib/apiClient.ts` — 客户端取数：GET 短缓存 + 并发去重 + 统一 401 处理
 
 ## 业务铁律（不可破坏）
 

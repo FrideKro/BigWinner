@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { query, generateToken } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
+import { listPlayers } from '../_lib/shared';
 
 export async function GET() {
   try {
@@ -10,47 +11,8 @@ export async function GET() {
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
-    const isAdmin = currentUser.role === 'ADMIN';
-
-    const res = await query<{
-      id: number;
-      username: string;
-      nickname: string;
-      role: 'ADMIN' | 'PLAYER';
-      avatar_color: string;
-      is_active: boolean;
-      bind_token: string | null;
-      created_at: string;
-      device_count: string;
-    }>(
-      `SELECT u.id,
-              u.username,
-              u.nickname,
-              u.role,
-              u.avatar_color,
-              u.is_active,
-              u.bind_token,
-              u.created_at,
-              COUNT(ud.id) FILTER (WHERE ud.expires_at > NOW())::text AS device_count
-       FROM users u
-       LEFT JOIN user_devices ud ON ud.user_id = u.id
-       GROUP BY u.id
-       ORDER BY u.is_active DESC, u.id ASC`,
-    );
-
-    return NextResponse.json({
-      users: res.rows.map((u) => ({
-        id: u.id,
-        username: u.username,
-        nickname: u.nickname,
-        role: u.role,
-        avatarColor: u.avatar_color,
-        isActive: u.is_active,
-        bindToken: isAdmin ? u.bind_token : undefined,
-        deviceCount: isAdmin ? parseInt(u.device_count || '0', 10) : undefined,
-        createdAt: u.created_at,
-      })),
-    });
+    const users = await listPlayers(currentUser);
+    return NextResponse.json({ users });
   } catch (error) {
     console.error('List users error:', error);
     return NextResponse.json({ error: '获取玩家列表失败' }, { status: 500 });

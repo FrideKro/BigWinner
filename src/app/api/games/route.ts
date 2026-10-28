@@ -26,7 +26,11 @@ export async function GET(req: NextRequest) {
     const userIdFilter = searchParams.get('userId')
       ? parseInt(searchParams.get('userId')!, 10)
       : null;
-    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '100', 10), 1), 500);
+
+    const rawLimit = parseInt(searchParams.get('limit') || '100', 10);
+    const limit = Number.isInteger(rawLimit) ? Math.min(Math.max(rawLimit, 1), 200) : 100;
+    const rawOffset = parseInt(searchParams.get('offset') || '0', 10);
+    const offset = Number.isInteger(rawOffset) ? Math.max(rawOffset, 0) : 0;
 
     const { clause, params } = buildPeriodFilter(period, 1);
     const queryParams: unknown[] = [...params];
@@ -40,7 +44,7 @@ export async function GET(req: NextRequest) {
       )`;
     }
 
-    queryParams.push(limit);
+    queryParams.push(limit + 1, offset);
 
     const gamesRes = await query<{
       id: number;
@@ -86,7 +90,7 @@ export async function GET(req: NextRequest) {
          ${userFilterClause}
        GROUP BY g.id, cu.nickname
        ORDER BY g.played_at DESC, g.id DESC
-       LIMIT $${queryParams.length}`,
+       LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}`,
       queryParams,
     );
 
@@ -99,8 +103,12 @@ export async function GET(req: NextRequest) {
        FROM games`,
     );
 
+    // 多取一条用于判断是否还有下一页
+    const hasMore = gamesRes.rows.length > limit;
+    const pageRows = hasMore ? gamesRes.rows.slice(0, limit) : gamesRes.rows;
+
     return NextResponse.json({
-      games: gamesRes.rows.map((g) => ({
+      games: pageRows.map((g) => ({
         id: g.id,
         playedAt: g.played_at,
         roomFee: g.room_fee,
@@ -110,6 +118,7 @@ export async function GET(req: NextRequest) {
         createdAt: g.created_at,
         records: g.records,
       })),
+      hasMore,
       allTimeTotalGames: parseInt(totalRoomFeeRes.rows[0]?.total_games || '0', 10),
       allTimeTotalRoomFee: parseInt(totalRoomFeeRes.rows[0]?.total_room_fee || '0', 10),
     });

@@ -11,7 +11,7 @@ interface PlayerAvatarProps {
   rank?: number;
 }
 
-export function PlayerAvatar({
+function PlayerAvatarInner({
   nickname,
   color = 'red',
   size = 'md',
@@ -47,3 +47,5 @@ export function PlayerAvatar({
     </div>
   );
 }
+
+export const PlayerAvatar = React.memo(PlayerAvatarInner);

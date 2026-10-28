@@ -62,4 +62,18 @@ describe('rateLimit', () => {
     clearFailures(KEY);
     expect(getRateLimitState(KEY)).toEqual({ locked: false, retryAfterSeconds: 0 });
   });
+
+  it('支持自定义阈值（账号全局键使用更高门槛）', () => {
+    const globalKey = 'login:user:test-user';
+    clearFailures(globalKey);
+
+    for (let i = 0; i < 9; i += 1) {
+      recordFailure(globalKey, 10);
+    }
+    expect(getRateLimitState(globalKey).locked).toBe(false);
+
+    recordFailure(globalKey, 10);
+    expect(getRateLimitState(globalKey).locked).toBe(true);
+    clearFailures(globalKey);
+  });
 });

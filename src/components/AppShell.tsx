@@ -1,10 +1,25 @@
 'use client';
 
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { Trophy, ListOrdered, BarChart3, User, Plus } from 'lucide-react';
-import { GameEditorModal, PlayerOption } from './GameEditorModal';
 import { LogoMark } from './LogoMark';
+import { Toast } from './Toast';
+import { invalidateApiCache } from '@/lib/apiClient';
+
+const GameEditorModal = dynamic(() => import('./GameEditorModal').then((m) => m.GameEditorModal), {
+  ssr: false,
+});
 
 export interface CurrentUser {
   id: number;
@@ -16,27 +31,49 @@ export interface CurrentUser {
   bindToken?: string | null;
 }
 
+export interface PlayerListItem {
+  id: number;
+  nickname: string;
+  avatarColor: string;
+  isActive: boolean;
+  // 仅管理员返回
+  username?: string;
+  role?: 'ADMIN' | 'PLAYER';
+  bindToken?: string | null;
+  deviceCount?: number;
+  createdAt?: string;
+}
+
+interface BootstrapPayload {
+  user: CurrentUser;
+  players: PlayerListItem[];
+  defaultRoomFee: number;
+  deviceToken?: string;
+}
+
 interface AppContextValue {
   user: CurrentUser | null;
   loading: boolean;
-  refreshUser: () => Promise<void>;
+  refreshUser: () => Promise<CurrentUser | null>;
   logout: () => Promise<void>;
   openGameEditor: () => void;
   gameSavedVersion: number;
-  /** 全量玩家列表（含隐藏），供看板选人条、记账弹窗等复用，避免各页面重复请求 */
-  players: PlayerOption[];
+  /** 全量玩家列表（含隐藏），供看板选人条、记账弹窗等复用 */
+  players: PlayerListItem[];
   defaultRoomFee: number;
+  showToast: (message: string) => void;
 }
 
 const AppContext = createContext<AppContextValue>({
   user: null,
   loading: true,
-  refreshUser: async () => {},
+  refreshUser: async () => null,
   logout: async () => {},
   openGameEditor: () => {},
   gameSavedVersion: 0,
   players: [],
   defaultRoomFee: 100,
+  showToast: () => {},
 });
 
 export function useApp() {
@@ -44,6 +81,7 @@ export function useApp() {
 }
 
 const LS_DEVICE_TOKEN = 'bw_device_token';
+const SESSION_EXPIRED_KEY = 'bw_session_expired';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -56,97 +94,111 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // 全局记账弹窗控制
   const [editorOpen, setEditorOpen] = useState(false);
   const [gameSavedVersion, setGameSavedVersion] = useState(0);
-  const [players, setPlayers] = useState<PlayerOption[]>([]);
+  const [players, setPlayers] = useState<PlayerListItem[]>([]);
   const [defaultRoomFee, setDefaultRoomFee] = useState(100);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isPublicPage = pathname === '/login' || pathname === '/bind';
 
-  const fetchMe = useCallback(async () => {
-    try {
-      const res = await fetch('/api/auth/me');
-      if (res.ok) {
-        const data = await res.json();
-        setUser(data.user);
-        setOffline(false);
-        if (data.deviceToken) {
+  const showToast = useCallback((message: string) => {
+    setToast(message);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 2400);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    },
+    [],
+  );
+
+  const applyBootstrap = useCallback((data: BootstrapPayload) => {
+    setUser(data.user);
+    setPlayers(data.players || []);
+    setDefaultRoomFee(data.defaultRoomFee ?? 100);
+    if (data.deviceToken) {
+      try {
+        localStorage.setItem(LS_DEVICE_TOKEN, data.deviceToken);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
+
+  /**
+   * 冷启动聚合加载：一次请求拿到用户 + 玩家列表 + 默认房费。
+   * 401 时尝试用 LocalStorage 设备令牌自愈；网络异常保留当前登录态。
+   */
+  const loadBootstrap = useCallback(
+    async (options: { force?: boolean; silent?: boolean } = {}): Promise<CurrentUser | null> => {
+      const { silent = false } = options;
+      if (!silent) setLoading(true);
+
+      try {
+        const res = await fetch('/api/bootstrap', { cache: 'no-store' });
+        if (res.ok) {
+          const data = (await res.json()) as BootstrapPayload;
+          applyBootstrap(data);
+          setOffline(false);
+          return data.user;
+        }
+
+        if (res.status !== 401) {
+          setOffline(true);
+          return null;
+        }
+
+        // Cookie 失效 → 尝试 LocalStorage 自愈
+        let backup: string | null = null;
+        try {
+          backup = localStorage.getItem(LS_DEVICE_TOKEN);
+        } catch {
+          backup = null;
+        }
+
+        if (backup) {
+          const restoreRes = await fetch('/api/auth/restore', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ deviceToken: backup }),
+          });
+          if (restoreRes.ok) {
+            const retry = await fetch('/api/bootstrap', { cache: 'no-store' });
+            if (retry.ok) {
+              const data = (await retry.json()) as BootstrapPayload;
+              applyBootstrap(data);
+              setOffline(false);
+              return data.user;
+            }
+          }
           try {
-            localStorage.setItem(LS_DEVICE_TOKEN, data.deviceToken);
+            localStorage.removeItem(LS_DEVICE_TOKEN);
           } catch {
             /* ignore */
           }
         }
-        return data.user as CurrentUser;
-      }
 
-      if (res.status !== 401) {
-        // 服务端异常（如 5xx）：视为暂时不可用，保留当前登录状态
+        setUser(null);
+        setPlayers([]);
+        setDefaultRoomFee(100);
+        setOffline(false);
+        return null;
+      } catch {
+        // 网络异常：不清空用户、不触发跳转登录页
         setOffline(true);
         return null;
+      } finally {
+        if (!silent) setLoading(false);
       }
-
-      // Cookie 失效 → 尝试 LocalStorage 自愈
-      const backup = localStorage.getItem(LS_DEVICE_TOKEN);
-      if (backup) {
-        const restoreRes = await fetch('/api/auth/restore', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ deviceToken: backup }),
-        });
-        if (restoreRes.ok) {
-          const data = await restoreRes.json();
-          setUser(data.user);
-          setOffline(false);
-          return data.user as CurrentUser;
-        }
-        localStorage.removeItem(LS_DEVICE_TOKEN);
-      }
-
-      setUser(null);
-      setOffline(false);
-      return null;
-    } catch {
-      // 网络异常：不清空用户、不触发跳转登录页
-      setOffline(true);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const loadPlayersAndSettings = useCallback(async () => {
-    try {
-      const [uRes, sRes] = await Promise.all([fetch('/api/users'), fetch('/api/settings')]);
-      if (uRes.ok) {
-        const udata = await uRes.json();
-        setPlayers(
-          udata.users.map(
-            (u: { id: number; nickname: string; avatarColor: string; isActive: boolean }) => ({
-              id: u.id,
-              nickname: u.nickname,
-              avatarColor: u.avatarColor,
-              isActive: u.isActive,
-            }),
-          ),
-        );
-      }
-      if (sRes.ok) {
-        const sdata = await sRes.json();
-        setDefaultRoomFee(sdata.defaultRoomFee || 100);
-      }
-    } catch {
-      /* ignore */
-    }
-  }, []);
+    },
+    [applyBootstrap],
+  );
 
   useEffect(() => {
-    fetchMe();
-  }, [fetchMe]);
-
-  useEffect(() => {
-    if (user) {
-      loadPlayersAndSettings();
-    }
-  }, [user, loadPlayersAndSettings]);
+    void loadBootstrap();
+  }, [loadBootstrap]);
 
   // 受保护页面未登录 → 跳登录（网络异常时除外，展示重连提示）
   useEffect(() => {
@@ -158,82 +210,144 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [loading, user, isPublicPage, offline, pathname, router]);
 
+  // 任意页面接口返回 401 → 统一清理登录态并回登录页
+  useEffect(() => {
+    const onUnauthorized = () => {
+      try {
+        sessionStorage.setItem(SESSION_EXPIRED_KEY, '1');
+      } catch {
+        /* ignore */
+      }
+      invalidateApiCache();
+      setUser(null);
+      setPlayers([]);
+      if (pathname !== '/login' && pathname !== '/bind') {
+        router.replace('/login');
+      }
+    };
+    window.addEventListener('bw:unauthorized', onUnauthorized);
+    return () => window.removeEventListener('bw:unauthorized', onUnauthorized);
+  }, [pathname, router]);
+
   const logout = useCallback(async () => {
-    const backup = localStorage.getItem(LS_DEVICE_TOKEN);
+    let backup: string | null = null;
+    try {
+      backup = localStorage.getItem(LS_DEVICE_TOKEN);
+    } catch {
+      backup = null;
+    }
     await fetch('/api/auth/logout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ deviceToken: backup }),
     }).catch(() => {});
-    localStorage.removeItem(LS_DEVICE_TOKEN);
+    try {
+      localStorage.removeItem(LS_DEVICE_TOKEN);
+    } catch {
+      /* ignore */
+    }
+    invalidateApiCache();
     setUser(null);
+    setPlayers([]);
     router.replace('/login');
   }, [router]);
 
-  const refreshUser = useCallback(async () => {
-    // 两类数据相互独立，并行拉取减少串行等待
-    await Promise.all([fetchMe(), loadPlayersAndSettings()]);
-  }, [fetchMe, loadPlayersAndSettings]);
+  const refreshUser = useCallback(
+    () => loadBootstrap({ force: true, silent: true }),
+    [loadBootstrap],
+  );
 
   const openGameEditor = useCallback(() => {
     if (user?.role !== 'ADMIN') {
-      alert('仅管理员可以录入战绩');
+      showToast('仅管理员可以录入战绩');
       return;
     }
-    loadPlayersAndSettings();
     setEditorOpen(true);
-  }, [user, loadPlayersAndSettings]);
+    // 后台刷新玩家列表，弹窗通过 context 自动同步，不再单独发请求
+    void loadBootstrap({ force: true, silent: true });
+  }, [user, loadBootstrap, showToast]);
 
   const handleGameSaved = useCallback(() => {
     setEditorOpen(false);
+    invalidateApiCache();
     setGameSavedVersion((v) => v + 1);
-  }, []);
+    showToast('已记账');
+  }, [showToast]);
+
+  // 管理员空闲时预取记账弹窗代码，首次点“记一局”无需等待 chunk
+  useEffect(() => {
+    if (user?.role === 'ADMIN') {
+      void import('./GameEditorModal');
+    }
+  }, [user]);
+
+  const contextValue = useMemo<AppContextValue>(
+    () => ({
+      user,
+      loading,
+      refreshUser,
+      logout,
+      openGameEditor,
+      gameSavedVersion,
+      players,
+      defaultRoomFee,
+      showToast,
+    }),
+    [
+      user,
+      loading,
+      refreshUser,
+      logout,
+      openGameEditor,
+      gameSavedVersion,
+      players,
+      defaultRoomFee,
+      showToast,
+    ],
+  );
 
   return (
-    <AppContext.Provider
-      value={{
-        user,
-        loading,
-        refreshUser,
-        logout,
-        openGameEditor,
-        gameSavedVersion,
-        players,
-        defaultRoomFee,
-      }}
-    >
+    <AppContext.Provider value={contextValue}>
       <div className="min-h-screen bg-slate-100 max-w-lg sm:max-w-xl md:max-w-2xl lg:max-w-4xl mx-auto relative shadow-2xl">
         {loading && !isPublicPage ? (
           <div className="h-screen flex flex-col items-center justify-center gap-3">
             <LogoMark size={56} className="animate-pulse drop-shadow-lg" />
-            <span className="text-slate-400 text-sm">加载中…</span>
+            <span className="text-slate-500 text-sm">加载中…</span>
           </div>
         ) : offline && !user && !isPublicPage ? (
           <div className="h-screen flex flex-col items-center justify-center gap-4 px-6 text-center">
             <LogoMark size={48} className="opacity-40" />
-            <div className="text-sm text-slate-500">网络连接失败，请检查网络后重试</div>
+            <div className="text-sm text-slate-600">网络连接失败，请检查网络后重试</div>
             <button
               onClick={() => {
                 setOffline(false);
                 setLoading(true);
-                fetchMe();
+                void loadBootstrap();
               }}
-              className="px-6 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-medium active:scale-[0.98] transition"
+              className="min-h-11 px-6 rounded-xl bg-slate-900 text-white text-sm font-medium active:scale-[0.98] transition"
             >
               重新连接
             </button>
           </div>
         ) : user && !isPublicPage ? (
           <>
+            {offline && (
+              <div
+                role="status"
+                className="sticky top-0 z-30 border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-800"
+              >
+                网络连接异常，当前显示上次数据
+              </div>
+            )}
             <main className="pb-24 md:pb-28">{children}</main>
             <BottomNav
               pathname={pathname}
               isAdmin={user.role === 'ADMIN'}
               onRecordClick={openGameEditor}
             />
-            {user.role === 'ADMIN' && (
+            {user.role === 'ADMIN' && editorOpen && (
               <GameEditorModal
-                open={editorOpen}
+                open
                 players={players}
                 defaultRoomFee={defaultRoomFee}
                 onClose={() => setEditorOpen(false)}
@@ -241,11 +355,43 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               />
             )}
           </>
+        ) : !isPublicPage ? (
+          // 未登录的受保护页面：等待重定向到登录页，避免先挂载页面再发 401 请求
+          <div className="h-screen flex flex-col items-center justify-center gap-3">
+            <LogoMark size={48} className="opacity-40" />
+            <span className="text-slate-500 text-sm">正在跳转登录…</span>
+          </div>
         ) : (
           <>{children}</>
         )}
       </div>
+      {toast && <Toast message={toast} />}
     </AppContext.Provider>
+  );
+}
+
+function NavLink({
+  href,
+  label,
+  icon: Icon,
+  active,
+}: {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
+  active: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? 'page' : undefined}
+      className={`flex-1 flex flex-col items-center justify-center py-1 gap-0.5 transition ${
+        active ? 'text-red-600' : 'text-slate-500'
+      }`}
+    >
+      <Icon size={19} strokeWidth={active ? 2.5 : 2} />
+      <span className={`text-xs ${active ? 'font-medium' : ''}`}>{label}</span>
+    </Link>
   );
 }
 
@@ -258,72 +404,42 @@ function BottomNav({
   isAdmin: boolean;
   onRecordClick: () => void;
 }) {
-  const router = useRouter();
-
   return (
     <nav className="fixed bottom-0 md:bottom-5 left-1/2 -translate-x-1/2 w-full max-w-lg md:max-w-2xl bg-white/95 backdrop-blur border-t md:border md:border-slate-200/70 z-40 pb-[env(safe-area-inset-bottom)] md:pb-0 md:rounded-3xl md:shadow-xl md:shadow-slate-900/10">
       <div className="flex items-center justify-between h-14 md:h-16 px-2 md:px-4">
-        {/* 左侧 1: 总榜 */}
-        <button
-          onClick={() => router.push('/')}
-          className={`flex-1 flex flex-col items-center justify-center py-1 gap-0.5 transition ${
-            pathname === '/' ? 'text-red-600' : 'text-slate-400'
-          }`}
-        >
-          <Trophy size={19} strokeWidth={pathname === '/' ? 2.5 : 2} />
-          <span className={`text-xs ${pathname === '/' ? 'font-medium' : ''}`}>总榜</span>
-        </button>
+        <NavLink href="/" label="总榜" icon={Trophy} active={pathname === '/'} />
+        <NavLink
+          href="/games"
+          label="流水"
+          icon={ListOrdered}
+          active={pathname.startsWith('/games')}
+        />
 
-        {/* 左侧 2: 流水 */}
-        <button
-          onClick={() => router.push('/games')}
-          className={`flex-1 flex flex-col items-center justify-center py-1 gap-0.5 transition ${
-            pathname.startsWith('/games') ? 'text-red-600' : 'text-slate-400'
-          }`}
-        >
-          <ListOrdered size={19} strokeWidth={pathname.startsWith('/games') ? 2.5 : 2} />
-          <span className={`text-xs ${pathname.startsWith('/games') ? 'font-medium' : ''}`}>
-            流水
-          </span>
-        </button>
+        {isAdmin && (
+          <div className="flex-1 flex flex-col items-center justify-center relative -top-3">
+            <button
+              onClick={onRecordClick}
+              aria-label="记一局"
+              className="h-12 w-12 p-3 rounded-full bg-gradient-to-tr from-amber-500 via-rose-600 to-red-600 text-white flex items-center justify-center shadow-lg shadow-red-500/35 border-4 border-white active:scale-90 transition-transform"
+            >
+              <Plus size={24} strokeWidth={3} />
+            </button>
+            <span className="text-xs font-medium text-red-600 mt-0.5">记一局</span>
+          </div>
+        )}
 
-        {/* 中间核心: 记一局 */}
-        <div className="flex-1 flex flex-col items-center justify-center relative -top-3">
-          <button
-            onClick={onRecordClick}
-            className="h-12 w-12 p-3 rounded-full bg-gradient-to-tr from-amber-500 via-rose-600 to-red-600 text-white flex items-center justify-center shadow-lg shadow-red-500/35 border-4 border-white active:scale-90 transition-transform"
-            title={isAdmin ? '记一局' : '仅管理员可记账'}
-          >
-            <Plus size={24} strokeWidth={3} />
-          </button>
-          <span className="text-xs font-medium text-red-600 mt-0.5">记一局</span>
-        </div>
-
-        {/* 右侧 1: 看板 */}
-        <button
-          onClick={() => router.push('/stats')}
-          className={`flex-1 flex flex-col items-center justify-center py-1 gap-0.5 transition ${
-            pathname.startsWith('/stats') ? 'text-red-600' : 'text-slate-400'
-          }`}
-        >
-          <BarChart3 size={19} strokeWidth={pathname.startsWith('/stats') ? 2.5 : 2} />
-          <span className={`text-xs ${pathname.startsWith('/stats') ? 'font-medium' : ''}`}>
-            看板
-          </span>
-        </button>
-
-        {/* 右侧 2: 我的 */}
-        <button
-          onClick={() => router.push('/profile')}
-          className={`flex-1 flex flex-col items-center justify-center py-1 gap-0.5 transition ${
-            pathname.startsWith('/profile') ? 'text-red-600' : 'text-slate-400'
-          }`}
-        >
-          <User size={19} strokeWidth={pathname.startsWith('/profile') ? 2.5 : 2} />
-          <span className={`text-xs ${pathname.startsWith('/profile') ? 'font-medium' : ''}`}>
-            我的
-          </span>
-        </button>
+        <NavLink
+          href="/stats"
+          label="看板"
+          icon={BarChart3}
+          active={pathname.startsWith('/stats')}
+        />
+        <NavLink
+          href="/profile"
+          label="我的"
+          icon={User}
+          active={pathname.startsWith('/profile')}
+        />
       </div>
     </nav>
   );

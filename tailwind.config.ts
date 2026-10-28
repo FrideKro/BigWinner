@@ -10,6 +10,8 @@ const config: Config = {
   theme: {
     extend: {
       screens: {
+        // 小屏手机（iPhone SE 等 320~375px）与常规手机的分界
+        xs: '380px',
         // 矮屏（手机横屏等）专用断点
         short: { raw: '(max-height: 640px)' },
       },

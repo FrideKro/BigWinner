@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
+import { getDefaultRoomFee } from '../_lib/shared';
 
 export async function GET() {
   try {
@@ -9,14 +10,7 @@ export async function GET() {
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
-    const res = await query<{ key: string; value: string }>(
-      `SELECT key, value FROM system_settings WHERE key = 'default_room_fee'`,
-    );
-    const defaultRoomFee = parseInt(res.rows[0]?.value || '100', 10);
-
-    return NextResponse.json({
-      defaultRoomFee: Number.isNaN(defaultRoomFee) ? 100 : defaultRoomFee,
-    });
+    return NextResponse.json({ defaultRoomFee: await getDefaultRoomFee() });
   } catch (error) {
     console.error('Get settings error:', error);
     return NextResponse.json({ error: '获取系统设置失败' }, { status: 500 });
@@ -38,6 +32,12 @@ export async function PUT(req: NextRequest) {
 
     if (!Number.isInteger(defaultRoomFee) || defaultRoomFee < 0) {
       return NextResponse.json({ error: '默认每场房费必须为非负整数' }, { status: 400 });
+    }
+    if (defaultRoomFee > 2147483647) {
+      return NextResponse.json(
+        { error: '默认每场房费超出系统上限（不超过 2147483647）' },
+        { status: 400 },
+      );
     }
 
     await query(

@@ -38,7 +38,7 @@ export function getRateLimitState(key: string): RateLimitState {
   return { locked: false, retryAfterSeconds: 0 };
 }
 
-export function recordFailure(key: string): void {
+export function recordFailure(key: string, maxFailures = MAX_FAILURES): void {
   const now = Date.now();
   if (attempts.size >= MAX_ENTRIES) {
     cleanupExpired(now);
@@ -51,7 +51,7 @@ export function recordFailure(key: string): void {
   }
 
   rec.count += 1;
-  if (rec.count >= MAX_FAILURES) {
+  if (rec.count >= maxFailures) {
     rec.lockedUntil = now + LOCK_MS;
   }
 }

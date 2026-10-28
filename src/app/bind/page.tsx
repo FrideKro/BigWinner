@@ -3,6 +3,7 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useApp } from '@/components/AppShell';
+import { invalidateApiCache } from '@/lib/apiClient';
 import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 
 function BindContent() {
@@ -44,7 +45,13 @@ function BindContent() {
 
         setStatus('success');
         setMessage(`欢迎【${data.user?.nickname}】，微信绑定成功！即将进入系统…`);
-        await refreshUser();
+        invalidateApiCache();
+        const loggedIn = await refreshUser();
+        if (!loggedIn) {
+          setStatus('error');
+          setMessage('绑定成功，但加载用户信息失败，请刷新重试');
+          return;
+        }
         setTimeout(() => {
           router.replace('/');
         }, 1200);

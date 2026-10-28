@@ -34,6 +34,22 @@ input[type='number'] {
   .scrollbar-none::-webkit-scrollbar {
     display: none;
   }
+
+  /* 记账弹窗自下而上的入场动画 */
+  .animate-slide-up {
+    animation: slide-up 0.22s ease-out;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* 尊重系统"减弱动态效果"设置 */

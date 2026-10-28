@@ -12,11 +12,13 @@ const players: PlayerOption[] = [
 ];
 
 function stubFetch(saveResponse: { ok: boolean; body: Record<string, unknown> }) {
-  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-    if (String(input).endsWith('/api/users')) {
-      return { ok: true, json: async () => ({ users: players }) };
-    }
-    return { ok: saveResponse.ok, json: async () => saveResponse.body };
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    void input;
+    void init;
+    return {
+      ok: saveResponse.ok,
+      json: async () => saveResponse.body,
+    };
   });
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
@@ -115,7 +117,6 @@ describe('GameEditorModal', () => {
     const user = userEvent.setup();
     const { onSaved } = renderModal();
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/users'));
     const amountInputs = screen.getAllByPlaceholderText('金额');
     await user.type(amountInputs[0], '200');
     await user.type(amountInputs[1], '0');
@@ -132,11 +133,8 @@ describe('GameEditorModal', () => {
     await user.click(saveButton);
 
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
-    const [, saveInit] = fetchMock.mock.calls[1] as unknown as [
-      RequestInfo | URL,
-      RequestInit | undefined,
-    ];
-    expect(fetchMock.mock.calls[1][0]).toBe('/api/games');
+    const [url, saveInit] = fetchMock.mock.calls[0] as [RequestInfo | URL, RequestInit | undefined];
+    expect(url).toBe('/api/games');
     expect(saveInit?.method).toBe('POST');
 
     const payload = JSON.parse(String(saveInit?.body));
@@ -150,14 +148,13 @@ describe('GameEditorModal', () => {
   });
 
   it('服务端返回错误时在弹窗内显示错误提示且不回调 onSaved', async () => {
-    const fetchMock = stubFetch({
+    stubFetch({
       ok: false,
       body: { error: '同一场次不能重复选择同一名玩家' },
     });
     const user = userEvent.setup();
     const { onSaved } = renderModal();
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/users'));
     const amountInputs = screen.getAllByPlaceholderText('金额');
     await user.type(amountInputs[0], '200');
     await user.type(amountInputs[1], '0');

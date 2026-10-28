@@ -51,6 +51,7 @@ ADMIN_NICKNAME=群主管理员
 ADMIN_PASSWORD=admin123
 DEFAULT_ROOM_FEE=100
 PORT=3000
+COOKIE_SECURE=false
 ```
 
 ### 3. 构建与运行
@@ -62,6 +63,8 @@ docker compose up -d --build
 容器启动时会自动连接 PostgreSQL 执行幂等建表与管理员初始化，无需手动执行数据库脚本
 
 访问地址：`http://服务器IP:3000`
+
+> 生产环境建议通过反向代理启用 HTTPS：微信内置浏览器的剪贴板 API 与 PWA 安装都要求安全上下文；HTTPS 下同时把 `COOKIE_SECURE` 设为 `true`。
 
 - 初始管理员账号：`admin`
 - 初始密码：`admin123`（或你设置的 `ADMIN_PASSWORD`）

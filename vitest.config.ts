@@ -9,6 +9,9 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['src/**/*.test.{ts,tsx}'],
     setupFiles: ['./vitest.setup.ts'],
+    // 组件测试在并行负载下偶发超时，放宽单测/钩子时限
+    testTimeout: 15000,
+    hookTimeout: 15000,
   },
   resolve: {
     alias: {

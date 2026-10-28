@@ -4,10 +4,9 @@ import {
   buildLeaderboardShareText,
   formatDateTime,
   formatSignedAmount,
-  formatShortDate,
-  getAmountBadgeClass,
   getAmountColorClass,
   getAvatarTheme,
+  shanghaiInputToIso,
   toDatetimeLocalValue,
 } from './format';
 
@@ -19,15 +18,11 @@ describe('formatSignedAmount', () => {
   });
 });
 
-describe('getAmountColorClass / getAmountBadgeClass', () => {
+describe('getAmountColorClass', () => {
   it('红=赢、绿=输、灰=平', () => {
     expect(getAmountColorClass(10)).toBe('text-red-600');
     expect(getAmountColorClass(-10)).toBe('text-emerald-600');
     expect(getAmountColorClass(0)).toBe('text-slate-500');
-
-    expect(getAmountBadgeClass(10)).toContain('bg-red-50');
-    expect(getAmountBadgeClass(-10)).toContain('bg-emerald-50');
-    expect(getAmountBadgeClass(0)).toContain('bg-slate-100');
   });
 });
 
@@ -47,17 +42,22 @@ describe('时间格式化（Asia/Shanghai）', () => {
     expect(formatDateTime('2026-01-01T16:00:00Z')).toBe('2026/01/02 00:00');
   });
 
-  it('formatShortDate 只保留月日与时分', () => {
-    expect(formatShortDate('2026-01-01T16:00:00Z')).toBe('01/02 00:00');
-  });
-
   it('无效 ISO 原样返回', () => {
     expect(formatDateTime('not-a-date')).toBe('not-a-date');
-    expect(formatShortDate('not-a-date')).toBe('not-a-date');
   });
 
   it('toDatetimeLocalValue 固定加 8 小时偏移并截断到分钟', () => {
     expect(toDatetimeLocalValue(new Date('2026-01-01T16:00:00Z'))).toBe('2026-01-02T00:00');
+  });
+
+  it('shanghaiInputToIso 把上海墙上时间转回 UTC', () => {
+    expect(shanghaiInputToIso('2026-01-02T00:00')).toBe('2026-01-01T16:00:00.000Z');
+    expect(shanghaiInputToIso('2026-01-02T00:00:00')).toBe('2026-01-01T16:00:00.000Z');
+  });
+
+  it('shanghaiInputToIso 对空值/非法值返回 null', () => {
+    expect(shanghaiInputToIso('')).toBeNull();
+    expect(shanghaiInputToIso('not-a-date')).toBeNull();
   });
 });
 

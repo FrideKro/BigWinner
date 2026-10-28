@@ -1,8 +1,13 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X, Check, Wand2, Plus, Minus, Trash2 } from 'lucide-react';
 import { PlayerAvatar } from './PlayerAvatar';
+import { ConfirmDialog } from './ConfirmDialog';
+import { toDatetimeLocalValue, shanghaiInputToIso } from '@/lib/format';
+import { apiMutate } from '@/lib/apiClient';
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
+import { useFocusTrap } from '@/lib/useFocusTrap';
 
 export interface GameRecordInput {
   userId: number;
@@ -55,46 +60,24 @@ export function GameEditorModal({
   const [note, setNote] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>('');
+  const [dirty, setDirty] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
 
   const prevOpenRef = useRef(false);
   const prevInitialIdRef = useRef<number | undefined>(undefined);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   const isEdit = Boolean(initial?.id);
 
-  // 同步外部传入的 players
+  useBodyScrollLock(open);
+  useFocusTrap(open && !confirmClose, dialogRef);
+
+  // 同步外部传入的 players（AppShell 刷新后自动更新，弹窗不再自己发请求）
   useEffect(() => {
     if (players && players.length > 0) {
       setModalPlayers(players);
     }
   }, [players]);
-
-  // 弹窗开启时，兜底异步刷新一次玩家列表，确保实时获取刚创建的新玩家
-  useEffect(() => {
-    if (!open) return;
-    fetch('/api/users')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data && Array.isArray(data.users)) {
-          const list: PlayerOption[] = data.users.map(
-            (u: { id: number; nickname: string; avatarColor: string; isActive: boolean }) => ({
-              id: u.id,
-              nickname: u.nickname,
-              avatarColor: u.avatarColor,
-              isActive: u.isActive,
-            }),
-          );
-          setModalPlayers(list);
-        }
-      })
-      .catch(() => {});
-  }, [open]);
-
-  function toLocalInputValue(date: Date): string {
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
-      date.getDate(),
-    )}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-  }
 
   // 初始化表单（仅在打开弹窗或切换编辑场次时重置，避免被后台拉取玩家覆盖用户输入）
   useEffect(() => {
@@ -108,6 +91,8 @@ export function GameEditorModal({
 
     setError('');
     setSaving(false);
+    setDirty(false);
+    setConfirmClose(false);
 
     if (initial) {
       const ids = initial.records.map((r) => r.userId);
@@ -127,7 +112,7 @@ export function GameEditorModal({
       setRoomFeeStr(String(initial.roomFee));
 
       const d = new Date(initial.playedAt);
-      setPlayedAt(Number.isNaN(d.getTime()) ? toLocalInputValue(new Date()) : toLocalInputValue(d));
+      setPlayedAt(Number.isNaN(d.getTime()) ? toDatetimeLocalValue() : toDatetimeLocalValue(d));
       setNote(initial.note || '');
     } else {
       // 新建：默认选择活跃玩家的前 4 名
@@ -146,10 +131,10 @@ export function GameEditorModal({
       setSigns(sMap);
       setRoomFee(defaultRoomFee);
       setRoomFeeStr(String(defaultRoomFee));
-      setPlayedAt(toLocalInputValue(new Date()));
+      setPlayedAt(toDatetimeLocalValue());
       setNote('');
     }
-    // 故意不依赖 players/modalPlayers：仅在打开弹窗或切换编辑场次时重置表单，避免后台拉取玩家覆盖用户输入
+    // 故意不依赖 players/modalPlayers：仅在打开弹窗或切换编辑场次时重置表单
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initial, defaultRoomFee]);
 
@@ -191,7 +176,26 @@ export function GameEditorModal({
     [selectedIds, rawAmounts, roomFee],
   );
 
+  const requestClose = useCallback(() => {
+    if (saving) return;
+    if (dirty) {
+      setConfirmClose(true);
+      return;
+    }
+    onClose();
+  }, [saving, dirty, onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') requestClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open, requestClose]);
+
   function togglePlayer(id: number) {
+    setDirty(true);
     if (selectedIds.includes(id)) {
       setSelectedIds(selectedIds.filter((x) => x !== id));
       setRawAmounts((prev) => {
@@ -207,10 +211,12 @@ export function GameEditorModal({
   }
 
   function setRawAmount(id: number, val: number | null) {
+    setDirty(true);
     setRawAmounts((prev) => ({ ...prev, [id]: val }));
   }
 
   function setPlayerSign(id: number, sign: 1 | -1) {
+    setDirty(true);
     setSigns((prev) => ({ ...prev, [id]: sign }));
   }
 
@@ -233,12 +239,14 @@ export function GameEditorModal({
       return;
     }
     setError('');
+    setDirty(true);
     setRoomFee(fee);
     setRoomFeeStr(String(fee));
   }
 
   function handleRoomFeeInput(str: string) {
     const cleaned = str.replace(/[^0-9]/g, '');
+    setDirty(true);
     setRoomFeeStr(cleaned);
     setRoomFee(cleaned === '' ? 0 : parseInt(cleaned, 10));
   }
@@ -249,8 +257,8 @@ export function GameEditorModal({
       setError('请选择开局时间');
       return;
     }
-    const d = new Date(playedAt);
-    if (Number.isNaN(d.getTime())) {
+    const playedAtIso = shanghaiInputToIso(playedAt);
+    if (!playedAtIso) {
       setError('开局时间格式无效');
       return;
     }
@@ -268,7 +276,7 @@ export function GameEditorModal({
     }
 
     const payload = {
-      playedAt: d.toISOString(),
+      playedAt: playedAtIso,
       roomFee,
       note,
       records: selectedIds.map((id) => ({
@@ -279,20 +287,14 @@ export function GameEditorModal({
 
     setSaving(true);
     try {
-      const res = await fetch(isEdit ? `/api/games/${initial!.id}` : '/api/games', {
-        method: isEdit ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || '保存失败');
-        setSaving(false);
-        return;
-      }
+      await apiMutate(
+        isEdit ? `/api/games/${initial!.id}` : '/api/games',
+        isEdit ? 'PUT' : 'POST',
+        payload,
+      );
       onSaved();
-    } catch {
-      setError('网络错误，保存失败');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '保存失败');
       setSaving(false);
     }
   }
@@ -318,36 +320,62 @@ export function GameEditorModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-lg md:max-w-2xl bg-white rounded-t-3xl md:rounded-3xl max-h-[92vh] md:max-h-[88vh] flex flex-col shadow-2xl animate-slide-up">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={requestClose} />
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="game-editor-title"
+        tabIndex={-1}
+        className="relative w-full max-w-lg md:max-w-2xl bg-white rounded-t-3xl md:rounded-3xl max-h-[92vh] md:max-h-[88vh] flex flex-col shadow-2xl animate-slide-up outline-none"
+      >
         {/* 头部 */}
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-slate-100 shrink-0">
-          <h2 className="text-lg font-medium text-slate-900">
+          <h2 id="game-editor-title" className="text-lg font-medium text-slate-900">
             {isEdit ? '编辑场次战绩' : '记一局'}
           </h2>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 text-slate-500">
+          <button
+            onClick={requestClose}
+            aria-label="关闭记账弹窗"
+            className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-slate-100 text-slate-500"
+          >
             <X size={20} />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-          {/* 时间与备注 */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* 时间与备注：窄屏单列，避免 datetime 值被截断 */}
+          <div className="grid grid-cols-1 xs:grid-cols-2 gap-3">
             <div>
-              <label className="text-sm font-medium text-slate-500 mb-1 block">开局时间</label>
+              <label
+                htmlFor="game-played-at"
+                className="text-sm font-medium text-slate-500 mb-1 block"
+              >
+                开局时间
+              </label>
               <input
+                id="game-played-at"
                 type="datetime-local"
                 value={playedAt}
-                onChange={(e) => setPlayedAt(e.target.value)}
+                onChange={(e) => {
+                  setDirty(true);
+                  setPlayedAt(e.target.value);
+                }}
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-500 mb-1 block">备注</label>
+              <label htmlFor="game-note" className="text-sm font-medium text-slate-500 mb-1 block">
+                备注
+              </label>
               <input
+                id="game-note"
                 type="text"
                 value={note}
-                onChange={(e) => setNote(e.target.value)}
+                onChange={(e) => {
+                  setDirty(true);
+                  setNote(e.target.value);
+                }}
                 placeholder="如：茶楼 / 常规局"
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
               />
@@ -360,13 +388,15 @@ export function GameEditorModal({
               <label className="text-sm font-medium text-slate-500">
                 本场玩家（已选 {selectedIds.length} 人）
               </label>
-              <span className="text-xs text-slate-400">至少 2 人，可随时增减</span>
+              <span className="text-xs text-slate-500">至少 2 人，可随时增减</span>
             </div>
             <div className="flex flex-wrap gap-2">
               {selectedPlayers.map((p) => (
                 <button
                   key={p.id}
                   onClick={() => togglePlayer(p.id)}
+                  aria-pressed
+                  aria-label={`移除 ${p.nickname}`}
                   className="flex items-center gap-1 pl-1 pr-2 py-1 rounded-full bg-slate-900 text-white text-sm font-medium"
                 >
                   <PlayerAvatar nickname={p.nickname} color={p.avatarColor} size="sm" />
@@ -378,6 +408,8 @@ export function GameEditorModal({
                 <button
                   key={p.id}
                   onClick={() => togglePlayer(p.id)}
+                  aria-pressed={false}
+                  aria-label={`加入 ${p.nickname}`}
                   className="flex items-center gap-1 pl-1 pr-2 py-1 rounded-full bg-slate-100 text-slate-600 text-sm font-medium border border-dashed border-slate-300"
                 >
                   <PlayerAvatar nickname={p.nickname} color={p.avatarColor} size="sm" />
@@ -390,25 +422,30 @@ export function GameEditorModal({
 
           {/* 房费 */}
           <div>
-            <label className="text-sm font-medium text-slate-500 mb-1 block">
+            <label
+              htmlFor="game-room-fee"
+              className="text-sm font-medium text-slate-500 mb-1 block"
+            >
               🤖 本场房费（虚拟玩家，始终赢）
             </label>
             <div className="flex items-center gap-2">
               <div className="flex-1 relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">
                   +
                 </span>
                 <input
+                  id="game-room-fee"
                   type="text"
                   inputMode="numeric"
                   value={roomFeeStr}
                   onChange={(e) => handleRoomFeeInput(e.target.value)}
-                  className="w-full pl-7 pr-3 py-2 rounded-xl border border-slate-200 text-base bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-400 font-semibold text-amber-700"
+                  aria-label="本场房费"
+                  className="w-full pl-7 pr-3 py-2 rounded-xl border border-slate-200 text-base bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-400 font-semibold text-amber-700 tabular-nums"
                 />
               </div>
               <button
                 onClick={balanceRoomFee}
-                className="shrink-0 px-3 py-2 rounded-xl bg-slate-100 text-slate-600 text-sm font-medium flex items-center gap-1"
+                className="shrink-0 min-h-10 px-3 rounded-xl bg-slate-100 text-slate-600 text-sm font-medium flex items-center gap-1"
               >
                 <Wand2 size={13} />
                 反算房费
@@ -418,9 +455,9 @@ export function GameEditorModal({
 
           {/* 各玩家输赢 */}
           <div className="space-y-2.5">
-            <label className="text-sm font-medium text-slate-500">
+            <span className="text-sm font-medium text-slate-500 block">
               各玩家本场输赢（正为赢，负为输）
-            </label>
+            </span>
             <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 md:items-start">
               {selectedPlayers.map((p) => {
                 const currentSign = signs[p.id] ?? 1;
@@ -433,7 +470,7 @@ export function GameEditorModal({
                 return (
                   <div
                     key={p.id}
-                    className={`flex items-center gap-2.5 p-2.5 rounded-2xl border ${
+                    className={`flex flex-wrap xs:flex-nowrap items-center gap-2.5 p-2.5 rounded-2xl border ${
                       isBigWinner
                         ? 'bg-amber-50/80 border-amber-300 ring-1 ring-amber-200'
                         : 'bg-slate-50 border-slate-100'
@@ -445,73 +482,83 @@ export function GameEditorModal({
                       size="md"
                       isBigWinner={isBigWinner}
                     />
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-[72px]">
                       <div className="text-sm font-medium text-slate-800 truncate flex items-center gap-1">
-                        <span>{p.nickname}</span>
+                        <span className="truncate">{p.nickname}</span>
                         {isBigWinner && (
-                          <span className="text-xs text-amber-600 font-medium">👑大赢家</span>
+                          <span className="shrink-0 text-xs text-amber-600 font-medium">
+                            👑大赢家
+                          </span>
                         )}
                       </div>
                     </div>
 
-                    {/* 独立正负号切换 */}
-                    <div className="flex rounded-lg overflow-hidden border border-slate-200 shrink-0">
+                    {/* 正负号 / 金额 / 配平：窄屏整体换行并右对齐 */}
+                    <div className="ml-auto flex items-center gap-2">
+                      <div className="flex rounded-lg overflow-hidden border border-slate-200 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setPlayerSign(p.id, 1)}
+                          aria-label={`${p.nickname} 本场为赢`}
+                          aria-pressed={currentSign === 1}
+                          className={`flex min-h-9 min-w-9 items-center justify-center text-xs font-bold transition ${
+                            currentSign === 1
+                              ? 'bg-red-600 text-white'
+                              : 'bg-white text-slate-500 hover:text-red-500'
+                          }`}
+                        >
+                          <Plus size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPlayerSign(p.id, -1)}
+                          aria-label={`${p.nickname} 本场为输`}
+                          aria-pressed={currentSign === -1}
+                          className={`flex min-h-9 min-w-9 items-center justify-center text-xs font-bold transition ${
+                            currentSign === -1
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-white text-slate-500 hover:text-emerald-500'
+                          }`}
+                        >
+                          <Minus size={12} />
+                        </button>
+                      </div>
+
+                      {/* 绝对值金额输入 */}
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={rawVal === null || rawVal === undefined ? '' : String(rawVal)}
+                        onChange={(e) => {
+                          const cleaned = e.target.value.replace(/[^0-9]/g, '');
+                          if (cleaned === '') {
+                            setRawAmount(p.id, null);
+                          } else {
+                            setRawAmount(p.id, parseInt(cleaned, 10));
+                          }
+                        }}
+                        placeholder="金额"
+                        aria-label={`${p.nickname} 本场金额`}
+                        className={`w-20 px-2 py-1.5 rounded-lg border text-right text-base font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-400 ${
+                          !isFilled
+                            ? 'border-slate-200 bg-white text-slate-700'
+                            : currentSign === 1
+                              ? 'border-red-200 bg-red-50 text-red-600'
+                              : 'border-emerald-200 bg-emerald-50 text-emerald-600'
+                        }`}
+                      />
+
+                      {/* 配平此玩家 */}
                       <button
                         type="button"
-                        onClick={() => setPlayerSign(p.id, 1)}
-                        className={`px-2 py-1.5 text-xs font-bold transition ${
-                          currentSign === 1
-                            ? 'bg-red-600 text-white'
-                            : 'bg-white text-slate-400 hover:text-red-500'
-                        }`}
+                        onClick={() => balancePlayer(p.id)}
+                        title="按其他人+房费自动配平"
+                        aria-label={`配平 ${p.nickname}`}
+                        className="shrink-0 flex min-h-9 min-w-9 items-center justify-center rounded-lg bg-slate-200 text-slate-600 hover:bg-amber-400 hover:text-white transition"
                       >
-                        <Plus size={12} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPlayerSign(p.id, -1)}
-                        className={`px-2 py-1.5 text-xs font-bold transition ${
-                          currentSign === -1
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-white text-slate-400 hover:text-emerald-500'
-                        }`}
-                      >
-                        <Minus size={12} />
+                        <Wand2 size={14} />
                       </button>
                     </div>
-
-                    {/* 绝对值金额输入 */}
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={rawVal === null || rawVal === undefined ? '' : String(rawVal)}
-                      onChange={(e) => {
-                        const cleaned = e.target.value.replace(/[^0-9]/g, '');
-                        if (cleaned === '') {
-                          setRawAmount(p.id, null);
-                        } else {
-                          setRawAmount(p.id, parseInt(cleaned, 10));
-                        }
-                      }}
-                      placeholder="金额"
-                      className={`w-20 px-2 py-1.5 rounded-lg border text-right text-base font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400 ${
-                        !isFilled
-                          ? 'border-slate-200 bg-white text-slate-700'
-                          : currentSign === 1
-                            ? 'border-red-200 bg-red-50 text-red-600'
-                            : 'border-emerald-200 bg-emerald-50 text-emerald-600'
-                      }`}
-                    />
-
-                    {/* 配平此玩家 */}
-                    <button
-                      type="button"
-                      onClick={() => balancePlayer(p.id)}
-                      title="按其他人+房费自动配平"
-                      className="shrink-0 p-1.5 rounded-lg bg-slate-200 text-slate-600 hover:bg-amber-400 hover:text-white transition"
-                    >
-                      <Wand2 size={14} />
-                    </button>
                   </div>
                 );
               })}
@@ -520,51 +567,72 @@ export function GameEditorModal({
         </div>
 
         {/* 底部配平状态条 + 保存 */}
-        <div className="shrink-0 border-t border-slate-100 px-5 py-3 space-y-3 bg-white">
+        <div className="shrink-0 border-t border-slate-100 px-5 py-3 space-y-3 bg-white pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {error && (
-            <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+            <div
+              role="alert"
+              className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2"
+            >
               {error}
             </div>
           )}
           <div
-            className={`flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-medium ${
+            aria-live="polite"
+            className={`flex flex-col items-start gap-1 px-4 py-2.5 rounded-xl text-sm font-medium xs:flex-row xs:items-center xs:justify-between ${
               isBalanced && allFilled
                 ? 'bg-emerald-50 text-emerald-700'
                 : 'bg-slate-100 text-slate-600'
             }`}
           >
-            <span className="flex items-center gap-2">
+            <span className="flex items-center gap-2 min-w-0">
               {isBalanced && allFilled ? (
                 <>
-                  <Check size={16} />
+                  <Check size={16} className="shrink-0" />
                   账目已配平 ✓
                 </>
               ) : (
                 <>
-                  <Wand2 size={16} />
-                  {allFilled
-                    ? `还差 ${balance > 0 ? `+${balance}` : balance} 待配平`
-                    : '请填完所有玩家金额'}
+                  <Wand2 size={16} className="shrink-0" />
+                  <span className="truncate">
+                    {selectedIds.length < 2
+                      ? '请至少选择 2 名玩家'
+                      : allFilled
+                        ? `还差 ${balance > 0 ? `+${balance}` : balance} 待配平`
+                        : '请填完所有玩家金额'}
+                  </span>
                 </>
               )}
             </span>
-            <span className="text-xs font-normal">
+            <span className="shrink-0 text-xs font-normal whitespace-nowrap">
               玩家合计 {playerSum > 0 ? `+${playerSum}` : playerSum} ＋ 房费 +{roomFee}
             </span>
           </div>
           <button
             onClick={handleSave}
             disabled={saving || !isBalanced || !allFilled}
-            className={`w-full py-3.5 rounded-2xl text-base font-medium transition ${
+            className={`w-full min-h-12 rounded-2xl text-base font-medium transition ${
               isBalanced && allFilled && !saving
                 ? 'bg-gradient-to-r from-amber-500 to-red-600 text-white shadow-lg active:scale-[0.99]'
-                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                : 'bg-slate-200 text-slate-500 cursor-not-allowed'
             }`}
           >
             {saving ? '保存中…' : isEdit ? '保存修改' : '确认记账'}
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmClose}
+        title="放弃本次录入？"
+        message="已填写的时间、玩家与金额不会保存。"
+        confirmText="放弃"
+        danger
+        onConfirm={() => {
+          setConfirmClose(false);
+          onClose();
+        }}
+        onCancel={() => setConfirmClose(false)}
+      />
     </div>
   );
 }
