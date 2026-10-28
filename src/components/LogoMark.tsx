@@ -1,8 +1,9 @@
 import React, { useId } from 'react';
 
 /**
- * 大赢家品牌 Logo：举杯欢聚——三杯相碰溅星 + 六人群像，前排冠军红衣金冠
- * 深蓝黑底圆角徽章 + 金色渐变，延续黑金榜单卡片视觉；红＝赢
+ * 大赢家品牌 Logo：四方围桌 · 牌局赢家
+ * 金色圆桌光环象征台面零和闭环，四席好友环绕（北席大赢家红、南席绿、东西银白，呼应红赢绿输），
+ * 圆桌中央立起三尖黄金皇冠
  * 与 src/app/icon.svg（favicon/PWA）保持同一设计，改动请两处同步
  */
 export function LogoMark({
@@ -15,7 +16,10 @@ export function LogoMark({
 }) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
   const bgId = `bw-lg-bg-${uid}`;
+  const tableId = `bw-lg-table-${uid}`;
   const goldId = `bw-lg-gold-${uid}`;
+  const redId = `bw-lg-red-${uid}`;
+  const greenId = `bw-lg-green-${uid}`;
 
   return (
     <svg
@@ -29,71 +33,75 @@ export function LogoMark({
       <defs>
         <linearGradient id={bgId} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#0f172a" />
-          <stop offset="0.55" stopColor="#101a30" />
-          <stop offset="1" stopColor="#241b10" />
+          <stop offset="0.55" stopColor="#131c33" />
+          <stop offset="1" stopColor="#241812" />
         </linearGradient>
+        <radialGradient id={tableId} cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stopColor="#1e293b" />
+          <stop offset="1" stopColor="#0f172a" />
+        </radialGradient>
         <linearGradient id={goldId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#fde68a" />
-          <stop offset="0.5" stopColor="#fbbf24" />
+          <stop offset="0" stopColor="#fef08a" />
+          <stop offset="0.45" stopColor="#fbbf24" />
           <stop offset="1" stopColor="#d97706" />
+        </linearGradient>
+        <linearGradient id={redId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fb7185" />
+          <stop offset="0.4" stopColor="#ef4444" />
+          <stop offset="1" stopColor="#b91c1c" />
+        </linearGradient>
+        <linearGradient id={greenId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#34d399" />
+          <stop offset="1" stopColor="#059669" />
         </linearGradient>
       </defs>
 
       <rect width="512" height="512" rx="112" fill={`url(#${bgId})`} />
 
-      {/* 碰杯的金杯群：中杯直立，左右两杯倾向中央 */}
-      <g fill={`url(#${goldId})`}>
-        <g transform="translate(256 148) scale(0.72)">
-          <path d="M-52 -42 h104 l-14 64 a34 34 0 0 1 -76 0 z" />
-          <rect x="-8" y="10" width="16" height="52" rx="6" />
-          <rect x="-36" y="62" width="72" height="13" rx="6.5" />
-        </g>
-        <g transform="translate(186 172) rotate(22) scale(0.62)">
-          <path d="M-52 -42 h104 l-14 64 a34 34 0 0 1 -76 0 z" />
-          <rect x="-8" y="10" width="16" height="52" rx="6" />
-          <rect x="-36" y="62" width="72" height="13" rx="6.5" />
-        </g>
-        <g transform="translate(326 172) rotate(-22) scale(0.62)">
-          <path d="M-52 -42 h104 l-14 64 a34 34 0 0 1 -76 0 z" />
-          <rect x="-8" y="10" width="16" height="52" rx="6" />
-          <rect x="-36" y="62" width="72" height="13" rx="6.5" />
-        </g>
-      </g>
+      {/* 牌局圆桌金环（代表好友围桌与零和配平闭环） */}
+      <circle
+        cx="256"
+        cy="256"
+        r="158"
+        fill={`url(#${tableId})`}
+        stroke={`url(#${goldId})`}
+        strokeWidth="18"
+      />
+      <circle
+        cx="256"
+        cy="256"
+        r="126"
+        fill="none"
+        stroke={`url(#${goldId})`}
+        strokeOpacity="0.25"
+        strokeWidth="4"
+        strokeDasharray="16 12"
+      />
 
-      {/* 碰杯溅出的星点 */}
-      <g fill="#fef3c7">
-        <circle cx="256" cy="84" r="11" />
-        <circle cx="216" cy="66" r="6.5" />
-        <circle cx="296" cy="66" r="6.5" />
-        <circle cx="256" cy="46" r="5" />
+      {/* 四方席位好友圆章（东西南北围坐） */}
+      <g stroke="#0f172a" strokeWidth="12">
+        {/* 北席：本场大赢家（红＝赢，略大突出） */}
+        <circle cx="256" cy="86" r="42" fill={`url(#${redId})`} />
+        {/* 南席：绿＝输（呼应红赢绿输业务规则） */}
+        <circle cx="256" cy="426" r="34" fill={`url(#${greenId})`} />
+        {/* 西席与东席：两位同桌好友（高亮暖银白） */}
+        <circle cx="86" cy="256" r="34" fill="#f1f5f9" />
+        <circle cx="426" cy="256" r="34" fill="#f1f5f9" />
       </g>
+      {/* 北席大赢家金圈加冕环 */}
+      <circle cx="256" cy="86" r="42" fill="none" stroke={`url(#${goldId})`} strokeWidth="6" />
 
-      {/* 后排三名好友（仅探头，深色） */}
-      <g fill="#475569">
-        <circle cx="168" cy="286" r="24" />
-        <path d="M136 352 a32 32 0 0 1 64 0 z" />
-        <circle cx="256" cy="264" r="24" />
-        <path d="M224 330 a32 32 0 0 1 64 0 z" />
-        <circle cx="344" cy="286" r="24" />
-        <path d="M312 352 a32 32 0 0 1 64 0 z" />
-      </g>
-
-      {/* 前排两侧好友（浅色） */}
-      <g fill="#94a3b8">
-        <circle cx="92" cy="376" r="26" />
-        <path d="M50 476 a42 42 0 0 1 84 0 z" />
-        <circle cx="420" cy="376" r="26" />
-        <path d="M378 476 a42 42 0 0 1 84 0 z" />
-      </g>
-
-      {/* 前排冠军：红衣（红＝赢），头顶金冠 */}
-      <g>
-        <circle cx="256" cy="378" r="32" fill="#ef4444" />
-        <path d="M200 476 a56 56 0 0 1 112 0 z" fill="#ef4444" />
-        <g fill={`url(#${goldId})`}>
-          <path d="M218 340 l-9 -32 24 14 11 -22 11 22 24 -14 -9 32 z" />
-          <rect x="216" y="340" width="80" height="12" rx="6" />
-        </g>
+      {/* 圆桌中央：大赢家三尖黄金皇冠 */}
+      <g transform="translate(0 8)">
+        <path
+          d="M178 284 L160 202 L216 240 L256 178 L296 240 L352 202 L334 284 Z"
+          fill={`url(#${goldId})`}
+        />
+        <rect x="178" y="294" width="156" height="22" rx="11" fill={`url(#${goldId})`} />
+        <circle cx="160" cy="190" r="11" fill="#fef08a" />
+        <circle cx="256" cy="164" r="14" fill="#fef08a" />
+        <circle cx="352" cy="190" r="11" fill="#fef08a" />
+        <circle cx="256" cy="252" r="14" fill={`url(#${redId})`} />
       </g>
     </svg>
   );
