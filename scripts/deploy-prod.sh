@@ -34,17 +34,19 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-# .env 必填项校验：compose 插值缺值会静默变成空字符串，容器启动后才暴露
+# .env 必填项校验：避免容器启动后才报错、把配置问题误判为应用故障
 missing=""
-for key in DB_HOST DB_NAME DB_USER DB_PASSWORD; do
+for key in DB_HOST DB_PASSWORD; do
   if ! grep -qE "^${key}=.+" .env; then
     missing="$missing $key"
   fi
 done
 if [ -n "$missing" ]; then
-  echo "!!! .env 缺少必填项:$missing"
+  echo "!!! .env 缺少必填项:$missing（数据库地址与密码为必填项）"
   exit 1
 fi
+
+docker compose config -q
 
 # 取值优先级：shell 环境变量 > .env（sed 解析，不 source 整个文件，避免密码特殊字符被 shell 展开）
 env_value() {

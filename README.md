@@ -39,7 +39,8 @@ pnpm dev
 确保根目录存在 `.env`（可参考 `.env.example`）：
 
 ```dotenv
-DB_HOST=192.168.1.11
+# Docker 部署时 DB_HOST 需填数据库实际地址（容器内 127.0.0.1 指向容器自身）
+DB_HOST=127.0.0.1
 DB_PORT=5432
 DB_NAME=big_winner
 DB_USER=big_winner
@@ -47,10 +48,10 @@ DB_PASSWORD=your_password
 DB_SSLMODE=disable
 
 ADMIN_USERNAME=admin
-ADMIN_NICKNAME=群主管理员
-ADMIN_PASSWORD=admin123
+ADMIN_NICKNAME=管理员
+ADMIN_PASSWORD=admin@123456
 DEFAULT_ROOM_FEE=100
-PORT=3000
+APP_PORT=3000
 COOKIE_SECURE=false
 ```
 
@@ -67,7 +68,7 @@ docker compose up -d --build
 > 生产环境建议通过反向代理启用 HTTPS：微信内置浏览器的剪贴板 API 与 PWA 安装都要求安全上下文；HTTPS 下同时把 `COOKIE_SECURE` 设为 `true`。
 
 - 初始管理员账号：`admin`
-- 初始密码：`admin123`（或你设置的 `ADMIN_PASSWORD`）
+- 初始密码：`admin@123456`（或你设置的 `ADMIN_PASSWORD`）
 
 ## CI/CD
 

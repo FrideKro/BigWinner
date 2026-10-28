@@ -169,4 +169,4 @@ jobs:
           # shellcheck disable=SC2086
           ssh $SSH_ARGS -p "${PROD_SSH_PORT:-22}" \
             "${PROD_SSH_USER:-root}@${PROD_HOST}" \
-            "cd '${PROD_COMPOSE_DIR:-/opt/big-winner}' && docker compose config -q && IMAGE_NAME='$IMAGE_NAME' IMAGE_TAG='$IMAGE_TAG' bash deploy-prod.sh"
+            "cd '${PROD_COMPOSE_DIR:-/opt/big-winner}' && IMAGE_NAME='$IMAGE_NAME' IMAGE_TAG='$IMAGE_TAG' bash deploy-prod.sh"

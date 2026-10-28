@@ -143,11 +143,11 @@ async function runInitialization(): Promise<void> {
     const adminCheck = await client.query(`SELECT id FROM users WHERE role = 'ADMIN' LIMIT 1`);
     if (adminCheck.rowCount === 0) {
       const adminUsername = (process.env.ADMIN_USERNAME || 'admin').trim();
-      const adminNickname = (process.env.ADMIN_NICKNAME || '群主管理员').trim();
-      const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+      const adminNickname = (process.env.ADMIN_NICKNAME || '管理员').trim();
+      const adminPassword = process.env.ADMIN_PASSWORD || 'admin@123456';
       if (!process.env.ADMIN_PASSWORD) {
         console.warn(
-          '⚠️ 未设置 ADMIN_PASSWORD，初始管理员将使用默认密码 admin123，请登录后立即修改',
+          '⚠️ 未设置 ADMIN_PASSWORD，初始管理员将使用默认密码 admin@123456，请登录后立即修改',
         );
       }
       const passwordHash = await bcrypt.hash(adminPassword, 10);
