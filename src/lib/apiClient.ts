@@ -1,6 +1,6 @@
 'use client';
 
-// 客户端取数封装：GET 短缓存 + 并发去重 + 统一 401 处理。
+// 客户端取数封装：GET 短缓存 + 并发去重 + 统一 401 处理 + 安全的 AbortSignal 订阅解耦。
 // 业务写操作成功后清空缓存，避免读到旧账本数据。
 
 export class ApiError extends Error {
@@ -13,23 +13,58 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * 判断是否为网络请求中止错误（用户主动取消、组件卸载、页面导航或浏览器隐式中止）
+ */
+export function isAbortError(err: unknown): boolean {
+  if (!err) return false;
+  if (
+    typeof DOMException !== 'undefined' &&
+    err instanceof DOMException &&
+    err.name === 'AbortError'
+  ) {
+    return true;
+  }
+  if (err instanceof Error) {
+    if (err.name === 'AbortError') return true;
+    if (typeof err.message === 'string' && /abort/i.test(err.message)) return true;
+  }
+  if (typeof err === 'object') {
+    const candidate = err as { name?: string; message?: string; code?: number };
+    if (candidate.name === 'AbortError') return true;
+    if (candidate.code === 20) return true;
+    if (typeof candidate.message === 'string' && /abort/i.test(candidate.message)) return true;
+  }
+  return false;
+}
+
 interface CacheEntry {
   data: unknown;
   expiresAt: number;
 }
 
+interface InflightEntry<T> {
+  promise: Promise<T>;
+  controller: AbortController;
+  subscribers: number;
+}
+
 const cache = new Map<string, CacheEntry>();
-const inflight = new Map<string, Promise<unknown>>();
+const inflight = new Map<string, InflightEntry<unknown>>();
 
 const DEFAULT_TTL_MS = 30_000;
 
 export function invalidateApiCache(prefix?: string): void {
   if (!prefix) {
     cache.clear();
+    inflight.clear();
     return;
   }
   for (const key of cache.keys()) {
     if (key.startsWith(prefix)) cache.delete(key);
+  }
+  for (const key of inflight.keys()) {
+    if (key.startsWith(prefix)) inflight.delete(key);
   }
 }
 
@@ -55,39 +90,121 @@ export interface ApiGetOptions {
 export async function apiGet<T>(url: string, options: ApiGetOptions = {}): Promise<T> {
   const { ttl = DEFAULT_TTL_MS, force = false, signal } = options;
 
+  if (signal?.aborted) {
+    throw (
+      signal.reason ||
+      (typeof DOMException !== 'undefined'
+        ? new DOMException('This operation was aborted', 'AbortError')
+        : new Error('This operation was aborted'))
+    );
+  }
+
   if (!force) {
     const hit = cache.get(url);
     if (hit && hit.expiresAt > Date.now()) {
       return hit.data as T;
     }
-    const pending = inflight.get(url);
-    if (pending) {
-      return pending as Promise<T>;
+  }
+
+  let entry = !force ? (inflight.get(url) as InflightEntry<T> | undefined) : undefined;
+
+  if (!entry) {
+    const controller = new AbortController();
+    const requestPromise = (async () => {
+      try {
+        const res = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+        if (res.status === 401) {
+          emitUnauthorized();
+          throw new ApiError('登录已失效，请重新登录', 401);
+        }
+        if (!res.ok) {
+          throw await toApiError(res);
+        }
+        const data = (await res.json()) as T;
+        if (ttl > 0) {
+          cache.set(url, { data, expiresAt: Date.now() + ttl });
+        }
+        return data;
+      } finally {
+        if (inflight.get(url)?.controller === controller) {
+          inflight.delete(url);
+        }
+      }
+    })();
+
+    // 避免底层的 AbortError 在所有订阅者解绑后触发未捕获 promise rejection
+    requestPromise.catch(() => {});
+
+    entry = {
+      promise: requestPromise,
+      controller,
+      subscribers: 0,
+    };
+    inflight.set(url, entry as InflightEntry<unknown>);
+  }
+
+  const currentEntry = entry;
+  currentEntry.subscribers++;
+
+  if (!signal) {
+    try {
+      return await currentEntry.promise;
+    } finally {
+      currentEntry.subscribers--;
     }
   }
 
-  const request = (async () => {
-    const res = await fetch(url, { signal, cache: 'no-store' });
-    if (res.status === 401) {
-      emitUnauthorized();
-      throw new ApiError('登录已失效，请重新登录', 401);
-    }
-    if (!res.ok) {
-      throw await toApiError(res);
-    }
-    const data = (await res.json()) as T;
-    if (ttl > 0) {
-      cache.set(url, { data, expiresAt: Date.now() + ttl });
-    }
-    return data;
-  })();
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
 
-  inflight.set(url, request);
-  try {
-    return await request;
-  } finally {
-    inflight.delete(url);
-  }
+    const onAbort = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      currentEntry.subscribers--;
+      // 仅当所有订阅者都取消时，才中止底层网络 fetch
+      if (currentEntry.subscribers <= 0) {
+        currentEntry.controller.abort(
+          signal.reason ||
+            (typeof DOMException !== 'undefined'
+              ? new DOMException('This operation was aborted', 'AbortError')
+              : new Error('This operation was aborted')),
+        );
+        if (inflight.get(url)?.controller === currentEntry.controller) {
+          inflight.delete(url);
+        }
+      }
+      reject(
+        signal.reason ||
+          (typeof DOMException !== 'undefined'
+            ? new DOMException('This operation was aborted', 'AbortError')
+            : new Error('This operation was aborted')),
+      );
+    };
+
+    const cleanup = () => {
+      signal.removeEventListener('abort', onAbort);
+    };
+
+    signal.addEventListener('abort', onAbort, { once: true });
+
+    currentEntry.promise.then(
+      (data) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        currentEntry.subscribers--;
+        resolve(data);
+      },
+      (err) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        currentEntry.subscribers--;
+        reject(err);
+      },
+    );
+  });
 }
 
 export async function apiMutate<T>(

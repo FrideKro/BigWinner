@@ -8,7 +8,7 @@ import { LogoMark } from '@/components/LogoMark';
 import { ErrorState } from '@/components/ErrorState';
 import { CopyFallbackModal } from '@/components/CopyFallbackModal';
 import { formatSignedAmount, getAmountColorClass, buildLeaderboardShareText } from '@/lib/format';
-import { apiGet } from '@/lib/apiClient';
+import { apiGet, isAbortError } from '@/lib/apiClient';
 import { useCopyText } from '@/lib/useCopyText';
 import { useRefreshOnVisible } from '@/lib/useRefreshOnVisible';
 import { Share2, Sparkles, ChevronRight, Check } from 'lucide-react';
@@ -87,15 +87,16 @@ export default function HomePage() {
           `/api/stats?period=${encodeURIComponent(period)}&scope=board`,
           { force, signal: controller.signal },
         );
+        if (abortRef.current !== controller) return;
         setSummary(data.summary);
         setLeaderboard(data.leaderboard || []);
         hasDataRef.current = true;
         setError('');
       } catch (err) {
-        if (controller.signal.aborted) return;
+        if (abortRef.current !== controller || isAbortError(err)) return;
         setError(err instanceof Error ? err.message : '加载失败，请稍后重试');
       } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        if (abortRef.current === controller) setLoading(false);
       }
     },
     [period],

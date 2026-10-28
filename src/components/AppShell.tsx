@@ -15,7 +15,7 @@ import dynamic from 'next/dynamic';
 import { Trophy, ListOrdered, BarChart3, User, Plus } from 'lucide-react';
 import { LogoMark } from './LogoMark';
 import { Toast } from './Toast';
-import { invalidateApiCache } from '@/lib/apiClient';
+import { invalidateApiCache, isAbortError } from '@/lib/apiClient';
 
 const GameEditorModal = dynamic(() => import('./GameEditorModal').then((m) => m.GameEditorModal), {
   ssr: false,
@@ -185,7 +185,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         setDefaultRoomFee(100);
         setOffline(false);
         return null;
-      } catch {
+      } catch (err) {
+        if (isAbortError(err)) return null;
         // 网络异常：不清空用户、不触发跳转登录页
         setOffline(true);
         return null;

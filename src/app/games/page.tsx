@@ -14,7 +14,7 @@ import {
   getAmountColorClass,
   buildGameShareText,
 } from '@/lib/format';
-import { apiGet, apiMutate } from '@/lib/apiClient';
+import { apiGet, apiMutate, isAbortError } from '@/lib/apiClient';
 import { useCopyText } from '@/lib/useCopyText';
 import { useRefreshOnVisible } from '@/lib/useRefreshOnVisible';
 import { Share2, Edit2, Trash2, Check } from 'lucide-react';
@@ -84,9 +84,9 @@ export default function GamesPage() {
 
   const fetchGames = useCallback(
     async (reset: boolean, force = false, showSkeleton = reset) => {
-      if (reset) abortRef.current?.abort();
+      abortRef.current?.abort();
       const controller = new AbortController();
-      if (reset) abortRef.current = controller;
+      abortRef.current = controller;
 
       if (showSkeleton) setLoading(true);
       if (!reset) setLoadingMore(true);
@@ -105,6 +105,7 @@ export default function GamesPage() {
           `/api/games?period=${encodeURIComponent(period)}&limit=${PAGE_SIZE}&offset=${offset}`,
           { force, signal: controller.signal },
         );
+        if (abortRef.current !== controller) return;
         setGames((prev) => (reset ? data.games : [...prev, ...data.games]));
         offsetRef.current = offset + data.games.length;
         setHasMore(Boolean(data.hasMore));
@@ -112,10 +113,10 @@ export default function GamesPage() {
         setAllTimeRoomFee(data.allTimeTotalRoomFee || 0);
         setError('');
       } catch (err) {
-        if (controller.signal.aborted) return;
+        if (abortRef.current !== controller || isAbortError(err)) return;
         setError(err instanceof Error ? err.message : '加载失败，请稍后重试');
       } finally {
-        if (!controller.signal.aborted) {
+        if (abortRef.current === controller) {
           setLoading(false);
           setLoadingMore(false);
         }

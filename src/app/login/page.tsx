@@ -6,7 +6,7 @@ import { useApp } from '@/components/AppShell';
 import { LogoMark } from '@/components/LogoMark';
 import { PasswordInput } from '@/components/PasswordInput';
 import { invalidateApiCache } from '@/lib/apiClient';
-import { Lock, User, ArrowRight } from 'lucide-react';
+import { Lock, User } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -101,7 +101,7 @@ export default function LoginPage() {
               htmlFor="login-username"
               className="text-sm font-medium text-slate-400 block mb-1.5"
             >
-              登录账号
+              账号
             </label>
             <div className="relative">
               <User
@@ -116,7 +116,7 @@ export default function LoginPage() {
                 autoComplete="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="管理员分配的用户名"
+                placeholder="账号"
                 className="w-full pl-11 pr-4 py-3 bg-slate-800/80 border border-slate-700 rounded-2xl text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
               />
             </div>
@@ -138,7 +138,7 @@ export default function LoginPage() {
                 id="login-password"
                 value={password}
                 onChange={setPassword}
-                placeholder="请输入登录密码"
+                placeholder="密码"
                 autoComplete="current-password"
                 dark
                 className="w-full pl-11 py-3 bg-slate-800/80 border border-slate-700 rounded-2xl text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
@@ -160,8 +160,7 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full mt-2 min-h-12 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-red-600 font-medium text-slate-950 text-base flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/20 active:scale-[0.99] disabled:opacity-50 transition"
           >
-            <span>{loading ? '登录中…' : '进入大赢家'}</span>
-            <ArrowRight size={16} />
+            <span>{loading ? '登录中…' : '登录'}</span>
           </button>
         </form>
 

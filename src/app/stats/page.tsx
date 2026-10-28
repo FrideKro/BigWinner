@@ -7,7 +7,7 @@ import { PlayerAvatar } from '@/components/PlayerAvatar';
 import { TrendChart, TrendPoint } from '@/components/TrendChart';
 import { ErrorState } from '@/components/ErrorState';
 import { formatSignedAmount, getAmountColorClass, formatDateTime } from '@/lib/format';
-import { apiGet } from '@/lib/apiClient';
+import { apiGet, isAbortError } from '@/lib/apiClient';
 import { useRefreshOnVisible } from '@/lib/useRefreshOnVisible';
 import { Flame, Award, TrendingUp, TrendingDown, Coins, Calendar } from 'lucide-react';
 
@@ -168,15 +168,16 @@ function StatsContent() {
           `/api/stats?period=${encodeURIComponent(period)}&userId=${selectedUserId}`,
           { force, signal: controller.signal },
         );
+        if (abortRef.current !== controller) return;
         setPersonalStats(data.personalStats);
         setMonthlyRoomFees(data.monthlyRoomFees || []);
         setSummary(data.summary);
         setError('');
       } catch (err) {
-        if (controller.signal.aborted) return;
+        if (abortRef.current !== controller || isAbortError(err)) return;
         setError(err instanceof Error ? err.message : '加载失败，请稍后重试');
       } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        if (abortRef.current === controller) setLoading(false);
       }
     },
     [period, selectedUserId],
