@@ -39,7 +39,12 @@ function createPool(): Pool {
 
 export function getPool(): Pool {
   if (!global.__bigWinnerPool) {
-    global.__bigWinnerPool = createPool();
+    const pool = createPool();
+    // 空闲连接被数据库端断开时 pg 会触发 error 事件；无监听器会变成未捕获异常导致进程崩溃
+    pool.on('error', (err) => {
+      console.error('PostgreSQL 空闲连接异常:', err.message);
+    });
+    global.__bigWinnerPool = pool;
   }
   return global.__bigWinnerPool;
 }
@@ -174,8 +179,8 @@ async function runInitialization(): Promise<void> {
 
     await client.query('COMMIT');
   } catch (err: unknown) {
-    await client.query('ROLLBACK');
-    global.__bigWinnerInitPromise = undefined;
+    // 连接已断开时 ROLLBACK 本身也会失败，不能让它掩盖原始错误
+    await client.query('ROLLBACK').catch(() => undefined);
 
     const pgErr = err as { code?: string; message?: string };
     if (pgErr.code === '42501') {
@@ -198,7 +203,15 @@ async function runInitialization(): Promise<void> {
 
 export async function ensureDbInitialized(): Promise<void> {
   if (!global.__bigWinnerInitPromise) {
-    global.__bigWinnerInitPromise = runInitialization();
+    // 无论失败发生在取连接还是建表阶段，都要清掉缓存，让下一次请求重新初始化，
+    // 否则数据库晚于应用启动时失败结果会被永久缓存，只能重启进程恢复
+    const promise: Promise<void> = runInitialization().catch((err: unknown) => {
+      if (global.__bigWinnerInitPromise === promise) {
+        global.__bigWinnerInitPromise = undefined;
+      }
+      throw err;
+    });
+    global.__bigWinnerInitPromise = promise;
   }
   return global.__bigWinnerInitPromise;
 }

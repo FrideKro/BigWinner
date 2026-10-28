@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
-import { query } from '@/lib/db';
+import { query, withTransaction } from '@/lib/db';
 import { getCurrentUser, setDeviceCookie } from '@/lib/auth';
+import { validateProfileLengths } from '@/lib/profileValidation';
 
 export async function GET() {
   try {
@@ -50,6 +51,12 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: '昵称不能为空' }, { status: 400 });
     }
 
+    const lengthError = validateProfileLengths({ nickname, avatarColor });
+    if (lengthError) {
+      return NextResponse.json({ error: lengthError }, { status: 400 });
+    }
+
+    let newHash: string | null = null;
     if (newPassword) {
       if (!currentPassword) {
         return NextResponse.json({ error: '修改密码必须输入当前原密码' }, { status: 400 });
@@ -65,18 +72,32 @@ export async function PATCH(req: NextRequest) {
       if (!match) {
         return NextResponse.json({ error: '原密码不正确' }, { status: 400 });
       }
-      const newHash = await bcrypt.hash(newPassword, 10);
-      await query(`UPDATE users SET password_hash = $1 WHERE id = $2`, [newHash, user.id]);
+      newHash = await bcrypt.hash(newPassword, 10);
     }
 
-    if (nickname !== undefined || avatarColor !== undefined) {
-      await query(
-        `UPDATE users
-         SET nickname = COALESCE($1, nickname),
-             avatar_color = COALESCE($2, avatar_color)
-         WHERE id = $3`,
-        [nickname ?? null, avatarColor ?? null, user.id],
-      );
+    if (newHash || nickname !== undefined || avatarColor !== undefined) {
+      // 密码与资料同一事务提交；改密码后下线其他设备，保留当前设备避免把自己登出
+      await withTransaction(async (client) => {
+        if (newHash) {
+          await client.query(`UPDATE users SET password_hash = $1 WHERE id = $2`, [
+            newHash,
+            user.id,
+          ]);
+          await client.query(`DELETE FROM user_devices WHERE user_id = $1 AND device_token <> $2`, [
+            user.id,
+            user.deviceToken,
+          ]);
+        }
+        if (nickname !== undefined || avatarColor !== undefined) {
+          await client.query(
+            `UPDATE users
+             SET nickname = COALESCE($1, nickname),
+                 avatar_color = COALESCE($2, avatar_color)
+             WHERE id = $3`,
+            [nickname ?? null, avatarColor ?? null, user.id],
+          );
+        }
+      });
     }
 
     const updated = await getCurrentUser();

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { withTransaction, generateToken } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
+import { validateProfileLengths } from '@/lib/profileValidation';
 
 // 携带 HTTP 状态码的业务错误，用于事务内提前失败并转换为 4xx 响应
 class ApiError extends Error {
@@ -46,6 +47,10 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     }
     if (nickname !== undefined && !nickname) {
       return NextResponse.json({ error: '昵称不能为空' }, { status: 400 });
+    }
+    const lengthError = validateProfileLengths({ username, nickname, avatarColor });
+    if (lengthError) {
+      return NextResponse.json({ error: lengthError }, { status: 400 });
     }
     if (newPassword !== undefined && newPassword.length < 4) {
       return NextResponse.json({ error: '密码长度至少为 4 位' }, { status: 400 });

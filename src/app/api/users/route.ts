@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { query, generateToken } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
+import { validateProfileLengths } from '@/lib/profileValidation';
 import { listPlayers } from '../_lib/shared';
 
 export async function GET() {
@@ -39,6 +40,11 @@ export async function POST(req: NextRequest) {
 
     if (!username || !nickname) {
       return NextResponse.json({ error: '登录账号和显示昵称不能为空' }, { status: 400 });
+    }
+
+    const lengthError = validateProfileLengths({ username, nickname, avatarColor });
+    if (lengthError) {
+      return NextResponse.json({ error: lengthError }, { status: 400 });
     }
 
     if (password.length < 4) {
