@@ -67,6 +67,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '账号或密码错误' }, { status: 401 });
     }
 
+    if (!user.is_active) {
+      return NextResponse.json({ error: '该账号已停用，请联系管理员' }, { status: 401 });
+    }
+
     clearFailures(ipKey);
     clearFailures(userKey);
 

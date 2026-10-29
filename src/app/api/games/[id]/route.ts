@@ -39,9 +39,15 @@ export const PUT = withAuth<{ id: string }>(
         throw new ApiError(404, '场次记录不存在');
       }
 
+      // 原对局已有的玩家可保留（即使其后被停用），仅新增玩家要求处于启用状态
+      const existingPlayers = await client.query<{ user_id: number }>(
+        `SELECT user_id FROM game_records WHERE game_id = $1`,
+        [gameId],
+      );
       await assertRecordsUsersExist(
         client,
         validation.records.map((r) => r.userId),
+        { allowInactiveUserIds: existingPlayers.rows.map((r) => r.user_id) },
       );
 
       await client.query(`DELETE FROM game_records WHERE game_id = $1`, [gameId]);

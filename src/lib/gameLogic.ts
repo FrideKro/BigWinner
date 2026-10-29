@@ -118,7 +118,7 @@ export function buildPeriodFilter(
   let month: number | null = null;
   if (period === 'year' || /^\d{4}$/.test(period)) {
     year = parseInt(period === 'year' ? currentYear : period, 10);
-  } else if (period === 'month' || /^\d{4}-\d{2}$/.test(period)) {
+  } else if (period === 'month' || /^(\d{4})-(0[1-9]|1[0-2])$/.test(period)) {
     const ym = period === 'month' ? currentMonth : period;
     year = parseInt(ym.slice(0, 4), 10);
     month = parseInt(ym.slice(5, 7), 10);

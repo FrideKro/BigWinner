@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { query } from '@/lib/db';
-import { clearDeviceCookie, DEVICE_COOKIE_NAME } from '@/lib/auth';
+import { clearDeviceCookie, DEVICE_COOKIE_NAME, hashToken } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,7 +18,8 @@ export async function POST(req: NextRequest) {
     }
 
     if (token) {
-      await query(`DELETE FROM user_devices WHERE device_token = $1`, [token]);
+      // 库中存的是 Token 哈希，删除前先做同样哈希
+      await query(`DELETE FROM user_devices WHERE device_token = $1`, [hashToken(token)]);
     }
 
     const res = NextResponse.json({ ok: true });

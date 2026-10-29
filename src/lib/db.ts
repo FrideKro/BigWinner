@@ -90,6 +90,7 @@ async function runInitialization(): Promise<void> {
         CREATE TABLE IF NOT EXISTS user_devices (
           id SERIAL PRIMARY KEY,
           user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          -- 存 SHA-256 哈希（64 字符 hex），明文 Token 只出现在 Cookie/响应中不落库
           device_token VARCHAR(128) UNIQUE NOT NULL,
           user_agent TEXT DEFAULT '',
           last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -134,6 +135,19 @@ async function runInitialization(): Promise<void> {
     await client.query(
       `CREATE INDEX IF NOT EXISTS idx_user_devices_expires_at ON user_devices(expires_at)`,
     );
+
+    // 用户名大小写不敏感唯一：应用层查重与登录均按 LOWER(username) 口径，
+    // 数据库层补幂等唯一索引兜底并发插入；历史数据存在同名冲突时仅告警不阻断启动
+    try {
+      await client.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_lower ON users (LOWER(username))`,
+      );
+    } catch (indexErr: unknown) {
+      console.warn(
+        '⚠️ 用户名大小写唯一索引创建失败（可能存在仅大小写不同的历史账号），请人工核对：',
+        indexErr instanceof Error ? indexErr.message : indexErr,
+      );
+    }
 
     // 初始化默认房费设置
     const defaultRoomFee = parseInt(process.env.DEFAULT_ROOM_FEE || '100', 10);
@@ -233,7 +247,8 @@ export async function withTransaction<T>(fn: (client: PoolClient) => Promise<T>)
     await client.query('COMMIT');
     return result;
   } catch (error) {
-    await client.query('ROLLBACK');
+    // 连接已断开时 ROLLBACK 本身也会失败，不能让它掩盖原始业务错误
+    await client.query('ROLLBACK').catch(() => undefined);
     throw error;
   } finally {
     client.release();

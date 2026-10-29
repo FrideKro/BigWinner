@@ -198,7 +198,18 @@ describe('buildPeriodFilter', () => {
   });
 
   it('all / 空 / 非法周期返回空子句', () => {
-    for (const period of ['all', '', 'abc', '2025-1', '25', '2025-01-01']) {
+    // 越界月份（00/13/99）不得被 Date.UTC 静默滚动到相邻周期，必须与非法值同样不过滤
+    for (const period of [
+      'all',
+      '',
+      'abc',
+      '2025-1',
+      '25',
+      '2025-01-01',
+      '2026-00',
+      '2026-13',
+      '2026-99',
+    ]) {
       const result = buildPeriodFilter(period, 1);
       expect(result.clause).toBe('');
       expect(result.params).toEqual([]);

@@ -55,7 +55,7 @@ node scripts/test-db-connection.mjs  # 验证 .env 数据库连通性
 2. **房费**是台面上的虚拟玩家，恒为整数且 ≥ 0（即“庄家”永远赢）
 3. **大赢家 👑**：单场最高分且 > 0，允许多人并列（`is_big_winner`）
 4. 所有输赢金额必须为整数，且绝对值不超过 2147483647（PostgreSQL INTEGER 上限）；同一场次同一玩家不可重复
-5. **认证体系**：设备 Token（365 天滑动续期），Cookie `bw_device_token` 与 `x-device-token` header 双通道；管理员生成 `bind_token` 供好友免密绑定。登录接口带进程内失败限流（同一「账号+IP」15 分钟内失败 5 次锁定 15 分钟，返回 429），重置玩家密码时同步下线其全部设备。新增 API 一律先 `getCurrentUser()`，未登录返回 401
+5. **认证体系**：设备 Token（365 天滑动续期），Cookie `bw_device_token` 与 `x-device-token` header 双通道；**数据库仅存 Token 的 SHA-256 哈希，明文不落库**（`hashToken`）；管理员生成 `bind_token` 供好友免密绑定。**停用玩家（is_active=false）全链路拦截**：登录、bind_token 绑定、已发设备 Token 校验三个入口一律拒绝，且不可被录入新战绩（编辑历史对局可保留原有玩家）。登录接口带进程内失败限流（同一「账号+IP」15 分钟内失败 5 次锁定 15 分钟，返回 429），重置玩家密码时同步下线其全部设备。新增 API 一律用 `withAuth` 包装（`src/app/api/_lib/handler.ts`），未登录返回 401、管理员接口传 `{ admin: '文案' }` 返回 403；用户名大小写不敏感唯一（`idx_users_username_lower`），查重与登录一律按 `LOWER(username)` 口径
 
 ## 架构约定
 

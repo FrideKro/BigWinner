@@ -110,15 +110,29 @@ export async function getDefaultRoomFee(): Promise<number> {
   return Number.isNaN(value) ? 100 : value;
 }
 
-// 校验本场全部玩家存在，避免命中外键约束后返回不友好的 500
+// 校验本场全部玩家存在，避免命中外键约束后返回不友好的 500。
+// 默认要求全部玩家处于启用状态（新建场次口径）；编辑历史场次时通过
+// allowInactiveUserIds 放行原对局已有的玩家，避免停用玩家卡死历史对局编辑
 export async function assertRecordsUsersExist(
   client: PoolClient,
   userIds: number[],
+  options: { allowInactiveUserIds?: number[] } = {},
 ): Promise<void> {
-  const found = await client.query<{ id: number }>(`SELECT id FROM users WHERE id = ANY($1)`, [
-    userIds,
-  ]);
+  const found = await client.query<{ id: number; is_active: boolean }>(
+    `SELECT id, is_active FROM users WHERE id = ANY($1)`,
+    [userIds],
+  );
   if ((found.rowCount ?? 0) !== userIds.length) {
     throw new ApiError(400, '包含无效的玩家，请刷新玩家列表后重试');
+  }
+  if (options.allowInactiveUserIds) {
+    const allowed = new Set(options.allowInactiveUserIds);
+    if (found.rows.some((r) => !r.is_active && !allowed.has(r.id))) {
+      throw new ApiError(400, '包含不可用的玩家，请刷新玩家列表后重试');
+    }
+    return;
+  }
+  if (found.rows.some((r) => !r.is_active)) {
+    throw new ApiError(400, '包含不可用的玩家，请刷新玩家列表后重试');
   }
 }

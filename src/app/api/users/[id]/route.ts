@@ -53,6 +53,9 @@ export const PATCH = withAuth<{ id: string }>(
       }
 
       if (role === 'PLAYER') {
+        // 先锁定现有管理员行再计数：并发降级请求在此串行化，
+        // 后到者能看到先到者已提交的降级结果，防止把仅有的两名管理员同时降级
+        await client.query(`SELECT id FROM users WHERE role = 'ADMIN' FOR UPDATE`);
         const adminCountRes = await client.query<{ count: string }>(
           `SELECT COUNT(*)::text AS count FROM users WHERE role = 'ADMIN' AND id != $1`,
           [targetId],

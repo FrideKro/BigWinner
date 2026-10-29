@@ -1,9 +1,15 @@
 import { cookies, headers } from 'next/headers';
+import { createHash } from 'crypto';
 import { NextResponse } from 'next/server';
 import { query, generateToken } from './db';
 
 export const DEVICE_COOKIE_NAME = 'bw_device_token';
 export const DEVICE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60; // 365天
+
+// 设备 Token 入库前先做 SHA-256：数据库泄露时无法从库中还原出可用会话凭据
+export function hashToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
 
 export interface AuthUser {
   id: number;
@@ -43,7 +49,7 @@ export async function createDeviceSession(userId: number, userAgent: string): Pr
   await query(
     `INSERT INTO user_devices (user_id, device_token, user_agent, last_seen_at, expires_at)
      VALUES ($1, $2, $3, NOW(), NOW() + INTERVAL '365 days')`,
-    [userId, deviceToken, (userAgent || '').slice(0, 500)],
+    [userId, hashToken(deviceToken), (userAgent || '').slice(0, 500)],
   );
   return deviceToken;
 }
@@ -65,8 +71,11 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
 export async function verifyAndExtendDeviceToken(deviceToken: string): Promise<AuthUser | null> {
   if (!deviceToken) return null;
 
+  const tokenHash = hashToken(deviceToken);
+
   // 先读后写：认证校验本身是纯读（走 device_token 唯一索引），
-  // 避免每个请求都对 user_devices 做一次 UPDATE（WAL 写放大 + 同设备并发请求在行锁上排队）
+  // 避免每个请求都对 user_devices 做一次 UPDATE（WAL 写放大 + 同设备并发请求在行锁上排队）。
+  // 停用玩家（is_active = FALSE）在此一并拦截，已发设备立即失效
   const result = await query<{
     id: number;
     username: string;
@@ -81,8 +90,9 @@ export async function verifyAndExtendDeviceToken(deviceToken: string): Promise<A
      FROM user_devices AS ud
      JOIN users AS u ON u.id = ud.user_id
      WHERE ud.device_token = $1
-       AND ud.expires_at > NOW()`,
-    [deviceToken],
+       AND ud.expires_at > NOW()
+       AND u.is_active = TRUE`,
+    [tokenHash],
   );
 
   if (result.rowCount === 0) {
@@ -97,7 +107,7 @@ export async function verifyAndExtendDeviceToken(deviceToken: string): Promise<A
          expires_at = NOW() + INTERVAL '365 days'
      WHERE device_token = $1
        AND (expires_at < NOW() + INTERVAL '335 days' OR last_seen_at < NOW() - INTERVAL '1 hour')`,
-    [deviceToken],
+    [tokenHash],
   );
 
   const row = result.rows[0];
@@ -109,6 +119,6 @@ export async function verifyAndExtendDeviceToken(deviceToken: string): Promise<A
     avatarColor: row.avatar_color,
     isActive: row.is_active,
     bindToken: row.bind_token,
-    deviceToken: row.device_token,
+    deviceToken,
   };
 }

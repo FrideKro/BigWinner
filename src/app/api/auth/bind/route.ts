@@ -35,6 +35,12 @@ export async function POST(req: NextRequest) {
     }
 
     const user = userRes.rows[0];
+    if (!user.is_active) {
+      return NextResponse.json(
+        { error: '该账号已停用，请联系管理员重新获取链接' },
+        { status: 401 },
+      );
+    }
     const userAgent = req.headers.get('user-agent') || '';
     const deviceToken = await createDeviceSession(user.id, userAgent);
 

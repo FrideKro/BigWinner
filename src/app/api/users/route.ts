@@ -46,21 +46,30 @@ export const POST = withAuth(
     const passwordHash = await bcrypt.hash(password, 10);
     const bindToken = generateToken(24);
 
-    const insertRes = await query<{
-      id: number;
-      username: string;
-      nickname: string;
-      role: 'ADMIN' | 'PLAYER';
-      avatar_color: string;
-      is_active: boolean;
-      bind_token: string;
-      created_at: string;
-    }>(
-      `INSERT INTO users (username, nickname, password_hash, role, avatar_color, is_active, bind_token)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, username, nickname, role, avatar_color, is_active, bind_token, created_at`,
-      [username, nickname, passwordHash, role, avatarColor, isActive, bindToken],
-    );
+    let insertRes;
+    try {
+      insertRes = await query<{
+        id: number;
+        username: string;
+        nickname: string;
+        role: 'ADMIN' | 'PLAYER';
+        avatar_color: string;
+        is_active: boolean;
+        bind_token: string;
+        created_at: string;
+      }>(
+        `INSERT INTO users (username, nickname, password_hash, role, avatar_color, is_active, bind_token)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id, username, nickname, role, avatar_color, is_active, bind_token, created_at`,
+        [username, nickname, passwordHash, role, avatarColor, isActive, bindToken],
+      );
+    } catch (error) {
+      // 应用层查重与插入之间的并发窗口由 LOWER(username) 唯一索引兜底，转换为友好 409
+      if ((error as { code?: string }).code === '23505') {
+        return NextResponse.json({ error: `登录账号 "${username}" 已存在` }, { status: 409 });
+      }
+      throw error;
+    }
 
     const u = insertRes.rows[0];
     return NextResponse.json(

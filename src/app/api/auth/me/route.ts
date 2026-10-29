@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { query, withTransaction } from '@/lib/db';
-import { setDeviceCookie, getCurrentUser } from '@/lib/auth';
+import { setDeviceCookie, getCurrentUser, hashToken } from '@/lib/auth';
 import { validateProfileLengths } from '@/lib/profileValidation';
 import { withAuth, parseJsonBody } from '../../_lib/handler';
 import { toPublicUser } from '../../_lib/shared';
@@ -65,9 +65,10 @@ export const PATCH = withAuth(
             newHash,
             user.id,
           ]);
+          // 库中存的是 Token 哈希，保留当前设备的比对需用同样哈希
           await client.query(`DELETE FROM user_devices WHERE user_id = $1 AND device_token <> $2`, [
             user.id,
-            user.deviceToken,
+            hashToken(user.deviceToken),
           ]);
         }
         if (nickname !== undefined || avatarColor !== undefined) {
