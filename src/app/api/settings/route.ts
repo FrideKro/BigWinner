@@ -1,33 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { getCurrentUser } from '@/lib/auth';
+import { withAuth, parseJsonBody } from '../_lib/handler';
 import { getDefaultRoomFee } from '../_lib/shared';
 
-export async function GET() {
-  try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: '未登录' }, { status: 401 });
-    }
+export const GET = withAuth(
+  async () => NextResponse.json({ defaultRoomFee: await getDefaultRoomFee() }),
+  { error: '获取系统设置失败' },
+);
 
-    return NextResponse.json({ defaultRoomFee: await getDefaultRoomFee() });
-  } catch (error) {
-    console.error('Get settings error:', error);
-    return NextResponse.json({ error: '获取系统设置失败' }, { status: 500 });
-  }
-}
-
-export async function PUT(req: NextRequest) {
-  try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: '未登录' }, { status: 401 });
-    }
-    if (user.role !== 'ADMIN') {
-      return NextResponse.json({ error: '仅管理员可修改系统设置' }, { status: 403 });
-    }
-
-    const body = await req.json();
+export const PUT = withAuth(
+  async (req) => {
+    const body = await parseJsonBody(req);
     const defaultRoomFee = Number(body.defaultRoomFee);
 
     if (!Number.isInteger(defaultRoomFee) || defaultRoomFee < 0) {
@@ -48,8 +31,6 @@ export async function PUT(req: NextRequest) {
     );
 
     return NextResponse.json({ defaultRoomFee });
-  } catch (error) {
-    console.error('Update settings error:', error);
-    return NextResponse.json({ error: '保存系统设置失败' }, { status: 500 });
-  }
-}
+  },
+  { admin: '仅管理员可修改系统设置', error: '保存系统设置失败' },
+);

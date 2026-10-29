@@ -1,26 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
-import type { PoolClient } from 'pg';
+import { NextResponse } from 'next/server';
 import { query, withTransaction } from '@/lib/db';
-import { getCurrentUser } from '@/lib/auth';
 import { validateAndComputeRecords, buildPeriodFilter } from '@/lib/gameLogic';
+import { withAuth, parseJsonBody } from '../_lib/handler';
+import { assertRecordsUsersExist } from '../_lib/shared';
 
-// 校验本场全部玩家存在，避免命中外键约束后返回不友好的 500
-async function assertRecordsUsersExist(client: PoolClient, userIds: number[]): Promise<void> {
-  const found = await client.query<{ id: number }>(`SELECT id FROM users WHERE id = ANY($1)`, [
-    userIds,
-  ]);
-  if ((found.rowCount ?? 0) !== userIds.length) {
-    throw new Error('INVALID_PLAYERS');
-  }
-}
-
-export async function GET(req: NextRequest) {
-  try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: '未登录' }, { status: 401 });
-    }
-
+export const GET = withAuth(
+  async (req) => {
     const { searchParams } = new URL(req.url);
     const period = searchParams.get('period') || 'all';
     const userIdFilter = searchParams.get('userId')
@@ -39,9 +24,9 @@ export async function GET(req: NextRequest) {
     if (userIdFilter && !Number.isNaN(userIdFilter)) {
       queryParams.push(userIdFilter);
       userFilterClause = `AND EXISTS (
-        SELECT 1 FROM game_records gr_sub
-        WHERE gr_sub.game_id = g.id AND gr_sub.user_id = $${queryParams.length}
-      )`;
+      SELECT 1 FROM game_records gr_sub
+      WHERE gr_sub.game_id = g.id AND gr_sub.user_id = $${queryParams.length}
+    )`;
     }
 
     queryParams.push(limit + 1, offset);
@@ -63,34 +48,34 @@ export async function GET(req: NextRequest) {
       }>;
     }>(
       `SELECT g.id,
-              g.played_at,
-              g.room_fee,
-              g.note,
-              g.created_by,
-              cu.nickname AS creator_nickname,
-              g.created_at,
-              COALESCE(
-                JSON_AGG(
-                  JSON_BUILD_OBJECT(
-                    'userId', gr.user_id,
-                    'nickname', u.nickname,
-                    'avatarColor', u.avatar_color,
-                    'amount', gr.amount,
-                    'isBigWinner', gr.is_big_winner
-                  ) ORDER BY gr.amount DESC, gr.id ASC
-                ) FILTER (WHERE gr.id IS NOT NULL),
-                '[]'::json
-              ) AS records
-       FROM games g
-       LEFT JOIN users cu ON cu.id = g.created_by
-       LEFT JOIN game_records gr ON gr.game_id = g.id
-       LEFT JOIN users u ON u.id = gr.user_id
-       WHERE 1=1
-         ${clause}
-         ${userFilterClause}
-       GROUP BY g.id, cu.nickname
-       ORDER BY g.played_at DESC, g.id DESC
-       LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}`,
+            g.played_at,
+            g.room_fee,
+            g.note,
+            g.created_by,
+            cu.nickname AS creator_nickname,
+            g.created_at,
+            COALESCE(
+              JSON_AGG(
+                JSON_BUILD_OBJECT(
+                  'userId', gr.user_id,
+                  'nickname', u.nickname,
+                  'avatarColor', u.avatar_color,
+                  'amount', gr.amount,
+                  'isBigWinner', gr.is_big_winner
+                ) ORDER BY gr.amount DESC, gr.id ASC
+              ) FILTER (WHERE gr.id IS NOT NULL),
+              '[]'::json
+            ) AS records
+     FROM games g
+     LEFT JOIN users cu ON cu.id = g.created_by
+     LEFT JOIN game_records gr ON gr.game_id = g.id
+     LEFT JOIN users u ON u.id = gr.user_id
+     WHERE 1=1
+       ${clause}
+       ${userFilterClause}
+     GROUP BY g.id, cu.nickname
+     ORDER BY g.played_at DESC, g.id DESC
+     LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}`,
       queryParams,
     );
 
@@ -99,8 +84,8 @@ export async function GET(req: NextRequest) {
       total_room_fee: string;
     }>(
       `SELECT COUNT(*)::text AS total_games,
-              COALESCE(SUM(room_fee), 0)::text AS total_room_fee
-       FROM games`,
+            COALESCE(SUM(room_fee), 0)::text AS total_room_fee
+     FROM games`,
     );
 
     // 多取一条用于判断是否还有下一页
@@ -122,29 +107,19 @@ export async function GET(req: NextRequest) {
       allTimeTotalGames: parseInt(totalRoomFeeRes.rows[0]?.total_games || '0', 10),
       allTimeTotalRoomFee: parseInt(totalRoomFeeRes.rows[0]?.total_room_fee || '0', 10),
     });
-  } catch (error) {
-    console.error('Get games error:', error);
-    return NextResponse.json({ error: '获取战绩流水失败' }, { status: 500 });
-  }
-}
+  },
+  { error: '获取战绩流水失败' },
+);
 
-export async function POST(req: NextRequest) {
-  try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: '未登录' }, { status: 401 });
-    }
-    if (user.role !== 'ADMIN') {
-      return NextResponse.json({ error: '仅管理员可录入战绩' }, { status: 403 });
-    }
-
-    const body = await req.json();
+export const POST = withAuth(
+  async (req, user) => {
+    const body = await parseJsonBody(req);
     const validation = validateAndComputeRecords(body.records, body.roomFee);
     if (validation.error) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
-    const playedAt = body.playedAt ? new Date(body.playedAt) : new Date();
+    const playedAt = body.playedAt ? new Date(body.playedAt as string) : new Date();
     if (Number.isNaN(playedAt.getTime())) {
       return NextResponse.json({ error: '开局时间格式无效' }, { status: 400 });
     }
@@ -181,11 +156,6 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ id: createdGameId }, { status: 201 });
-  } catch (error) {
-    if (error instanceof Error && error.message === 'INVALID_PLAYERS') {
-      return NextResponse.json({ error: '包含无效的玩家，请刷新玩家列表后重试' }, { status: 400 });
-    }
-    console.error('Create game error:', error);
-    return NextResponse.json({ error: '保存场次战绩失败' }, { status: 500 });
-  }
-}
+  },
+  { admin: '仅管理员可录入战绩', error: '保存场次战绩失败' },
+);

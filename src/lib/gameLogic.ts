@@ -94,19 +94,25 @@ export function validateAndComputeRecords(
   return { roomFee, records };
 }
 
+// 当前上海时区的年（YYYY）与月（MM），供周期过滤与 stats 全局概览共用
+export function currentShanghaiYearMonth(): { year: string; month: string } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(new Date());
+  return {
+    year: parts.find((p) => p.type === 'year')?.value || '2026',
+    month: parts.find((p) => p.type === 'month')?.value || '01',
+  };
+}
+
 export function buildPeriodFilter(
   period: string,
   paramStartIndex: number,
 ): { clause: string; params: unknown[] } {
-  const now = new Date();
-  const shanghaiFormatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Shanghai',
-    year: 'numeric',
-    month: '2-digit',
-  });
-  const parts = shanghaiFormatter.formatToParts(now);
-  const currentYear = parts.find((p) => p.type === 'year')?.value || '2026';
-  const currentMonth = `${currentYear}-${parts.find((p) => p.type === 'month')?.value || '01'}`;
+  const { year: currentYear, month: currentMonthPart } = currentShanghaiYearMonth();
+  const currentMonth = `${currentYear}-${currentMonthPart}`;
 
   let year: number;
   let month: number | null = null;

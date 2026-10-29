@@ -1,36 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { query, generateToken } from '@/lib/db';
-import { getCurrentUser } from '@/lib/auth';
 import { validateProfileLengths } from '@/lib/profileValidation';
+import { withAuth, parseJsonBody } from '../_lib/handler';
 import { listPlayers } from '../_lib/shared';
 
-export async function GET() {
-  try {
-    const currentUser = await getCurrentUser();
-    if (!currentUser) {
-      return NextResponse.json({ error: '未登录' }, { status: 401 });
-    }
-
-    const users = await listPlayers(currentUser);
+export const GET = withAuth(
+  async (_req, user) => {
+    const users = await listPlayers(user);
     return NextResponse.json({ users });
-  } catch (error) {
-    console.error('List users error:', error);
-    return NextResponse.json({ error: '获取玩家列表失败' }, { status: 500 });
-  }
-}
+  },
+  { error: '获取玩家列表失败' },
+);
 
-export async function POST(req: NextRequest) {
-  try {
-    const currentUser = await getCurrentUser();
-    if (!currentUser) {
-      return NextResponse.json({ error: '未登录' }, { status: 401 });
-    }
-    if (currentUser.role !== 'ADMIN') {
-      return NextResponse.json({ error: '仅管理员可创建玩家账号' }, { status: 403 });
-    }
-
-    const body = await req.json();
+export const POST = withAuth(
+  async (req) => {
+    const body = await parseJsonBody(req);
     const username = String(body.username || '').trim();
     const nickname = String(body.nickname || '').trim();
     const password = String(body.password || '123456');
@@ -94,8 +79,6 @@ export async function POST(req: NextRequest) {
       },
       { status: 201 },
     );
-  } catch (error) {
-    console.error('Create user error:', error);
-    return NextResponse.json({ error: '创建玩家账号失败' }, { status: 500 });
-  }
-}
+  },
+  { admin: '仅管理员可创建玩家账号', error: '创建玩家账号失败' },
+);

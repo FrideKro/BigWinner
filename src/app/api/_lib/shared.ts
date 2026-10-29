@@ -1,5 +1,7 @@
 import { query } from '@/lib/db';
 import type { AuthUser } from '@/lib/auth';
+import type { PoolClient } from 'pg';
+import { ApiError } from './handler';
 
 export interface PlayerListItem {
   id: number;
@@ -106,4 +108,17 @@ export async function getDefaultRoomFee(): Promise<number> {
   );
   const value = parseInt(res.rows[0]?.value || '100', 10);
   return Number.isNaN(value) ? 100 : value;
+}
+
+// 校验本场全部玩家存在，避免命中外键约束后返回不友好的 500
+export async function assertRecordsUsersExist(
+  client: PoolClient,
+  userIds: number[],
+): Promise<void> {
+  const found = await client.query<{ id: number }>(`SELECT id FROM users WHERE id = ANY($1)`, [
+    userIds,
+  ]);
+  if ((found.rowCount ?? 0) !== userIds.length) {
+    throw new ApiError(400, '包含无效的玩家，请刷新玩家列表后重试');
+  }
 }

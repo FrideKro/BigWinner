@@ -1,36 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { withTransaction, generateToken } from '@/lib/db';
-import { getCurrentUser } from '@/lib/auth';
 import { validateProfileLengths } from '@/lib/profileValidation';
+import { withAuth, parseJsonBody, ApiError } from '../../_lib/handler';
 
-// 携带 HTTP 状态码的业务错误，用于事务内提前失败并转换为 4xx 响应
-class ApiError extends Error {
-  status: number;
-
-  constructor(status: number, message: string) {
-    super(message);
-    this.status = status;
-  }
-}
-
-export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
-  try {
-    const currentUser = await getCurrentUser();
-    if (!currentUser) {
-      return NextResponse.json({ error: '未登录' }, { status: 401 });
-    }
-    if (currentUser.role !== 'ADMIN') {
-      return NextResponse.json({ error: '仅管理员可修改玩家账号' }, { status: 403 });
-    }
-
-    const { id } = await context.params;
+export const PATCH = withAuth<{ id: string }>(
+  async (req, _user, { params }) => {
+    const { id } = await params;
     const targetId = parseInt(id, 10);
     if (Number.isNaN(targetId)) {
       return NextResponse.json({ error: '无效的玩家 ID' }, { status: 400 });
     }
 
-    const body = await req.json();
+    const body = await parseJsonBody(req);
 
     const nickname = body.nickname !== undefined ? String(body.nickname).trim() : undefined;
     const username = body.username !== undefined ? String(body.username).trim() : undefined;
@@ -147,11 +129,6 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
         createdAt: u.created_at,
       },
     });
-  } catch (error) {
-    if (error instanceof ApiError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    console.error('Update user error:', error);
-    return NextResponse.json({ error: '更新玩家信息失败' }, { status: 500 });
-  }
-}
+  },
+  { admin: '仅管理员可修改玩家账号', error: '更新玩家信息失败' },
+);

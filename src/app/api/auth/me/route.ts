@@ -1,46 +1,28 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { query, withTransaction } from '@/lib/db';
-import { getCurrentUser, setDeviceCookie } from '@/lib/auth';
+import { setDeviceCookie, getCurrentUser } from '@/lib/auth';
 import { validateProfileLengths } from '@/lib/profileValidation';
+import { withAuth, parseJsonBody } from '../../_lib/handler';
+import { toPublicUser } from '../../_lib/shared';
 
-export async function GET() {
-  try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ user: null }, { status: 401 });
-    }
-
+export const GET = withAuth(
+  async (_req, user) => {
     const res = NextResponse.json({
-      user: {
-        id: user.id,
-        username: user.username,
-        nickname: user.nickname,
-        role: user.role,
-        avatarColor: user.avatarColor,
-        isActive: user.isActive,
-        bindToken: user.bindToken,
-      },
+      user: toPublicUser(user),
       deviceToken: user.deviceToken,
     });
 
     // 每次访问自动顺延 Cookie 有效期 365 天
     setDeviceCookie(res, user.deviceToken);
     return res;
-  } catch (error) {
-    console.error('Get current user error:', error);
-    return NextResponse.json({ error: '获取用户信息失败' }, { status: 500 });
-  }
-}
+  },
+  { error: '获取用户信息失败' },
+);
 
-export async function PATCH(req: NextRequest) {
-  try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: '未登录' }, { status: 401 });
-    }
-
-    const body = await req.json();
+export const PATCH = withAuth(
+  async (req, user) => {
+    const body = await parseJsonBody(req);
     const nickname = body.nickname !== undefined ? String(body.nickname).trim() : undefined;
     const avatarColor =
       body.avatarColor !== undefined ? String(body.avatarColor).trim() : undefined;
@@ -91,9 +73,9 @@ export async function PATCH(req: NextRequest) {
         if (nickname !== undefined || avatarColor !== undefined) {
           await client.query(
             `UPDATE users
-             SET nickname = COALESCE($1, nickname),
-                 avatar_color = COALESCE($2, avatar_color)
-             WHERE id = $3`,
+           SET nickname = COALESCE($1, nickname),
+               avatar_color = COALESCE($2, avatar_color)
+           WHERE id = $3`,
             [nickname ?? null, avatarColor ?? null, user.id],
           );
         }
@@ -102,8 +84,6 @@ export async function PATCH(req: NextRequest) {
 
     const updated = await getCurrentUser();
     return NextResponse.json({ user: updated });
-  } catch (error) {
-    console.error('Update profile error:', error);
-    return NextResponse.json({ error: '更新个人资料失败' }, { status: 500 });
-  }
-}
+  },
+  { error: '更新个人资料失败' },
+);

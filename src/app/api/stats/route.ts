@@ -1,15 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { getCurrentUser } from '@/lib/auth';
-import { buildPeriodFilter } from '@/lib/gameLogic';
+import { buildPeriodFilter, currentShanghaiYearMonth } from '@/lib/gameLogic';
+import { withAuth } from '../_lib/handler';
 
-export async function GET(req: NextRequest) {
-  try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: '未登录' }, { status: 401 });
-    }
-
+export const GET = withAuth(
+  async (req, user) => {
     const { searchParams } = new URL(req.url);
     const period = searchParams.get('period') || 'all';
     const rawUserId = searchParams.get('userId');
@@ -45,15 +40,8 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const now = new Date();
-    const shanghaiFormatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Shanghai',
-      year: 'numeric',
-      month: '2-digit',
-    });
-    const parts = shanghaiFormatter.formatToParts(now);
-    const currentYear = parts.find((p) => p.type === 'year')?.value || '2026';
-    const currentMonth = `${currentYear}-${parts.find((p) => p.type === 'month')?.value || '01'}`;
+    const { year: currentYear, month: currentMonthPart } = currentShanghaiYearMonth();
+    const currentMonth = `${currentYear}-${currentMonthPart}`;
 
     const personalParams = [...params, targetUserId];
 
@@ -346,8 +334,6 @@ export async function GET(req: NextRequest) {
         trend,
       },
     });
-  } catch (error) {
-    console.error('Get stats error:', error);
-    return NextResponse.json({ error: '获取统计数据失败' }, { status: 500 });
-  }
-}
+  },
+  { error: '获取统计数据失败' },
+);

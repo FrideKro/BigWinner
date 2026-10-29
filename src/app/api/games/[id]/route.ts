@@ -1,42 +1,24 @@
-import { NextRequest, NextResponse } from 'next/server';
-import type { PoolClient } from 'pg';
+import { NextResponse } from 'next/server';
 import { query, withTransaction } from '@/lib/db';
-import { getCurrentUser } from '@/lib/auth';
 import { validateAndComputeRecords } from '@/lib/gameLogic';
+import { withAuth, parseJsonBody, ApiError } from '../../_lib/handler';
+import { assertRecordsUsersExist } from '../../_lib/shared';
 
-// 校验本场全部玩家存在，避免命中外键约束后返回不友好的 500
-async function assertRecordsUsersExist(client: PoolClient, userIds: number[]): Promise<void> {
-  const found = await client.query<{ id: number }>(`SELECT id FROM users WHERE id = ANY($1)`, [
-    userIds,
-  ]);
-  if ((found.rowCount ?? 0) !== userIds.length) {
-    throw new Error('INVALID_PLAYERS');
-  }
-}
-
-export async function PUT(req: NextRequest, context: { params: Promise<{ id: string }> }) {
-  try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: '未登录' }, { status: 401 });
-    }
-    if (user.role !== 'ADMIN') {
-      return NextResponse.json({ error: '仅管理员可修改战绩' }, { status: 403 });
-    }
-
-    const { id } = await context.params;
+export const PUT = withAuth<{ id: string }>(
+  async (req, _user, { params }) => {
+    const { id } = await params;
     const gameId = parseInt(id, 10);
     if (Number.isNaN(gameId)) {
       return NextResponse.json({ error: '无效的场次 ID' }, { status: 400 });
     }
 
-    const body = await req.json();
+    const body = await parseJsonBody(req);
     const validation = validateAndComputeRecords(body.records, body.roomFee);
     if (validation.error) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
-    const playedAt = body.playedAt ? new Date(body.playedAt) : new Date();
+    const playedAt = body.playedAt ? new Date(body.playedAt as string) : new Date();
     if (Number.isNaN(playedAt.getTime())) {
       return NextResponse.json({ error: '开局时间格式无效' }, { status: 400 });
     }
@@ -54,7 +36,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
       );
 
       if (updateRes.rowCount === 0) {
-        throw new Error('NOT_FOUND');
+        throw new ApiError(404, '场次记录不存在');
       }
 
       await assertRecordsUsersExist(
@@ -79,29 +61,13 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
     });
 
     return NextResponse.json({ id: gameId, ok: true });
-  } catch (error) {
-    if (error instanceof Error && error.message === 'NOT_FOUND') {
-      return NextResponse.json({ error: '场次记录不存在' }, { status: 404 });
-    }
-    if (error instanceof Error && error.message === 'INVALID_PLAYERS') {
-      return NextResponse.json({ error: '包含无效的玩家，请刷新玩家列表后重试' }, { status: 400 });
-    }
-    console.error('Update game error:', error);
-    return NextResponse.json({ error: '修改场次战绩失败' }, { status: 500 });
-  }
-}
+  },
+  { admin: '仅管理员可修改战绩', error: '修改场次战绩失败' },
+);
 
-export async function DELETE(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
-  try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: '未登录' }, { status: 401 });
-    }
-    if (user.role !== 'ADMIN') {
-      return NextResponse.json({ error: '仅管理员可删除战绩' }, { status: 403 });
-    }
-
-    const { id } = await context.params;
+export const DELETE = withAuth<{ id: string }>(
+  async (_req, _user, { params }) => {
+    const { id } = await params;
     const gameId = parseInt(id, 10);
     if (Number.isNaN(gameId)) {
       return NextResponse.json({ error: '无效的场次 ID' }, { status: 400 });
@@ -113,8 +79,6 @@ export async function DELETE(_req: NextRequest, context: { params: Promise<{ id:
     }
 
     return NextResponse.json({ ok: true });
-  } catch (error) {
-    console.error('Delete game error:', error);
-    return NextResponse.json({ error: '删除场次战绩失败' }, { status: 500 });
-  }
-}
+  },
+  { admin: '仅管理员可删除战绩', error: '删除场次战绩失败' },
+);
