@@ -1,5 +1,5 @@
 # 阶段 1：依赖准备
-FROM node:24.21-trixie-slim AS deps
+FROM node:26.11-trixie-slim AS deps
 WORKDIR /app
 
 ENV PNPM_HOME="/pnpm"
@@ -11,7 +11,7 @@ COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
 # 阶段 2：构建
-FROM node:24.21-trixie-slim AS builder
+FROM node:26.11-trixie-slim AS builder
 WORKDIR /app
 
 ENV PNPM_HOME="/pnpm"
@@ -26,7 +26,7 @@ ENV NODE_ENV=production
 RUN pnpm run build
 
 # 阶段 3：生产运行环境
-FROM node:24.21-trixie-slim AS runner
+FROM node:26.11-trixie-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
