@@ -2,13 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { query } from '@/lib/db';
 import { createDeviceSession, setDeviceCookie } from '@/lib/auth';
-import { clearFailures, getRateLimitState, recordFailure } from '@/lib/rateLimit';
-
-// 限流键来源 IP：内网直连时 x-forwarded-for 可能为空，退化为仅按用户名限流
-function clientIp(req: NextRequest): string {
-  const forwarded = req.headers.get('x-forwarded-for');
-  return forwarded ? forwarded.split(',')[0].trim() : '';
-}
+import { MAX_PASSWORD_LENGTH, MAX_USERNAME_LENGTH } from '@/lib/profileValidation';
+import { clearFailures, getClientIp, getRateLimitState, recordFailure } from '@/lib/rateLimit';
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,9 +16,9 @@ export async function POST(req: NextRequest) {
     }
 
     // 双键限流：IP+账号（5 次）防止单机爆破；账号全局（10 次）防止伪造
-    // x-forwarded-for 轮换绕过。无反向代理时 clientIp 为空，两条键都按账号生效。
+    // x-forwarded-for 轮换绕过。无反向代理时 getClientIp 为空，两条键都按账号生效。
     const normalized = username.toLowerCase();
-    const ipKey = `login:ip:${normalized}:${clientIp(req)}`;
+    const ipKey = `login:ip:${normalized}:${getClientIp(req.headers)}`;
     const userKey = `login:user:${normalized}`;
     const ipState = getRateLimitState(ipKey);
     const userState = getRateLimitState(userKey);
@@ -36,6 +31,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 超长账号或密码不进数据库与 bcrypt，直接计入失败并返回 401，防超大字符串 CPU DoS
+    if (username.length > MAX_USERNAME_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
+      recordFailure(ipKey, 5);
+      recordFailure(userKey, 10);
+      return NextResponse.json({ error: '账号或密码错误' }, { status: 401 });
+    }
+
     const userRes = await query<{
       id: number;
       username: string;
@@ -44,9 +46,8 @@ export async function POST(req: NextRequest) {
       role: 'ADMIN' | 'PLAYER';
       avatar_color: string;
       is_active: boolean;
-      bind_token: string | null;
     }>(
-      `SELECT id, username, nickname, password_hash, role, avatar_color, is_active, bind_token
+      `SELECT id, username, nickname, password_hash, role, avatar_color, is_active
        FROM users
        WHERE LOWER(username) = LOWER($1)
        LIMIT 1`,
@@ -85,7 +86,6 @@ export async function POST(req: NextRequest) {
         role: user.role,
         avatarColor: user.avatar_color,
         isActive: user.is_active,
-        bindToken: user.bind_token,
       },
       deviceToken,
     });

@@ -65,6 +65,17 @@ describe('validateAndComputeRecords', () => {
     expect(result.error).toBe('每场至少需要选择 2 名参与玩家');
   });
 
+  it('拒绝超过 50 名玩家', () => {
+    const records = Array.from({ length: 51 }, (_, idx) => ({
+      userId: idx + 1,
+      amount: 0,
+    }));
+    const result = validateAndComputeRecords(records, 0);
+
+    expect(result.error).toBe('每场最多支持 50 名参与玩家');
+    expect(result.records).toEqual([]);
+  });
+
   it('拒绝非整数金额', () => {
     const result = validateAndComputeRecords(
       [

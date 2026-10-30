@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { withTransaction, generateToken } from '@/lib/db';
-import { validateProfileLengths } from '@/lib/profileValidation';
+import { validatePassword, validateProfileLengths } from '@/lib/profileValidation';
 import { withAuth, parseJsonBody, ApiError } from '../../_lib/handler';
 
 export const PATCH = withAuth<{ id: string }>(
@@ -34,12 +34,16 @@ export const PATCH = withAuth<{ id: string }>(
     if (lengthError) {
       return NextResponse.json({ error: lengthError }, { status: 400 });
     }
-    if (newPassword !== undefined && newPassword.length < 4) {
-      return NextResponse.json({ error: '密码长度至少为 4 位' }, { status: 400 });
+    if (newPassword !== undefined) {
+      const passwordError = validatePassword(newPassword);
+      if (passwordError) {
+        return NextResponse.json({ error: passwordError }, { status: 400 });
+      }
     }
 
     const passwordHash = newPassword !== undefined ? await bcrypt.hash(newPassword, 10) : null;
-    const newBindToken = regenerateBindToken ? generateToken(24) : null;
+    // 重置密码时同步轮换专属绑定链接，确保已外泄的免登链接一并失效
+    const newBindToken = regenerateBindToken || Boolean(passwordHash) ? generateToken(24) : null;
 
     const u = await withTransaction(async (client) => {
       if (username !== undefined) {

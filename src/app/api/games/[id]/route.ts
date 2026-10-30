@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { query, withTransaction } from '@/lib/db';
 import { validateAndComputeRecords } from '@/lib/gameLogic';
+import { validateGameNote } from '@/lib/profileValidation';
 import { withAuth, parseJsonBody, ApiError } from '../../_lib/handler';
 import { assertRecordsUsersExist } from '../../_lib/shared';
 
@@ -23,6 +24,10 @@ export const PUT = withAuth<{ id: string }>(
       return NextResponse.json({ error: '开局时间格式无效' }, { status: 400 });
     }
     const note = String(body.note || '').trim();
+    const noteError = validateGameNote(note);
+    if (noteError) {
+      return NextResponse.json({ error: noteError }, { status: 400 });
+    }
 
     await withTransaction(async (client) => {
       const updateRes = await client.query(

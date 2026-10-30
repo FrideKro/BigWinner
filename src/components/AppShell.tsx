@@ -28,7 +28,6 @@ export interface CurrentUser {
   role: 'ADMIN' | 'PLAYER';
   avatarColor: string;
   isActive: boolean;
-  bindToken?: string | null;
 }
 
 export interface PlayerListItem {

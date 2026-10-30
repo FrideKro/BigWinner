@@ -17,6 +17,7 @@ for (const line of envContent.split('\n')) {
   }
 }
 
+const databaseUrl = env.DATABASE_URL || '';
 const host = env.DB_HOST || '127.0.0.1';
 const port = parseInt(env.DB_PORT || '5432', 10);
 const database = env.DB_NAME || 'big_winner';
@@ -28,18 +29,26 @@ const ssl =
     ? false
     : { rejectUnauthorized: sslMode === 'verify-full' };
 
-const pool = new pg.Pool({
-  host,
-  port,
-  database,
-  user,
-  password,
-  ssl,
-  connectionTimeoutMillis: 5000,
-});
+const pool = databaseUrl
+  ? new pg.Pool({
+      connectionString: databaseUrl,
+      connectionTimeoutMillis: 5000,
+    })
+  : new pg.Pool({
+      host,
+      port,
+      database,
+      user,
+      password,
+      ssl,
+      connectionTimeoutMillis: 5000,
+    });
 
 async function main() {
-  console.log(`Connecting to Postgres at ${host}:${port}/${database}...`);
+  const targetLabel = databaseUrl
+    ? databaseUrl.replace(/\/\/([^:]+):[^@]+@/, '//$1:***@')
+    : `${host}:${port}/${database}`;
+  console.log(`Connecting to Postgres at ${targetLabel}...`);
   try {
     const client = await pool.connect();
     const res = await client.query('SELECT NOW() AS current_time, version()');

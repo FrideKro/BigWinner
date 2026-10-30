@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearFailures, getRateLimitState, recordFailure } from './rateLimit';
+import { clearFailures, getClientIp, getRateLimitState, recordFailure } from './rateLimit';
 
 describe('rateLimit', () => {
   const KEY = 'login:test-user:1.2.3.4';
@@ -75,5 +75,38 @@ describe('rateLimit', () => {
     recordFailure(globalKey, 10);
     expect(getRateLimitState(globalKey).locked).toBe(true);
     clearFailures(globalKey);
+  });
+
+  it('窗口内活跃键达到 500 条上限时淘汰最早插入的键，防内存膨胀', () => {
+    const keys = Array.from({ length: 501 }, (_, i) => `evict:key:${i}`);
+    for (let i = 0; i < 500; i += 1) {
+      recordFailure(keys[i], 1);
+    }
+    expect(getRateLimitState(keys[0]).locked).toBe(true);
+
+    // 插入第 501 个键时，所有条目均未过期，应淘汰最早的 keys[0]
+    recordFailure(keys[500], 1);
+    expect(getRateLimitState(keys[0]).locked).toBe(false);
+    expect(getRateLimitState(keys[500]).locked).toBe(true);
+
+    for (const k of keys) {
+      clearFailures(k);
+    }
+  });
+});
+
+describe('getClientIp', () => {
+  it('提取 x-forwarded-for 首段并去除首尾空白', () => {
+    const headers = new Headers({ 'x-forwarded-for': ' 203.0.113.5 , 10.0.0.1 ' });
+    expect(getClientIp(headers)).toBe('203.0.113.5');
+  });
+
+  it('未设置 x-forwarded-for 时返回空字符串', () => {
+    expect(getClientIp(new Headers())).toBe('');
+  });
+
+  it('超长 IP 头截断到 64 字符', () => {
+    const headers = new Headers({ 'x-forwarded-for': 'x'.repeat(120) });
+    expect(getClientIp(headers)).toHaveLength(64);
   });
 });

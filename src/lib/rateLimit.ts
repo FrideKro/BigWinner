@@ -26,6 +26,11 @@ export interface RateLimitState {
   retryAfterSeconds: number;
 }
 
+export function getClientIp(headers: Headers): string {
+  const forwarded = headers.get('x-forwarded-for');
+  return forwarded ? forwarded.split(',')[0].trim().slice(0, 64) : '';
+}
+
 export function getRateLimitState(key: string): RateLimitState {
   const rec = attempts.get(key);
   if (!rec) {
@@ -42,11 +47,21 @@ export function recordFailure(key: string, maxFailures = MAX_FAILURES): void {
   const now = Date.now();
   if (attempts.size >= MAX_ENTRIES) {
     cleanupExpired(now);
+    if (attempts.size >= MAX_ENTRIES && !attempts.has(key)) {
+      const oldestKey = attempts.keys().next().value;
+      if (oldestKey !== undefined) {
+        attempts.delete(oldestKey);
+      }
+    }
   }
 
   const rec = attempts.get(key);
   if (!rec || now - rec.windowStart > WINDOW_MS) {
-    attempts.set(key, { count: 1, windowStart: now, lockedUntil: 0 });
+    attempts.set(key, {
+      count: 1,
+      windowStart: now,
+      lockedUntil: 1 >= maxFailures ? now + LOCK_MS : 0,
+    });
     return;
   }
 

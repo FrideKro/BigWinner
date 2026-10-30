@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
-import { query, withTransaction } from '@/lib/db';
+import { query, withTransaction, generateToken } from '@/lib/db';
 import { setDeviceCookie, getCurrentUser, hashToken } from '@/lib/auth';
-import { validateProfileLengths } from '@/lib/profileValidation';
+import { validatePassword, validateProfileLengths } from '@/lib/profileValidation';
 import { withAuth, parseJsonBody } from '../../_lib/handler';
 import { toPublicUser } from '../../_lib/shared';
 
@@ -43,8 +43,9 @@ export const PATCH = withAuth(
       if (!currentPassword) {
         return NextResponse.json({ error: '修改密码必须输入当前原密码' }, { status: 400 });
       }
-      if (newPassword.length < 4) {
-        return NextResponse.json({ error: '新密码长度至少 4 位' }, { status: 400 });
+      const passwordError = validatePassword(newPassword, '新密码');
+      if (passwordError) {
+        return NextResponse.json({ error: passwordError }, { status: 400 });
       }
       const pwRes = await query<{ password_hash: string }>(
         `SELECT password_hash FROM users WHERE id = $1`,
@@ -58,11 +59,12 @@ export const PATCH = withAuth(
     }
 
     if (newHash || nickname !== undefined || avatarColor !== undefined) {
-      // 密码与资料同一事务提交；改密码后下线其他设备，保留当前设备避免把自己登出
+      // 密码与资料同一事务提交；改密码后轮换 bind_token 并下线其他设备，保留当前设备避免把自己登出
       await withTransaction(async (client) => {
         if (newHash) {
-          await client.query(`UPDATE users SET password_hash = $1 WHERE id = $2`, [
+          await client.query(`UPDATE users SET password_hash = $1, bind_token = $2 WHERE id = $3`, [
             newHash,
+            generateToken(24),
             user.id,
           ]);
           // 库中存的是 Token 哈希，保留当前设备的比对需用同样哈希
@@ -84,7 +86,7 @@ export const PATCH = withAuth(
     }
 
     const updated = await getCurrentUser();
-    return NextResponse.json({ user: updated });
+    return NextResponse.json({ user: updated ? toPublicUser(updated) : null });
   },
   { error: '更新个人资料失败' },
 );

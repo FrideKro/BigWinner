@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { setDeviceCookie, verifyAndExtendDeviceToken } from '@/lib/auth';
+import { clearFailures, getClientIp, getRateLimitState, recordFailure } from '@/lib/rateLimit';
 
 export async function POST(req: NextRequest) {
   try {
@@ -10,10 +11,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '无有效本地凭证' }, { status: 401 });
     }
 
+    const ipKey = `restore:ip:${getClientIp(req.headers)}`;
+    const limitState = getRateLimitState(ipKey);
+    if (limitState.locked) {
+      const minutes = Math.max(1, Math.ceil(limitState.retryAfterSeconds / 60));
+      return NextResponse.json(
+        { error: `尝试次数过多，请约 ${minutes} 分钟后再试` },
+        { status: 429 },
+      );
+    }
+
     const user = await verifyAndExtendDeviceToken(deviceToken);
     if (!user) {
+      recordFailure(ipKey, 10);
       return NextResponse.json({ error: '设备凭证已过期' }, { status: 401 });
     }
+
+    clearFailures(ipKey);
 
     const res = NextResponse.json({
       user: {
@@ -23,7 +37,6 @@ export async function POST(req: NextRequest) {
         role: user.role,
         avatarColor: user.avatarColor,
         isActive: user.isActive,
-        bindToken: user.bindToken,
       },
       deviceToken: user.deviceToken,
     });

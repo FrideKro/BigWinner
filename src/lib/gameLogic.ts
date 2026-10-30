@@ -5,6 +5,7 @@ export interface GameRecordInput {
 
 // PostgreSQL INTEGER 列上限：超出后数据库写入会报 22003（integer out of range）
 const MAX_AMOUNT = 2147483647;
+export const MAX_PLAYERS_PER_GAME = 50;
 
 export function validateAndComputeRecords(
   rawRecords: unknown,
@@ -33,6 +34,13 @@ export function validateAndComputeRecords(
   if (!Array.isArray(rawRecords) || rawRecords.length < 2) {
     return {
       error: '每场至少需要选择 2 名参与玩家',
+      roomFee,
+      records: [],
+    };
+  }
+  if (rawRecords.length > MAX_PLAYERS_PER_GAME) {
+    return {
+      error: `每场最多支持 ${MAX_PLAYERS_PER_GAME} 名参与玩家`,
       roomFee,
       records: [],
     };

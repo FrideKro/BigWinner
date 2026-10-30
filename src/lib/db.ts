@@ -123,18 +123,21 @@ async function runInitialization(): Promise<void> {
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
 
-        CREATE INDEX IF NOT EXISTS idx_games_played_at ON games(played_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_game_records_game_id ON game_records(game_id);
+        CREATE INDEX IF NOT EXISTS idx_games_played_at_id ON games(played_at DESC, id DESC);
         CREATE INDEX IF NOT EXISTS idx_game_records_user_id ON game_records(user_id);
-        CREATE INDEX IF NOT EXISTS idx_user_devices_token ON user_devices(device_token);
         CREATE INDEX IF NOT EXISTS idx_user_devices_user_id ON user_devices(user_id);
       `);
     }
 
-    // 登录/绑定时会清理过期设备，对已有库补一个幂等索引
-    await client.query(
-      `CREATE INDEX IF NOT EXISTS idx_user_devices_expires_at ON user_devices(expires_at)`,
-    );
+    // 登录/绑定时会清理过期设备，对已有库补一个幂等索引；
+    // 同时清理已被 UNIQUE 约束隐式索引覆盖的冗余索引，并升级 games 复合排序索引
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_user_devices_expires_at ON user_devices(expires_at);
+      DROP INDEX IF EXISTS idx_user_devices_token;
+      DROP INDEX IF EXISTS idx_game_records_game_id;
+      DROP INDEX IF EXISTS idx_games_played_at;
+      CREATE INDEX IF NOT EXISTS idx_games_played_at_id ON games(played_at DESC, id DESC);
+    `);
 
     // 用户名大小写不敏感唯一：应用层查重与登录均按 LOWER(username) 口径，
     // 数据库层补幂等唯一索引兜底并发插入；历史数据存在同名冲突时仅告警不阻断启动

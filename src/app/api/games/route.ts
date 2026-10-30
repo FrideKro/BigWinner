@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { query, withTransaction } from '@/lib/db';
 import { validateAndComputeRecords, buildPeriodFilter } from '@/lib/gameLogic';
+import { validateGameNote } from '@/lib/profileValidation';
 import { withAuth, parseJsonBody } from '../_lib/handler';
 import { assertRecordsUsersExist } from '../_lib/shared';
 
@@ -31,62 +32,68 @@ export const GET = withAuth(
 
     queryParams.push(limit + 1, offset);
 
-    const gamesRes = await query<{
-      id: number;
-      played_at: string;
-      room_fee: number;
-      note: string;
-      created_by: number | null;
-      creator_nickname: string | null;
-      created_at: string;
-      records: Array<{
-        userId: number;
-        nickname: string;
-        avatarColor: string;
-        amount: number;
-        isBigWinner: boolean;
-      }>;
-    }>(
-      `SELECT g.id,
-            g.played_at,
-            g.room_fee,
-            g.note,
-            g.created_by,
-            cu.nickname AS creator_nickname,
-            g.created_at,
-            COALESCE(
-              JSON_AGG(
-                JSON_BUILD_OBJECT(
-                  'userId', gr.user_id,
-                  'nickname', u.nickname,
-                  'avatarColor', u.avatar_color,
-                  'amount', gr.amount,
-                  'isBigWinner', gr.is_big_winner
-                ) ORDER BY gr.amount DESC, gr.id ASC
-              ) FILTER (WHERE gr.id IS NOT NULL),
-              '[]'::json
-            ) AS records
-     FROM games g
-     LEFT JOIN users cu ON cu.id = g.created_by
-     LEFT JOIN game_records gr ON gr.game_id = g.id
-     LEFT JOIN users u ON u.id = gr.user_id
-     WHERE 1=1
-       ${clause}
-       ${userFilterClause}
-     GROUP BY g.id, cu.nickname
-     ORDER BY g.played_at DESC, g.id DESC
-     LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}`,
-      queryParams,
-    );
-
-    const totalRoomFeeRes = await query<{
-      total_games: string;
-      total_room_fee: string;
-    }>(
-      `SELECT COUNT(*)::text AS total_games,
-            COALESCE(SUM(room_fee), 0)::text AS total_room_fee
-     FROM games`,
-    );
+    const [gamesRes, totalRoomFeeRes] = await Promise.all([
+      query<{
+        id: number;
+        played_at: string;
+        room_fee: number;
+        note: string;
+        created_by: number | null;
+        creator_nickname: string | null;
+        created_at: string;
+        records: Array<{
+          userId: number;
+          nickname: string;
+          avatarColor: string;
+          amount: number;
+          isBigWinner: boolean;
+        }>;
+      }>(
+        `WITH page_games AS (
+           SELECT g.id, g.played_at, g.room_fee, g.note, g.created_by, g.created_at
+           FROM games g
+           WHERE 1=1
+             ${clause}
+             ${userFilterClause}
+           ORDER BY g.played_at DESC, g.id DESC
+           LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}
+         )
+         SELECT g.id,
+                g.played_at,
+                g.room_fee,
+                g.note,
+                g.created_by,
+                cu.nickname AS creator_nickname,
+                g.created_at,
+                COALESCE(
+                  JSON_AGG(
+                    JSON_BUILD_OBJECT(
+                      'userId', gr.user_id,
+                      'nickname', u.nickname,
+                      'avatarColor', u.avatar_color,
+                      'amount', gr.amount,
+                      'isBigWinner', gr.is_big_winner
+                    ) ORDER BY gr.amount DESC, gr.id ASC
+                  ) FILTER (WHERE gr.id IS NOT NULL),
+                  '[]'::json
+                ) AS records
+         FROM page_games g
+         LEFT JOIN users cu ON cu.id = g.created_by
+         LEFT JOIN game_records gr ON gr.game_id = g.id
+         LEFT JOIN users u ON u.id = gr.user_id
+         GROUP BY g.id, g.played_at, g.room_fee, g.note, g.created_by, cu.nickname, g.created_at
+         ORDER BY g.played_at DESC, g.id DESC`,
+        queryParams,
+      ),
+      query<{
+        total_games: string;
+        total_room_fee: string;
+      }>(
+        `SELECT COUNT(*)::text AS total_games,
+                COALESCE(SUM(room_fee), 0)::text AS total_room_fee
+         FROM games`,
+      ),
+    ]);
 
     // 多取一条用于判断是否还有下一页
     const hasMore = gamesRes.rows.length > limit;
@@ -124,6 +131,10 @@ export const POST = withAuth(
       return NextResponse.json({ error: '开局时间格式无效' }, { status: 400 });
     }
     const note = String(body.note || '').trim();
+    const noteError = validateGameNote(note);
+    if (noteError) {
+      return NextResponse.json({ error: noteError }, { status: 400 });
+    }
 
     const createdGameId = await withTransaction(async (client) => {
       await assertRecordsUsersExist(

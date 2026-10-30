@@ -11,6 +11,7 @@ vi.mock('@/lib/auth', () => ({
 }));
 
 import { ApiError, parseJsonBody, withAuth } from './handler';
+import { toPublicUser } from './shared';
 
 const adminUser = {
   id: 1,
@@ -19,7 +20,7 @@ const adminUser = {
   role: 'ADMIN' as const,
   avatarColor: 'red',
   isActive: true,
-  bindToken: null,
+  bindToken: 'secret-bind-token',
   deviceToken: 't'.repeat(64),
 };
 
@@ -125,5 +126,21 @@ describe('parseJsonBody', () => {
       status: 400,
       message: '请求体格式无效',
     });
+  });
+});
+
+describe('toPublicUser', () => {
+  it('裁剪 bindToken 与 deviceToken 等内部凭证字段', () => {
+    const pub = toPublicUser(adminUser);
+    expect(pub).toEqual({
+      id: 1,
+      username: 'fride',
+      nickname: '花非花',
+      role: 'ADMIN',
+      avatarColor: 'red',
+      isActive: true,
+    });
+    expect('bindToken' in pub).toBe(false);
+    expect('deviceToken' in pub).toBe(false);
   });
 });

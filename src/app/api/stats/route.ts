@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { buildPeriodFilter, currentShanghaiYearMonth } from '@/lib/gameLogic';
+import { buildPeriodFilter } from '@/lib/gameLogic';
 import { withAuth } from '../_lib/handler';
 
 export const GET = withAuth(
@@ -40,22 +40,26 @@ export const GET = withAuth(
       });
     }
 
-    const { year: currentYear, month: currentMonthPart } = currentShanghaiYearMonth();
-    const currentMonth = `${currentYear}-${currentMonthPart}`;
+    const { params: yearRange } = buildPeriodFilter('year', 1);
+    const { params: monthRange } = buildPeriodFilter('month', 3);
 
     const personalParams = [...params, targetUserId];
+    const isBuiltinPeriod = period === 'all' || period === 'year' || period === 'month';
 
-    // 五个查询相互独立，全部并行执行，接口延迟从「五段之和」降为「最慢一段」；
+    // 查询相互独立，全部并行执行；
+    // period 为 all/year/month 时直接复用 globalRoomFeeRes 的聚合结果，省去第 1 项查询；
     // scope=board 时不发个人明细查询（第 5 项）
     const [periodSummaryRes, globalRoomFeeRes, monthlyFeeRes, leaderboardRes, personalHistoryRes] =
       await Promise.all([
-        query<{ total_games: string; total_room_fee: string }>(
-          `SELECT COUNT(*)::text AS total_games,
-                  COALESCE(SUM(g.room_fee), 0)::text AS total_room_fee
-           FROM games g
-           WHERE 1=1 ${clause}`,
-          params,
-        ),
+        isBuiltinPeriod
+          ? Promise.resolve(null)
+          : query<{ total_games: string; total_room_fee: string }>(
+              `SELECT COUNT(*)::text AS total_games,
+                      COALESCE(SUM(g.room_fee), 0)::text AS total_room_fee
+               FROM games g
+               WHERE 1=1 ${clause}`,
+              params,
+            ),
         query<{
           all_time_games: string;
           all_time_fee: string;
@@ -67,12 +71,12 @@ export const GET = withAuth(
           `SELECT
              COUNT(*)::text AS all_time_games,
              COALESCE(SUM(room_fee), 0)::text AS all_time_fee,
-             COUNT(*) FILTER (WHERE TO_CHAR(played_at AT TIME ZONE 'Asia/Shanghai', 'YYYY') = $1)::text AS year_games,
-             COALESCE(SUM(room_fee) FILTER (WHERE TO_CHAR(played_at AT TIME ZONE 'Asia/Shanghai', 'YYYY') = $1), 0)::text AS year_fee,
-             COUNT(*) FILTER (WHERE TO_CHAR(played_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM') = $2)::text AS month_games,
-             COALESCE(SUM(room_fee) FILTER (WHERE TO_CHAR(played_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM') = $2), 0)::text AS month_fee
+             COUNT(*) FILTER (WHERE played_at >= $1 AND played_at < $2)::text AS year_games,
+             COALESCE(SUM(room_fee) FILTER (WHERE played_at >= $1 AND played_at < $2), 0)::text AS year_fee,
+             COUNT(*) FILTER (WHERE played_at >= $3 AND played_at < $4)::text AS month_games,
+             COALESCE(SUM(room_fee) FILTER (WHERE played_at >= $3 AND played_at < $4), 0)::text AS month_fee
            FROM games`,
-          [currentYear, currentMonth],
+          [...yearRange, ...monthRange],
         ),
         query<{ month: string; games_count: string; total_room_fee: string }>(
           `SELECT TO_CHAR(played_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM') AS month,
@@ -152,10 +156,29 @@ export const GET = withAuth(
           : Promise.resolve(null),
       ]);
 
-    const totalGames = parseInt(periodSummaryRes.rows[0]?.total_games || '0', 10);
-    const totalRoomFee = parseInt(periodSummaryRes.rows[0]?.total_room_fee || '0', 10);
-
     const gRow = globalRoomFeeRes.rows[0];
+    const allTimeGames = parseInt(gRow?.all_time_games || '0', 10);
+    const allTimeRoomFee = parseInt(gRow?.all_time_fee || '0', 10);
+    const thisYearGames = parseInt(gRow?.year_games || '0', 10);
+    const thisYearRoomFee = parseInt(gRow?.year_fee || '0', 10);
+    const thisMonthGames = parseInt(gRow?.month_games || '0', 10);
+    const thisMonthRoomFee = parseInt(gRow?.month_fee || '0', 10);
+
+    let totalGames: number;
+    let totalRoomFee: number;
+    if (period === 'year') {
+      totalGames = thisYearGames;
+      totalRoomFee = thisYearRoomFee;
+    } else if (period === 'month') {
+      totalGames = thisMonthGames;
+      totalRoomFee = thisMonthRoomFee;
+    } else if (periodSummaryRes) {
+      totalGames = parseInt(periodSummaryRes.rows[0]?.total_games || '0', 10);
+      totalRoomFee = parseInt(periodSummaryRes.rows[0]?.total_room_fee || '0', 10);
+    } else {
+      totalGames = allTimeGames;
+      totalRoomFee = allTimeRoomFee;
+    }
 
     const monthlyRoomFees = monthlyFeeRes.rows.map((m) => {
       const gc = parseInt(m.games_count, 10);
@@ -314,12 +337,12 @@ export const GET = withAuth(
         totalGames,
         totalRoomFee,
         avgRoomFee: totalGames > 0 ? Math.round(totalRoomFee / totalGames) : 0,
-        allTimeGames: parseInt(gRow?.all_time_games || '0', 10),
-        allTimeRoomFee: parseInt(gRow?.all_time_fee || '0', 10),
-        thisYearGames: parseInt(gRow?.year_games || '0', 10),
-        thisYearRoomFee: parseInt(gRow?.year_fee || '0', 10),
-        thisMonthGames: parseInt(gRow?.month_games || '0', 10),
-        thisMonthRoomFee: parseInt(gRow?.month_fee || '0', 10),
+        allTimeGames,
+        allTimeRoomFee,
+        thisYearGames,
+        thisYearRoomFee,
+        thisMonthGames,
+        thisMonthRoomFee,
         availableMonths: monthlyRoomFees.map((m) => m.month),
       },
       leaderboard,

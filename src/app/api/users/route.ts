@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { query, generateToken } from '@/lib/db';
-import { validateProfileLengths } from '@/lib/profileValidation';
+import { validatePassword, validateProfileLengths } from '@/lib/profileValidation';
 import { withAuth, parseJsonBody } from '../_lib/handler';
 import { listPlayers } from '../_lib/shared';
 
@@ -32,8 +32,9 @@ export const POST = withAuth(
       return NextResponse.json({ error: lengthError }, { status: 400 });
     }
 
-    if (password.length < 4) {
-      return NextResponse.json({ error: '初始密码长度至少为 4 位' }, { status: 400 });
+    const passwordError = validatePassword(password, '初始密码');
+    if (passwordError) {
+      return NextResponse.json({ error: passwordError }, { status: 400 });
     }
 
     const existing = await query(`SELECT id FROM users WHERE LOWER(username) = LOWER($1)`, [

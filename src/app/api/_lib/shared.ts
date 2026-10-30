@@ -23,7 +23,6 @@ export interface PublicUser {
   role: 'ADMIN' | 'PLAYER';
   avatarColor: string;
   isActive: boolean;
-  bindToken: string | null;
 }
 
 export function toPublicUser(user: AuthUser): PublicUser {
@@ -34,7 +33,6 @@ export function toPublicUser(user: AuthUser): PublicUser {
     role: user.role,
     avatarColor: user.avatarColor,
     isActive: user.isActive,
-    bindToken: user.bindToken,
   };
 }
 

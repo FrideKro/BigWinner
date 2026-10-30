@@ -55,6 +55,8 @@ describe('POST /api/auth/login', () => {
     mocks.createDeviceSession.mockResolvedValue('d'.repeat(64));
     clearFailures('login:ip:lockeduser:');
     clearFailures('login:user:lockeduser');
+    clearFailures('login:ip:fride:');
+    clearFailures('login:user:fride');
   });
 
   it('缺账号或密码返回 400', async () => {
@@ -81,7 +83,19 @@ describe('POST /api/auth/login', () => {
     expect(mocks.createDeviceSession).not.toHaveBeenCalled();
   });
 
-  it('成功登录：创建设备会话、设置 Cookie 并返回用户与明文 Token', async () => {
+  it('超长账号或密码直接返回 401，不进数据库与 bcrypt', async () => {
+    const resLongPw = await POST(loginReq('fride', 'p'.repeat(73)));
+    expect(resLongPw.status).toBe(401);
+    expect(await resLongPw.json()).toEqual({ error: '账号或密码错误' });
+
+    const resLongUser = await POST(loginReq('u'.repeat(65), '123456'));
+    expect(resLongUser.status).toBe(401);
+
+    expect(mocks.query).not.toHaveBeenCalled();
+    expect(mocks.compare).not.toHaveBeenCalled();
+  });
+
+  it('成功登录：创建设备会话、设置 Cookie 并返回用户（不含 bindToken）与明文 Token', async () => {
     mocks.query.mockResolvedValue(userRow());
     mocks.compare.mockResolvedValue(true);
 
@@ -91,6 +105,7 @@ describe('POST /api/auth/login', () => {
     const body = await res.json();
     expect(body.deviceToken).toBe('d'.repeat(64));
     expect(body.user.nickname).toBe('花非花');
+    expect(body.user.bindToken).toBeUndefined();
     expect(mocks.createDeviceSession).toHaveBeenCalledWith(1, '');
     expect(mocks.setDeviceCookie).toHaveBeenCalledTimes(1);
   });

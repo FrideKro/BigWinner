@@ -54,8 +54,8 @@ node scripts/test-db-connection.mjs  # 验证 .env 数据库连通性
 1. **零和配平**：`Σ 玩家本场金额 + 房费 = 0`，否则拒绝写入（`validateAndComputeRecords`）
 2. **房费**是台面上的虚拟玩家，恒为整数且 ≥ 0（即“庄家”永远赢）
 3. **大赢家 👑**：单场最高分且 > 0，允许多人并列（`is_big_winner`）
-4. 所有输赢金额必须为整数，且绝对值不超过 2147483647（PostgreSQL INTEGER 上限）；同一场次同一玩家不可重复
-5. **认证体系**：设备 Token（365 天滑动续期），Cookie `bw_device_token` 与 `x-device-token` header 双通道；**数据库仅存 Token 的 SHA-256 哈希，明文不落库**（`hashToken`）；管理员生成 `bind_token` 供好友免密绑定。**停用玩家（is_active=false）全链路拦截**：登录、bind_token 绑定、已发设备 Token 校验三个入口一律拒绝，且不可被录入新战绩（编辑历史对局可保留原有玩家）。登录接口带进程内失败限流（同一「账号+IP」15 分钟内失败 5 次锁定 15 分钟，返回 429），重置玩家密码时同步下线其全部设备。新增 API 一律用 `withAuth` 包装（`src/app/api/_lib/handler.ts`），未登录返回 401、管理员接口传 `{ admin: '文案' }` 返回 403；用户名大小写不敏感唯一（`idx_users_username_lower`），查重与登录一律按 `LOWER(username)` 口径
+4. 所有输赢金额必须为整数，且绝对值不超过 2147483647（PostgreSQL INTEGER 上限）；每场参与玩家 2~50 人，同一场次同一玩家不可重复；对局备注不超过 200 字符
+5. **认证体系**：设备 Token（365 天滑动续期），Cookie `bw_device_token` 与 `x-device-token` header 双通道；**数据库仅存 Token 的 SHA-256 哈希，明文不落库**（`hashToken`）；密码长度限制 4~72 位（对齐 Bcrypt 72 字节上限）；管理员生成 `bind_token` 供好友免密绑定（`bind_token` 仅管理员玩家列表可见，常规认证响应不暴露）。**停用玩家（is_active=false）全链路拦截**：登录、bind_token 绑定、已发设备 Token 校验三个入口一律拒绝，且不可被录入新战绩（编辑历史对局可保留原有玩家）。登录、免登绑定（bind）、会话恢复（restore）接口均带进程内失败限流（登录按「账号+IP」5 次 / 账号全局 10 次，bind/restore 按 IP 10 次，15 分钟窗口锁定 15 分钟返回 429）；玩家自行改密或管理员重置密码时同步轮换其 `bind_token` 并下线设备。新增 API 一律用 `withAuth` 包装（`src/app/api/_lib/handler.ts`），未登录返回 401、管理员接口传 `{ admin: '文案' }` 返回 403；用户名大小写不敏感唯一（`idx_users_username_lower`），查重与登录一律按 `LOWER(username)` 口径
 
 ## 架构约定
 
@@ -63,7 +63,7 @@ node scripts/test-db-connection.mjs  # 验证 .env 数据库连通性
 - **数据库**：5 张表（users、user_devices、games、game_records、system_settings），schema 全部定义在 `db.ts` 的启动初始化中（`CREATE TABLE IF NOT EXISTS` + advisory lock 防并发）。改 schema 时必须在此处追加幂等 DDL——注意首次建表 DDL 包在 `if (!tablesExist)` 块内，对已有库新增列/索引的幂等 DDL 必须放在该块之外才会生效，且保证对已有数据向后兼容（本项目无迁移框架）
 - **API 响应**：错误统一 `{ error: '中文消息' }` + 对应 HTTP 状态码；成功直接返回 JSON
 - **写操作**用 `withTransaction` 包裹；SQL 一律参数化（`$1` 占位），禁止字符串拼接
-- **时间**：业务周期（年/月）按 `Asia/Shanghai` 时区计算与过滤，用 `TO_CHAR(... AT TIME ZONE ...)`
+- **时间**：业务周期（年/月）按 `Asia/Shanghai` 时区计算与过滤，周期过滤换算为 UTC 时间范围（`buildPeriodFilter`）以命中 `idx_games_played_at_id` 索引，分组/展示用 `TO_CHAR(... AT TIME ZONE 'Asia/Shanghai', ...)`
 - **展示**：页面上用户一律显示 `nickname` 而非 `username`；UI 文案、代码注释均为中文
 - **移动端**：所有页面按手机竖屏设计并适配微信浏览器，勿引入桌面优先布局
 - 敏感配置只在 `.env`（参考 `.env.example`），不要硬编码或提交真实凭据
