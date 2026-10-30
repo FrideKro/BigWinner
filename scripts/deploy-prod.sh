@@ -18,8 +18,8 @@
 #
 # 说明：
 #   - 只做「拉镜像 + 重启 + 健康检查 + 失败回滚」，不修改 .env
-#   - 前置校验 .env 数据库必填项，缺失时立即失败，
-#     避免容器启动后才报错、把配置问题误判为应用故障
+#   - 前置校验 .env 数据库配置自洽性（指了外部库却缺密码等矛盾场景），
+#     配置矛盾时立即失败，避免容器启动后才报错、把配置问题误判为应用故障
 #   - 升级前记录运行中容器的镜像 ID；启动命令失败或健康检查失败时，
 #     按该 ID 打本地备份 tag 自动回滚（不能按 latest 回滚：pull 之后 latest 已指向新镜像）
 #   - 首次部署失败时停止崩溃循环的容器；部署成功后清理历史 rollback-* 镜像（保留最近 3 个）
@@ -34,16 +34,16 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-# .env 必填项校验：避免容器启动后才报错、把配置问题误判为应用故障
-missing=""
-for key in DB_HOST DB_PASSWORD; do
-  if ! grep -qE "^${key}=.+" .env; then
-    missing="$missing $key"
-  fi
-done
-if [ -n "$missing" ]; then
-  echo "!!! .env 缺少必填项:$missing（数据库地址与密码为必填项）"
+# .env 数据库配置校验：compose 对 DB_* 均有默认值（内置 db 零配置可直接启动），
+# 因此只在「指了外部库却缺密码」这类明显矛盾时提前失败，
+# 避免容器启动后才报错、把配置问题误判为应用故障
+if ! grep -qE '^DATABASE_URL=.+' .env \
+  && grep -qE '^DB_HOST=.+' .env && ! grep -qE '^DB_PASSWORD=.+' .env; then
+  echo "!!! .env 设置了 DB_HOST（外部库）但缺少 DB_PASSWORD，请补全后再部署"
   exit 1
+fi
+if ! grep -qE '^(DATABASE_URL|DB_HOST|DB_PASSWORD)=.+' .env; then
+  echo ">>> 未检测到数据库配置，将使用 compose 内置 db 默认值（DB_PASSWORD 默认 big_winner，生产环境建议在 .env 设置强密码）"
 fi
 
 docker compose config -q

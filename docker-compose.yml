@@ -1,4 +1,23 @@
 services:
+  db:
+    image: postgres:17-alpine
+    container_name: big_winner_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-big_winner}
+      POSTGRES_USER: ${DB_USER:-big_winner}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-big_winner}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # pg_isready 加 -h 走 TCP：initdb 期间的临时 server 只监听 unix socket，
+      # 不指定时健康检查可能提前通过、app 先于 db 真正就绪启动
+      test:
+        ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U ${DB_USER:-big_winner} -d ${DB_NAME:-big_winner}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   app:
     # 生产部署由 deploy-prod.sh 按 GHCR 镜像 tag 拉取（IMAGE_NAME 由 deploy workflow 注入）；
     # 本地开发仍可用 docker compose up -d --build（镜像标记为 localhost/big-winner:latest）
@@ -11,12 +30,24 @@ services:
     ports:
       - '${APP_PORT:-3000}:3000'
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
-      - NODE_ENV=production
+      NODE_ENV: production
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-big_winner}
+      DB_USER: ${DB_USER:-big_winner}
+      DB_PASSWORD: ${DB_PASSWORD:-big_winner}
+    depends_on:
+      db:
+        condition: service_healthy
     healthcheck:
       test: ['CMD', 'node', 'healthcheck.js']
       interval: 20s
       timeout: 5s
       retries: 3
       start_period: 15s
+
+volumes:
+  pgdata:

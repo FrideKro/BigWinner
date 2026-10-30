@@ -67,63 +67,30 @@ ghcr.io/fridekro/bigwinner
 
 ### 前置条件
 
-- Docker 20.10+ 与 Docker Compose v2（`docker compose` 子命令）
+- Docker 20.10+ 与 Docker Compose v2.24+（`docker compose` 子命令；compose 文件用到 `env_file` 的 `required` 长语法，旧版不支持会启动失败）
 - PostgreSQL 13+（可以按方式一随应用一起启动，也可以连接已有数据库）
 
 ### 方式一：Docker Compose 一键启动（含数据库，推荐）
 
-新建一个目录（如 `/opt/big-winner`），放入以下两个文件
+新建一个目录（如 `/opt/big-winner`），下载或复制仓库的 [`docker-compose.yml`](docker-compose.yml)，并新建 `.env`：
 
-`docker-compose.yml`：
-
-```yaml
-services:
-  db:
-    image: postgres:17
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: big_winner
-      POSTGRES_USER: big_winner
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?请在 .env 中设置 DB_PASSWORD}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U big_winner -d big_winner']
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  app:
-    image: ghcr.io/fridekro/bigwinner:${IMAGE_TAG:-latest}
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-    ports:
-      - '${APP_PORT:-3000}:3000'
-    env_file: .env
-    environment:
-      DB_HOST: db
-    healthcheck:
-      test: ['CMD', 'node', 'healthcheck.js']
-      interval: 20s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
-
-volumes:
-  pgdata:
+```bash
+mkdir -p /opt/big-winner && cd /opt/big-winner
+curl -fsSLO https://raw.githubusercontent.com/FrideKro/BigWinner/main/docker-compose.yml
 ```
 
 `.env`：
 
 ```dotenv
+IMAGE_NAME=ghcr.io/fridekro/bigwinner
 DB_PASSWORD=请改成强密码
 ADMIN_PASSWORD=请改成管理员密码
 # IMAGE_TAG=1.0.0      # 固定版本，留空为 latest
 # APP_PORT=3000        # 宿主机端口
 # COOKIE_SECURE=true   # 走 HTTPS 时开启
 ```
+
+> `DB_PASSWORD` 只在数据卷首次初始化时生效（postgres 仅在建卷时读取该变量）；之后修改需在库内执行 `ALTER USER big_winner WITH PASSWORD '新密码'`，或 `docker compose down -v` 清空数据卷重来（会清空所有数据）
 
 启动：
 
@@ -158,14 +125,16 @@ docker run -d --name big_winner_app --restart unless-stopped \
 
 也可以把变量写进 `.env` 后用 `--env-file .env` 传入；或使用仓库自带的 [`docker-compose.yml`](docker-compose.yml)，在 `.env` 中设置 `IMAGE_NAME=ghcr.io/fridekro/bigwinner` 后执行 `docker compose up -d`
 
+> 使用仓库 compose 连接外部库时，内置的 db 容器仍会随 app 一起启动（闲置不影响使用）
+
 ### 方式三：自行构建镜像
 
-适用于 ARM 设备或需要修改代码的场景：
+适用于 ARM 设备或需要修改代码的场景（内置 `postgres:17-alpine`，支持零配置直接启动）：
 
 ```bash
 git clone https://github.com/FrideKro/BigWinner.git
 cd BigWinner
-cp .env.example .env     # 编辑数据库连接与管理员密码
+cp .env.example .env     # 可选：自定义数据库或管理员密码
 docker compose up -d --build
 ```
 
@@ -190,11 +159,11 @@ bigwinner.example.com {
 
 | 变量               | 默认值                 | 说明                                                                             |
 | ------------------ | ---------------------- | -------------------------------------------------------------------------------- |
-| `DB_HOST`          | `127.0.0.1`            | 数据库地址，Docker 部署必填                                                      |
+| `DB_HOST`          | `127.0.0.1`            | 数据库地址（`docker compose` 默认为 `db`）                                       |
 | `DB_PORT`          | `5432`                 | 数据库端口                                                                       |
 | `DB_NAME`          | `big_winner`           | 数据库名                                                                         |
 | `DB_USER`          | `big_winner`           | 数据库用户                                                                       |
-| `DB_PASSWORD`      | 空                     | 数据库密码，Docker 部署必填                                                      |
+| `DB_PASSWORD`      | 空                     | 数据库密码（`docker compose` 默认为 `big_winner`，生产环境建议修改）             |
 | `DB_SSLMODE`       | `disable`              | `disable` / `require` / `verify-full`                                            |
 | `DATABASE_URL`     | 空                     | 设置后优先使用此连接串，忽略上面的 `DB_*`                                        |
 | `ADMIN_USERNAME`   | `admin`                | 初始管理员账号（仅首次初始化生效）                                               |
