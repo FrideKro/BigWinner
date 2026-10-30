@@ -30,6 +30,8 @@ node scripts/test-db-connection.mjs  # 验证 .env 数据库连通性
 
 **跑 `pnpm build` 前先停掉 `pnpm dev`**：两者共用 `.next` 目录，dev 运行期间执行生产构建会覆写 dev 正在引用的 webpack chunk，导致页面运行时报 `Cannot find module './xx.js'`。若已发生，杀进程后 `rm -rf .next` 再重启 dev 即可恢复
 
+**开发调试账号**：`.env` 若同时配置非空的 `DEV_ADMIN_USERNAME` / `DEV_ADMIN_PASSWORD`，应用启动初始化时会自动确保该管理员账号存在且密码同步（仅 `NODE_ENV !== 'production'` 生效，生产一律忽略），用于开发期间登录管理员调试功能；与真实玩家同名时跳过创建，请勿使用真实玩家账号名
+
 ## 工作原则
 
 - 先读相关代码再动手：改业务规则先看 `src/lib/`，写页面 / API 先参考相邻模块的既有写法；最小修改范围，完成后自检（`pnpm lint` + `pnpm typecheck` + `pnpm test`，涉服务端逻辑再 `pnpm build`）
@@ -44,9 +46,9 @@ node scripts/test-db-connection.mjs  # 验证 .env 数据库连通性
   - `db.ts`：连接池、`query` / `withTransaction`、启动时幂等建表 DDL
   - `auth.ts`：设备 Token 会话、`getCurrentUser`、Cookie 读写
   - `format.ts`：头像主题、展示格式化
-- `src/app/api/` — REST 路由：`auth`（login/logout/me/bind/restore）、`bootstrap`（冷启动聚合）、`games`、`users`、`stats`、`settings`、`health`
-- `src/app/` — 页面：首页 `/`、`/games`、`/stats`、`/profile`、`/login`、`/bind`
-- `src/components/` — AppShell、GameEditorModal、PlayerAvatar、TrendChart、ConfirmDialog、CopyFallbackModal、Toast
+- `src/app/api/` — REST 路由：`auth`（login/logout/me/bind/restore）、`bootstrap`（冷启动聚合）、`games`、`users`、`stats`、`settings`、`shares`（管理员分享链接管理）、`s/[code]`（免登录分享取数）、`health`
+- `src/app/` — 页面：首页 `/`（总榜）、`/games`、`/stats`、`/profile`、`/s/[code]`（免登录分享落地页）、`/login`、`/bind`
+- `src/components/` — AppShell、GameEditorModal、ShareModal（分享战报弹窗）、PlayerAvatar、TrendChart、ConfirmDialog、CopyFallbackModal、Toast
 - `src/lib/apiClient.ts` — 客户端取数：GET 短缓存 + 并发去重 + 统一 401 处理
 
 ## 业务铁律（不可破坏）
@@ -55,12 +57,13 @@ node scripts/test-db-connection.mjs  # 验证 .env 数据库连通性
 2. **房费**是台面上的虚拟玩家，恒为整数且 ≥ 0（即“庄家”永远赢）
 3. **大赢家 👑**：单场最高分且 > 0，允许多人并列（`is_big_winner`）
 4. 所有输赢金额必须为整数，且绝对值不超过 2147483647（PostgreSQL INTEGER 上限）；每场参与玩家 2~50 人，同一场次同一玩家不可重复；对局备注不超过 200 字符
-5. **认证体系**：设备 Token（365 天滑动续期），Cookie `bw_device_token` 与 `x-device-token` header 双通道；**数据库仅存 Token 的 SHA-256 哈希，明文不落库**（`hashToken`）；密码长度限制 4~72 位（对齐 Bcrypt 72 字节上限）；管理员生成 `bind_token` 供好友免密绑定（`bind_token` 仅管理员玩家列表可见，常规认证响应不暴露）；控制台可开关「玩家密码登录」（`system_settings.password_login_enabled`，默认关闭）：关闭后普通玩家密码登录一律 403，只能通过免登链接绑定访问，管理员始终可密码登录。**停用玩家（is_active=false）全链路拦截**：登录、bind_token 绑定、已发设备 Token 校验三个入口一律拒绝，且不可被录入新战绩（编辑历史对局可保留原有玩家）。登录、免登绑定（bind）、会话恢复（restore）接口均带进程内失败限流（登录按「账号+IP」5 次 / 账号全局 10 次，bind/restore 按 IP 10 次，15 分钟窗口锁定 15 分钟返回 429）；玩家自行改密或管理员重置密码时同步轮换其 `bind_token` 并下线设备。新增 API 一律用 `withAuth` 包装（`src/app/api/_lib/handler.ts`），未登录返回 401、管理员接口传 `{ admin: '文案' }` 返回 403；用户名大小写不敏感唯一（`idx_users_username_lower`），查重与登录一律按 `LOWER(username)` 口径
+5. **认证体系**：设备 Token（365 天滑动续期），Cookie `bw_device_token` 与 `x-device-token` header 双通道；**数据库仅存 Token 的 SHA-256 哈希，明文不落库**（`hashToken`）；密码长度限制 4~72 位（对齐 Bcrypt 72 字节上限）；管理员生成 `bind_token` 供好友免密绑定（`bind_token` 仅管理员玩家列表可见，常规认证响应不暴露）；控制台可开关「玩家密码登录」（`system_settings.password_login_enabled`，默认关闭）：关闭后普通玩家密码登录一律 403，只能通过免登链接绑定访问，管理员始终可密码登录。**停用玩家（is_active=false）全链路拦截**：登录、bind_token 绑定、已发设备 Token 校验三个入口一律拒绝，且不可被录入新战绩（编辑历史对局可保留原有玩家）。登录、免登绑定（bind）、会话恢复（restore）接口均带进程内失败限流（登录按「账号+IP」5 次 / 账号全局 10 次，bind/restore 按 IP 10 次，15 分钟窗口锁定 15 分钟返回 429）；玩家自行改密或管理员重置密码时同步轮换其 `bind_token` 并下线设备。新增 API 一律用 `withAuth` 包装（`src/app/api/_lib/handler.ts`），未登录返回 401、管理员接口传 `{ admin: '文案' }` 返回 403；**免登录例外仅限 bind 与 `/api/s/[code]` 分享取数**（后者凭 `share_links.code` 校验有效期并按 IP 失败限流 + 全量请求限速（成功请求也计数），响应 no-store、只返回昵称等展示字段；两类限流都按 `x-forwarded-for` 记账，无法获取客户端 IP 时跳过计数，避免共享同一限流桶被集体锁定）；用户名大小写不敏感唯一（`idx_users_username_lower`），查重与登录一律按 `LOWER(username)` 口径
 
 ## 架构约定
 
 - **分层**：SQL（`query` / `withTransaction`）只出现在 `src/app/api/` 路由层；页面与组件一律 `'use client'` 经 `fetch('/api/...')` 取数，不直接导入 `db.ts`；业务校验集中在 `src/lib/`，前端不重复实现
-- **数据库**：5 张表（users、user_devices、games、game_records、system_settings），schema 全部定义在 `db.ts` 的启动初始化中（`CREATE TABLE IF NOT EXISTS` + advisory lock 防并发）。改 schema 时必须在此处追加幂等 DDL——注意首次建表 DDL 包在 `if (!tablesExist)` 块内，对已有库新增列/索引的幂等 DDL 必须放在该块之外才会生效，且保证对已有数据向后兼容（本项目无迁移框架）
+- **数据库**：6 张表（users、user_devices、games、game_records、system_settings、share_links），schema 全部定义在 `db.ts` 的启动初始化中（`CREATE TABLE IF NOT EXISTS` + advisory lock 防并发）。改 schema 时必须在此处追加幂等 DDL——注意首次建表 DDL 包在 `if (!tablesExist)` 块内，对已有库新增列/索引的幂等 DDL 必须放在该块之外才会生效，且保证对已有数据向后兼容（本项目无迁移框架）
+- **分享短链**：管理员在总榜页「分享战报」弹窗创建（`POST /api/shares`，内容模块 + 时间段 + 有效期），`share_links.period` 创建时固化为具体年/月（动态周期不随后时间漂移）；有效期为「今天 / 自定义某日 / 永久」，按上海时区自然日计算——至所选日当天 24:00（`shareExpiryInstant`，自定义上限 365 天、不早于今天），不落到任意时分；访客访问 `/s/{code}` 实时查询该时间段数据；时间段过滤复用 `buildPeriodFilter` / `buildDateRangeFilter`（自定义区间为上海时区自然日、含结束当天，最长 366 天），统计口径经 `src/app/api/_lib/statsAgg.ts` 与 `/api/stats` 共用
 - **API 响应**：错误统一 `{ error: '中文消息' }` + 对应 HTTP 状态码；成功直接返回 JSON
 - **写操作**用 `withTransaction` 包裹；SQL 一律参数化（`$1` 占位），禁止字符串拼接
 - **时间**：业务周期（年/月）按 `Asia/Shanghai` 时区计算与过滤，周期过滤换算为 UTC 时间范围（`buildPeriodFilter`）以命中 `idx_games_played_at_id` 索引，分组/展示用 `TO_CHAR(... AT TIME ZONE 'Asia/Shanghai', ...)`

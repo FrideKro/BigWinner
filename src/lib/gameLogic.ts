@@ -115,6 +115,11 @@ export function currentShanghaiYearMonth(): { year: string; month: string } {
   };
 }
 
+// 当前上海时区的自然日（YYYY-MM-DD），供分享有效期等自然日语义使用
+export function currentShanghaiDate(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(now);
+}
+
 export function buildPeriodFilter(
   period: string,
   paramStartIndex: number,
@@ -145,6 +150,46 @@ export function buildPeriodFilter(
     month === null
       ? Date.UTC(year + 1, 0, 1) - SHANGHAI_OFFSET_MS
       : Date.UTC(year, month, 1) - SHANGHAI_OFFSET_MS;
+
+  return {
+    clause: `AND g.played_at >= $${paramStartIndex} AND g.played_at < $${paramStartIndex + 1}`,
+    params: [new Date(startMs), new Date(endMs)],
+  };
+}
+
+// 自定义日期区间过滤（分享链接的起止日期，上海时区自然日，含 end 当天）：
+// 换算成 UTC 边界后用范围条件过滤，口径与 buildPeriodFilter 一致（命中 idx_games_played_at_id）。
+// 起止格式非法、日期不存在（如 2 月 30 日）或 end 早于 start 时返回 null，由调用方转 400
+export function buildDateRangeFilter(
+  start: string,
+  end: string,
+  paramStartIndex: number,
+): { clause: string; params: unknown[] } | null {
+  const matchStart = /^(\d{4})-(\d{2})-(\d{2})$/.exec(start);
+  const matchEnd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(end);
+  if (!matchStart || !matchEnd) return null;
+
+  // Date.UTC 对越界的日/月会自动进位，用「分量重建后逐项比对」识别不存在的日期
+  const [y1, m1, d1] = [Number(matchStart[1]), Number(matchStart[2]), Number(matchStart[3])];
+  const [y2, m2, d2] = [Number(matchEnd[1]), Number(matchEnd[2]), Number(matchEnd[3])];
+  const startDate = new Date(Date.UTC(y1, m1 - 1, d1));
+  const endDate = new Date(Date.UTC(y2, m2 - 1, d2));
+  if (
+    startDate.getUTCFullYear() !== y1 ||
+    startDate.getUTCMonth() !== m1 - 1 ||
+    startDate.getUTCDate() !== d1 ||
+    endDate.getUTCFullYear() !== y2 ||
+    endDate.getUTCMonth() !== m2 - 1 ||
+    endDate.getUTCDate() !== d2 ||
+    endDate < startDate
+  ) {
+    return null;
+  }
+
+  const SHANGHAI_OFFSET_MS = 8 * 60 * 60 * 1000;
+  const startMs = startDate.getTime() - SHANGHAI_OFFSET_MS;
+  // 结束边界 = 结束日次日 00:00（上海），保证包含 range_end 当天的全部对局
+  const endMs = endDate.getTime() + 24 * 60 * 60 * 1000 - SHANGHAI_OFFSET_MS;
 
   return {
     clause: `AND g.played_at >= $${paramStartIndex} AND g.played_at < $${paramStartIndex + 1}`,

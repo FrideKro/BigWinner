@@ -74,3 +74,59 @@ export function recordFailure(key: string, maxFailures = MAX_FAILURES): void {
 export function clearFailures(key: string): void {
   attempts.delete(key);
 }
+
+// ---------------------------------------------------------------------------
+// 全量请求限速（成功请求也计数）：公开数据接口防脚本化刷库。
+// 与上方失败计数分开记账：失败限流只在出错时累加、成功即清零；
+// 这里对每个请求都计数，正常访客不会清零，阈值须远高于单人正常会话用量
+// ---------------------------------------------------------------------------
+interface RateRecord {
+  count: number;
+  windowStart: number;
+  lockedUntil: number;
+}
+
+const rateBuckets = new Map<string, RateRecord>();
+
+export interface RateCheckResult {
+  allowed: boolean;
+  retryAfterSeconds: number;
+}
+
+/** 滑动窗口内的全量请求计数：窗口内第 max+1 个请求起拒绝并锁定一个窗口时长 */
+export function checkRateLimit(
+  key: string,
+  max: number,
+  windowMs: number = WINDOW_MS,
+): RateCheckResult {
+  const now = Date.now();
+  if (rateBuckets.size >= MAX_ENTRIES) {
+    for (const [k, rec] of rateBuckets) {
+      if (rec.lockedUntil <= now && now - rec.windowStart > windowMs) {
+        rateBuckets.delete(k);
+      }
+    }
+    if (rateBuckets.size >= MAX_ENTRIES && !rateBuckets.has(key)) {
+      const oldestKey = rateBuckets.keys().next().value;
+      if (oldestKey !== undefined) {
+        rateBuckets.delete(oldestKey);
+      }
+    }
+  }
+
+  const rec = rateBuckets.get(key);
+  if (!rec || now - rec.windowStart > windowMs) {
+    rateBuckets.set(key, { count: 1, windowStart: now, lockedUntil: 0 });
+    return { allowed: true, retryAfterSeconds: 0 };
+  }
+  if (rec.lockedUntil > now) {
+    return { allowed: false, retryAfterSeconds: Math.ceil((rec.lockedUntil - now) / 1000) };
+  }
+
+  rec.count += 1;
+  if (rec.count > max) {
+    rec.lockedUntil = now + windowMs;
+    return { allowed: false, retryAfterSeconds: Math.ceil(windowMs / 1000) };
+  }
+  return { allowed: true, retryAfterSeconds: 0 };
+}

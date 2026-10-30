@@ -3,9 +3,11 @@ import {
   buildGameShareText,
   buildLeaderboardShareText,
   formatDateTime,
+  formatShareExpiryDate,
   formatSignedAmount,
   getAmountColorClass,
   getAvatarTheme,
+  shareExpiryEndDay,
   shanghaiInputToIso,
   toDatetimeLocalValue,
 } from './format';
@@ -58,6 +60,28 @@ describe('时间格式化（Asia/Shanghai）', () => {
   it('shanghaiInputToIso 对空值/非法值返回 null', () => {
     expect(shanghaiInputToIso('')).toBeNull();
     expect(shanghaiInputToIso('not-a-date')).toBeNull();
+  });
+});
+
+describe('分享有效期展示（上海自然日）', () => {
+  it('shareExpiryEndDay：自然日 24:00 边界（次日 00:00）取前一天为末日', () => {
+    // 11-01 24:00 上海（= 11-01T16:00Z）→ 末日 11-01
+    expect(shareExpiryEndDay('2026-11-01T16:00:00.000Z')).toBe('2026-11-01');
+  });
+
+  it('shareExpiryEndDay：兼容旧数据任意时刻过期，取过期时刻的上海自然日', () => {
+    // 11-03 00:43 上海过期（旧公式）→ 末日 11-03
+    expect(shareExpiryEndDay('2026-11-02T16:43:49.000Z')).toBe('2026-11-03');
+  });
+
+  it('shareExpiryEndDay：非法输入返回空串', () => {
+    expect(shareExpiryEndDay('not-a-date')).toBe('');
+  });
+
+  it('formatShareExpiryDate 输出「X月X日」', () => {
+    expect(formatShareExpiryDate('2026-11-01T16:00:00.000Z')).toBe('11月1日');
+    expect(formatShareExpiryDate('2026-11-12T16:00:00.000Z')).toBe('11月12日');
+    expect(formatShareExpiryDate('not-a-date')).toBeNull();
   });
 });
 

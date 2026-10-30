@@ -123,6 +123,26 @@ async function runInitialization(): Promise<void> {
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
 
+        -- 免登录分享链接：/s/{code}，管理员创建，好友群内免登录查看指定时间段数据
+        CREATE TABLE IF NOT EXISTS share_links (
+          id SERIAL PRIMARY KEY,
+          -- 分享码 generateToken(8) → 16 hex；明文存储（同 bind_token 先例），便于管理员再次复制链接
+          code VARCHAR(32) UNIQUE NOT NULL,
+          -- 逗号分隔的内容模块：board（总榜）/ games（流水）/ stats（看板）
+          content_scope VARCHAR(32) NOT NULL,
+          -- 'period' = 周期（period 列）；'range' = 自定义起止日期（range_start/range_end 列）
+          period_type VARCHAR(16) NOT NULL,
+          -- period_type=period 时：'all' | 'YYYY' | 'YYYY-MM'（创建时已固化为具体年/月，不随后时间漂移）
+          period VARCHAR(8) NOT NULL DEFAULT 'all',
+          -- period_type=range 时的起止日期（上海时区自然日，range_end 含当天）
+          range_start DATE,
+          range_end DATE,
+          created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          -- 过期时间，NULL = 永久有效
+          expires_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
         CREATE INDEX IF NOT EXISTS idx_games_played_at_id ON games(played_at DESC, id DESC);
         CREATE INDEX IF NOT EXISTS idx_game_records_user_id ON game_records(user_id);
         CREATE INDEX IF NOT EXISTS idx_user_devices_user_id ON user_devices(user_id);
@@ -137,6 +157,25 @@ async function runInitialization(): Promise<void> {
       DROP INDEX IF EXISTS idx_game_records_game_id;
       DROP INDEX IF EXISTS idx_games_played_at;
       CREATE INDEX IF NOT EXISTS idx_games_played_at_id ON games(played_at DESC, id DESC);
+    `);
+
+    // 免登录分享链接表（老库演进：与上方首次建表 DDL 保持一致的幂等写法）。
+    // 查询仅按 code 唯一索引命中，无按过期时间检索的场景，
+    // idx_share_links_expires_at 为审查后移除的冗余索引，这里幂等清理已建库
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS share_links (
+        id SERIAL PRIMARY KEY,
+        code VARCHAR(32) UNIQUE NOT NULL,
+        content_scope VARCHAR(32) NOT NULL,
+        period_type VARCHAR(16) NOT NULL,
+        period VARCHAR(8) NOT NULL DEFAULT 'all',
+        range_start DATE,
+        range_end DATE,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        expires_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      DROP INDEX IF EXISTS idx_share_links_expires_at;
     `);
 
     // 用户名大小写不敏感唯一：应用层查重与登录均按 LOWER(username) 口径，
@@ -199,6 +238,39 @@ async function runInitialization(): Promise<void> {
         generateToken(24),
         row.id,
       ]);
+    }
+
+    // 开发调试管理员（仅非生产环境生效）：.env 配置 DEV_ADMIN_USERNAME / DEV_ADMIN_PASSWORD 时，
+    // 确保对应管理员账号存在且密码同步，便于本地开发调试；生产环境（NODE_ENV=production）一律忽略。
+    // 同名真实玩家账号不改动，避免误提升/重置
+    if (process.env.NODE_ENV !== 'production') {
+      const devUsername = (process.env.DEV_ADMIN_USERNAME || '').trim();
+      const devPassword = process.env.DEV_ADMIN_PASSWORD || '';
+      if (devUsername && devPassword) {
+        const devHash = await bcrypt.hash(devPassword, 10);
+        const existingRes = await client.query<{ role: string }>(
+          `SELECT role FROM users WHERE LOWER(username) = LOWER($1) LIMIT 1`,
+          [devUsername],
+        );
+        if (existingRes.rowCount === 0) {
+          await client.query(
+            `INSERT INTO users (username, nickname, password_hash, role, avatar_color, is_active, bind_token)
+             VALUES ($1, $2, $3, 'ADMIN', 'amber', TRUE, $4)`,
+            [devUsername, '开发调试', devHash, generateToken(24)],
+          );
+          console.warn(`🔧 开发调试管理员已创建：${devUsername}（仅非生产环境生效）`);
+        } else if (existingRes.rows[0].role === 'ADMIN') {
+          await client.query(
+            `UPDATE users SET password_hash = $2, is_active = TRUE WHERE LOWER(username) = LOWER($1)`,
+            [devUsername, devHash],
+          );
+          console.warn(`🔧 开发调试管理员密码已同步：${devUsername}（仅非生产环境生效）`);
+        } else {
+          console.warn(
+            `⚠️ 已存在同名玩家账号 ${devUsername}，跳过开发调试管理员配置（请更换 DEV_ADMIN_USERNAME）`,
+          );
+        }
+      }
     }
 
     await client.query('COMMIT');

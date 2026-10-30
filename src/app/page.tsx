@@ -2,16 +2,20 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { useApp } from '@/components/AppShell';
 import { PlayerAvatar } from '@/components/PlayerAvatar';
 import { LogoMark } from '@/components/LogoMark';
 import { ErrorState } from '@/components/ErrorState';
-import { CopyFallbackModal } from '@/components/CopyFallbackModal';
-import { formatSignedAmount, getAmountColorClass, buildLeaderboardShareText } from '@/lib/format';
+import { formatSignedAmount, getAmountColorClass } from '@/lib/format';
 import { apiGet, isAbortError } from '@/lib/apiClient';
-import { useCopyText } from '@/lib/useCopyText';
 import { useRefreshOnVisible } from '@/lib/useRefreshOnVisible';
-import { Share2, Sparkles, ChevronRight, Check } from 'lucide-react';
+import { Share2, Sparkles, ChevronRight } from 'lucide-react';
+
+// 分享弹窗仅在点击后渲染，避免拖慢首屏
+const ShareModal = dynamic(() => import('@/components/ShareModal').then((m) => m.ShareModal), {
+  ssr: false,
+});
 
 interface LeaderboardItem {
   rank: number;
@@ -53,19 +57,18 @@ interface StatsResponse {
 
 export default function HomePage() {
   const router = useRouter();
-  const { user, openGameEditor, gameSavedVersion, showToast } = useApp();
+  const { user, openGameEditor, gameSavedVersion } = useApp();
 
   const [period, setPeriod] = useState<string>('all');
   const [summary, setSummary] = useState<StatsSummary | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [copied, setCopied] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
   const hasDataRef = useRef(false);
   const fetchedPeriodRef = useRef<string | null>(null);
-  const { copy, fallback, clearFallback } = useCopyText();
 
   const fetchStats = useCallback(
     async (force = false) => {
@@ -129,18 +132,6 @@ export default function HomePage() {
           ? '本月份'
           : `${period}`;
 
-  async function handleShareLeaderboard() {
-    if (!summary) return;
-    const text = buildLeaderboardShareText(periodLabel, summary.totalGames, leaderboard);
-    const ok = await copy(text);
-    if (ok) {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } else {
-      showToast('复制失败，请长按选择文本');
-    }
-  }
-
   const topWinner = leaderboard.find((p) => p.gamesPlayed > 0 && p.netAmount > 0);
   const showSkeleton = loading;
 
@@ -161,22 +152,13 @@ export default function HomePage() {
         </div>
 
         <button
-          onClick={handleShareLeaderboard}
+          onClick={() => setShareModalOpen(true)}
           disabled={!summary}
-          aria-label="复制榜单战报"
+          aria-label="打开分享战报弹窗"
           className="flex shrink-0 items-center gap-1 px-3 py-2 rounded-full bg-white border border-slate-200 text-sm font-medium text-slate-700 shadow-sm active:scale-95 transition disabled:opacity-50"
         >
-          {copied ? (
-            <>
-              <Check size={14} className="text-emerald-600" />
-              <span className="text-emerald-600">已复制榜单</span>
-            </>
-          ) : (
-            <>
-              <Share2 size={14} />
-              <span>微信战报</span>
-            </>
-          )}
+          <Share2 size={14} />
+          <span>分享战报</span>
         </button>
       </div>
 
@@ -417,7 +399,14 @@ export default function HomePage() {
         </>
       )}
 
-      <CopyFallbackModal text={fallback} onClose={clearFallback} />
+      {shareModalOpen && (
+        <ShareModal
+          open={shareModalOpen}
+          initialPeriod={period}
+          availableMonths={summary?.availableMonths}
+          onClose={() => setShareModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

@@ -99,6 +99,29 @@ export function shanghaiInputToIso(value: string): string | null {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
+const SHANGHAI_OFFSET_MS = 8 * 60 * 60 * 1000;
+
+/** 分享有效期的最后一个可用自然日（上海时区，'YYYY-MM-DD'）。
+ *  新数据过期点恒为某自然日的 24:00（即次日 00:00 上海），末日为其前一天；
+ *  兼容旧数据任意时刻过期：末日取过期时刻所在的上海自然日 */
+export function shareExpiryEndDay(expiresAt: string | Date): string {
+  const date = typeof expiresAt === 'string' ? new Date(expiresAt) : expiresAt;
+  if (Number.isNaN(date.getTime())) return '';
+  // +8h 后按 UTC 读出的墙上时间即上海时间；恰为 00:00 说明过期点是自然日 24:00 边界
+  const shanghaiWall = new Date(date.getTime() + SHANGHAI_OFFSET_MS);
+  const isDayBoundary = shanghaiWall.toISOString().slice(11, 19) === '00:00:00';
+  const endMs = shanghaiWall.getTime() - (isDayBoundary ? SHANGHAI_OFFSET_MS : 0);
+  return new Date(endMs).toISOString().slice(0, 10);
+}
+
+/** 分享有效期的中文日期展示（'X月X日'），无效输入返回 null */
+export function formatShareExpiryDate(expiresAt: string | Date): string | null {
+  const day = shareExpiryEndDay(expiresAt);
+  if (!day) return null;
+  const [, month, dayPart] = day.split('-');
+  return `${Number(month)}月${Number(dayPart)}日`;
+}
+
 export async function copyTextToClipboard(text: string): Promise<boolean> {
   if (typeof window === 'undefined') return false;
 

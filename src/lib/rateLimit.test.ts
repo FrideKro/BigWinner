@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearFailures, getClientIp, getRateLimitState, recordFailure } from './rateLimit';
+import {
+  checkRateLimit,
+  clearFailures,
+  getClientIp,
+  getRateLimitState,
+  recordFailure,
+} from './rateLimit';
 
 describe('rateLimit', () => {
   const KEY = 'login:test-user:1.2.3.4';
@@ -108,5 +114,51 @@ describe('getClientIp', () => {
   it('超长 IP 头截断到 64 字符', () => {
     const headers = new Headers({ 'x-forwarded-for': 'x'.repeat(120) });
     expect(getClientIp(headers)).toHaveLength(64);
+  });
+});
+
+// 全量请求限速与失败计数分开记账，各用例使用独立 key 避免与上方用例串扰
+describe('checkRateLimit 全量请求限速', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('窗口内前 max 个请求放行，第 max+1 个起拒绝并锁定一个窗口', () => {
+    for (let i = 0; i < 3; i += 1) {
+      expect(checkRateLimit('rate:full-a', 3)).toEqual({ allowed: true, retryAfterSeconds: 0 });
+    }
+    expect(checkRateLimit('rate:full-a', 3)).toEqual({
+      allowed: false,
+      retryAfterSeconds: 15 * 60,
+    });
+  });
+
+  it('窗口滑动后重新计数放行', () => {
+    for (let i = 0; i < 3; i += 1) checkRateLimit('rate:full-b', 3);
+    expect(checkRateLimit('rate:full-b', 3).allowed).toBe(false);
+
+    vi.advanceTimersByTime(15 * 60 * 1000 + 1000);
+    expect(checkRateLimit('rate:full-b', 3)).toEqual({ allowed: true, retryAfterSeconds: 0 });
+  });
+
+  it('不同 key 相互独立', () => {
+    for (let i = 0; i < 3; i += 1) checkRateLimit('rate:full-c1', 3);
+    expect(checkRateLimit('rate:full-c1', 3).allowed).toBe(false);
+    expect(checkRateLimit('rate:full-c2', 3)).toEqual({ allowed: true, retryAfterSeconds: 0 });
+  });
+
+  it('与失败计数独立记账：clearFailures 不重置限速进度', () => {
+    const key = 'rate:full-d';
+    recordFailure(key, 5);
+    clearFailures(key);
+
+    checkRateLimit(key, 2);
+    checkRateLimit(key, 2);
+    expect(checkRateLimit(key, 2).allowed).toBe(false);
   });
 });

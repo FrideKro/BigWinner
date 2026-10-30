@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { buildPeriodFilter } from '@/lib/gameLogic';
 import { withAuth } from '../_lib/handler';
+import {
+  buildPersonalTrend,
+  mapLeaderboardRows,
+  pickPlayerSummary,
+  type LeaderboardSqlRow,
+  type PersonalHistorySqlRow,
+} from '../_lib/statsAgg';
 
 export const GET = withAuth(
   async (req, user) => {
@@ -87,20 +94,7 @@ export const GET = withAuth(
            ORDER BY 1 DESC
            LIMIT 36`,
         ),
-        query<{
-          user_id: number;
-          nickname: string;
-          avatar_color: string;
-          is_active: boolean;
-          games_played: string;
-          net_amount: string;
-          win_count: string;
-          draw_count: string;
-          loss_count: string;
-          big_winner_count: string;
-          max_win: string;
-          max_loss: string;
-        }>(
+        query<LeaderboardSqlRow>(
           `SELECT u.id AS user_id,
                   u.nickname,
                   u.avatar_color,
@@ -130,15 +124,7 @@ export const GET = withAuth(
           params,
         ),
         scope === 'full'
-          ? query<{
-              game_id: number;
-              played_at: string;
-              date_label: string;
-              amount: number;
-              is_big_winner: boolean;
-              room_fee: number;
-              note: string;
-            }>(
+          ? query<PersonalHistorySqlRow>(
               `SELECT g.id AS game_id,
                       g.played_at,
                       TO_CHAR(g.played_at AT TIME ZONE 'Asia/Shanghai', 'MM-DD') AS date_label,
@@ -191,145 +177,19 @@ export const GET = withAuth(
       };
     });
 
-    const leaderboard = leaderboardRes.rows.map((row, index) => {
-      const gamesPlayed = parseInt(row.games_played, 10);
-      const netAmount = parseInt(row.net_amount, 10);
-      const winCount = parseInt(row.win_count, 10);
-      const drawCount = parseInt(row.draw_count, 10);
-      const lossCount = parseInt(row.loss_count, 10);
-      const bigWinnerCount = parseInt(row.big_winner_count, 10);
-
-      return {
-        rank: index + 1,
-        userId: row.user_id,
-        nickname: row.nickname,
-        avatarColor: row.avatar_color,
-        isActive: row.is_active,
-        gamesPlayed,
-        netAmount,
-        winCount,
-        drawCount,
-        lossCount,
-        winRate: gamesPlayed > 0 ? Math.round((winCount / gamesPlayed) * 1000) / 10 : 0,
-        avgAmount: gamesPlayed > 0 ? Math.round(netAmount / gamesPlayed) : 0,
-        bigWinnerCount,
-        bigWinnerRate: gamesPlayed > 0 ? Math.round((bigWinnerCount / gamesPlayed) * 1000) / 10 : 0,
-        maxWin: parseInt(row.max_win, 10),
-        maxLoss: parseInt(row.max_loss, 10),
-      };
-    });
+    const leaderboard = mapLeaderboardRows(leaderboardRes.rows);
 
     // 指定玩家的极值、连胜连败与累计盈亏曲线（仅 scope=full 有数据）
-    const trend: Array<{
-      index: number;
-      gameId: number;
-      playedAt: string;
-      dateLabel: string;
-      amount: number;
-      cumulativeAmount: number;
-      isBigWinner: boolean;
-      roomFee: number;
-      note: string;
-    }> = [];
-    let maxWinRecord: {
-      amount: number;
-      gameId: number;
-      playedAt: string;
-      note: string;
-    } | null = null;
-    let maxLossRecord: {
-      amount: number;
-      gameId: number;
-      playedAt: string;
-      note: string;
-    } | null = null;
-    let longestWinStreak = 0;
-    let longestLossStreak = 0;
-    let tempWinStreak = 0;
-    let tempLossStreak = 0;
+    const {
+      trend,
+      maxWinRecord,
+      maxLossRecord,
+      longestWinStreak,
+      longestLossStreak,
+      currentStreak,
+    } = buildPersonalTrend(personalHistoryRes?.rows ?? []);
 
-    for (const [idx, r] of (personalHistoryRes?.rows ?? []).entries()) {
-      if (r.amount > 0) {
-        tempWinStreak += 1;
-        tempLossStreak = 0;
-        if (tempWinStreak > longestWinStreak) {
-          longestWinStreak = tempWinStreak;
-        }
-        if (!maxWinRecord || r.amount > maxWinRecord.amount) {
-          maxWinRecord = {
-            amount: r.amount,
-            gameId: r.game_id,
-            playedAt: r.played_at,
-            note: r.note || '',
-          };
-        }
-      } else if (r.amount < 0) {
-        tempLossStreak += 1;
-        tempWinStreak = 0;
-        if (tempLossStreak > longestLossStreak) {
-          longestLossStreak = tempLossStreak;
-        }
-        if (!maxLossRecord || r.amount < maxLossRecord.amount) {
-          maxLossRecord = {
-            amount: r.amount,
-            gameId: r.game_id,
-            playedAt: r.played_at,
-            note: r.note || '',
-          };
-        }
-      } else {
-        tempWinStreak = 0;
-        tempLossStreak = 0;
-      }
-
-      trend.push({
-        index: idx + 1,
-        gameId: r.game_id,
-        playedAt: r.played_at,
-        dateLabel: r.date_label,
-        amount: r.amount,
-        cumulativeAmount: 0,
-        isBigWinner: r.is_big_winner,
-        roomFee: r.room_fee,
-        note: r.note || '',
-      });
-    }
-
-    // 按场次顺序补齐累计盈亏
-    let cumulative = 0;
-    for (const point of trend) {
-      cumulative += point.amount;
-      point.cumulativeAmount = cumulative;
-    }
-
-    let currentStreak: { type: 'WIN' | 'LOSS' | 'NONE'; count: number } = {
-      type: 'NONE',
-      count: 0,
-    };
-    if (tempWinStreak > 0) {
-      currentStreak = { type: 'WIN', count: tempWinStreak };
-    } else if (tempLossStreak > 0) {
-      currentStreak = { type: 'LOSS', count: tempLossStreak };
-    }
-
-    const targetPlayerSummary = leaderboard.find((p) => p.userId === targetUserId) || {
-      rank: 0,
-      userId: targetUserId,
-      nickname: '未知玩家',
-      avatarColor: 'red',
-      isActive: true,
-      gamesPlayed: 0,
-      netAmount: 0,
-      winCount: 0,
-      drawCount: 0,
-      lossCount: 0,
-      winRate: 0,
-      avgAmount: 0,
-      bigWinnerCount: 0,
-      bigWinnerRate: 0,
-      maxWin: 0,
-      maxLoss: 0,
-    };
+    const targetPlayerSummary = pickPlayerSummary(leaderboard, targetUserId);
 
     return NextResponse.json({
       summary: {

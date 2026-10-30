@@ -103,7 +103,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isPublicPage = pathname === '/login' || pathname === '/bind';
+  // 公开页：登录页、微信免登绑定页、免登录分享页（/s/{code}）
+  const isPublicPage = pathname === '/login' || pathname === '/bind' || pathname.startsWith('/s/');
 
   const showToast = useCallback((message: string) => {
     setToast(message);
@@ -203,9 +204,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     [applyBootstrap],
   );
 
+  // 公开页（登录/绑定/分享）不消费登录态，跳过冷启动聚合，省一次必 401 的请求；
+  // 导航回受保护页时本 effect 因 pathname 变化重跑、正常加载
   useEffect(() => {
+    if (isPublicPage) {
+      setLoading(false);
+      return;
+    }
     void loadBootstrap();
-  }, [loadBootstrap]);
+  }, [loadBootstrap, isPublicPage]);
 
   // 受保护页面未登录 → 跳登录（网络异常时除外，展示重连提示）
   useEffect(() => {
@@ -229,7 +236,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       setUser(null);
       setPlayers([]);
       setPasswordLoginEnabled(false);
-      if (pathname !== '/login' && pathname !== '/bind') {
+      if (pathname !== '/login' && pathname !== '/bind' && !pathname.startsWith('/s/')) {
         router.replace('/login');
       }
     };
