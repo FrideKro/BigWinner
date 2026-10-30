@@ -321,7 +321,9 @@ export default function SharePage() {
   );
 
   function renderBoard(data: BoardData) {
-    const { summary, leaderboard } = data;
+    const { summary } = data;
+    // 与首页总榜口径一致：时间段内 0 记录的玩家不上榜
+    const leaderboard = data.leaderboard.filter((p) => p.gamesPlayed > 0);
     const topWinner = leaderboard.find((p) => p.gamesPlayed > 0 && p.netAmount > 0);
 
     return (

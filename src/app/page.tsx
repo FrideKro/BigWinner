@@ -92,7 +92,8 @@ export default function HomePage() {
         );
         if (abortRef.current !== controller) return;
         setSummary(data.summary);
-        setLeaderboard(data.leaderboard || []);
+        // 时间段内 0 记录的玩家不上榜（后端把它们排在有记录玩家之后，过滤不影响其余排名）
+        setLeaderboard((data.leaderboard || []).filter((p) => p.gamesPlayed > 0));
         hasDataRef.current = true;
         setError('');
       } catch (err) {
