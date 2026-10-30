@@ -4,7 +4,7 @@
 
 # 大赢家 BigWinner
 
-好友娱乐战绩与房费记账系统，专为手机端（微信内置浏览器）设计
+好友娱乐战绩与房费记账系统
 
 [![CI](https://github.com/FrideKro/BigWinner/actions/workflows/ci.yaml/badge.svg)](https://github.com/FrideKro/BigWinner/actions/workflows/ci.yaml)
 [![Release](https://img.shields.io/github/v/release/FrideKro/BigWinner)](https://github.com/FrideKro/BigWinner/releases)
@@ -16,9 +16,9 @@
 ## 目录
 
 - [功能特性](#功能特性)
+- [产品截图](#产品截图)
 - [快速部署](#快速部署)
 - [配置说明](#配置说明)
-- [升级与运维](#升级与运维)
 - [本地开发](#本地开发)
 - [项目结构](#项目结构)
 - [许可证](#许可证)
@@ -34,6 +34,22 @@
 - **登录防爆破**：同一「账号 + IP」15 分钟内失败 5 次锁定 15 分钟（另有账号维度兜底；进程内限流，重启后重置）；重置密码时同步下线该玩家全部设备
 - **停用即隔离**：隐藏（停用）的玩家无法登录、无法绑定新设备、已发 Token 立即失效，且不能被录入新战绩；历史战绩保留，重新启用即恢复
 - **PWA**：可添加到手机主屏幕，以独立 App 形式打开
+
+## 产品截图
+
+移动端（微信内置浏览器）：
+
+<p align="center">
+  <img src="demo/手机竖屏1.png" width="49%" alt="总榜、场次流水、记一局" />
+  <img src="demo/手机竖屏2.png" width="49%" alt="看板、个人设置、管理员控制台" />
+</p>
+
+宽屏（平板 / 桌面浏览器）：
+
+<p align="center">
+  <img src="demo/宽屏-总榜.png" width="49%" alt="宽屏总榜" />
+  <img src="demo/宽屏-流水.png" width="49%" alt="宽屏场次流水" />
+</p>
 
 ## 快速部署
 
@@ -189,33 +205,6 @@ bigwinner.example.com {
 | `APP_PORT`         | `3000`                 | 宿主机映射端口（仅 docker compose 使用）                                         |
 | `IMAGE_NAME`       | `localhost/big-winner` | 仓库自带 compose 与部署脚本使用的镜像名，官方镜像填 `ghcr.io/fridekro/bigwinner` |
 | `IMAGE_TAG`        | `latest`               | 镜像版本（仅 docker compose 与部署脚本使用）                                     |
-
-## 升级与运维
-
-**升级**：
-
-```bash
-docker compose pull && docker compose up -d
-```
-
-数据库结构变更由应用启动时的幂等 DDL 自动完成，兼容已有数据，无需手动迁移。各版本变更见 [Releases](https://github.com/FrideKro/BigWinner/releases)
-
-> 从设备 Token 明文存库的旧版本升级后，历史 Token 无法再通过校验，所有设备需要重新登录一次（会自动跳转登录页）
-
-**健康检查**：`GET /api/health`，数据库连通时返回 `200 {"status":"UP"}`，否则返回 `503`。镜像内置 `healthcheck.js` 供 Docker 健康检查使用
-
-**备份与恢复**（方式一部署时）：
-
-```bash
-docker compose exec db pg_dump -U big_winner big_winner > backup-$(date +%F).sql
-docker compose exec -T db psql -U big_winner big_winner < backup-2026-01-01.sql
-```
-
-**常见问题**：
-
-- 日志提示 `PostgreSQL 权限不足`：数据库用户没有 `public` schema 的建表权限，按日志给出的 `GRANT` 命令授权，或把数据库所有者改为该用户
-- 健康检查返回 `503`：确认 `DB_HOST` 能从容器内访问（不能填 `127.0.0.1`），以及数据库密码正确
-- 拉取镜像报 `no matching manifest`：当前设备为 ARM 架构，请改用方式三自行构建
 
 ## 本地开发
 
