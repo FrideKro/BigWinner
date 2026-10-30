@@ -5,16 +5,25 @@ import { clearFailures, getClientIp, getRateLimitState, recordFailure } from '@/
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    let body: Record<string, unknown>;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: '请求体格式无效' }, { status: 400 });
+    }
     const bindToken = String(body.bindToken || '').trim();
 
     if (!bindToken) {
       return NextResponse.json({ error: '缺少专属绑定凭证' }, { status: 400 });
     }
 
-    const ipKey = `bind:ip:${getClientIp(req.headers)}`;
-    const limitState = getRateLimitState(ipKey);
-    if (limitState.locked) {
+    // 限流按 IP 记账；无 x-forwarded-for（直连部署）拿不到真实 IP 时跳过计数——
+    // 否则所有匿名访客共享同一个桶，一次过期链接被反复点开就会把绑定通道集体锁 15 分钟。
+    // bind_token 为高熵随机串（48 位 hex），枚举不可行，跳过限流的代价可接受（同 /api/s/[code] 先例）
+    const clientIp = getClientIp(req.headers);
+    const ipKey = clientIp ? `bind:ip:${clientIp}` : null;
+    const limitState = ipKey ? getRateLimitState(ipKey) : null;
+    if (limitState?.locked) {
       const minutes = Math.max(1, Math.ceil(limitState.retryAfterSeconds / 60));
       return NextResponse.json(
         { error: `尝试次数过多，请约 ${minutes} 分钟后再试` },
@@ -38,7 +47,7 @@ export async function POST(req: NextRequest) {
     );
 
     if (userRes.rowCount === 0) {
-      recordFailure(ipKey, 10);
+      if (ipKey) recordFailure(ipKey, 10);
       return NextResponse.json(
         { error: '该专属绑定链接已失效，请联系管理员重新获取' },
         { status: 401 },
@@ -47,14 +56,14 @@ export async function POST(req: NextRequest) {
 
     const user = userRes.rows[0];
     if (!user.is_active) {
-      recordFailure(ipKey, 10);
+      if (ipKey) recordFailure(ipKey, 10);
       return NextResponse.json(
         { error: '该账号已停用，请联系管理员重新获取链接' },
         { status: 401 },
       );
     }
 
-    clearFailures(ipKey);
+    if (ipKey) clearFailures(ipKey);
 
     // 若当前请求已持有同一用户的有效设备会话，直接复用，避免每次点开链接都向 user_devices 插入新行
     const currentUser = await getCurrentUser();

@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { query, withTransaction } from '@/lib/db';
-import { validateAndComputeRecords, buildPeriodFilter } from '@/lib/gameLogic';
+import {
+  validateAndComputeRecords,
+  buildPeriodFilter,
+  isValidPeriod,
+  validatePlayedAt,
+} from '@/lib/gameLogic';
 import { validateGameNote } from '@/lib/profileValidation';
 import { withAuth, parseJsonBody } from '../_lib/handler';
 import { assertRecordsUsersExist } from '../_lib/shared';
@@ -9,6 +14,9 @@ export const GET = withAuth(
   async (req) => {
     const { searchParams } = new URL(req.url);
     const period = searchParams.get('period') || 'all';
+    if (!isValidPeriod(period)) {
+      return NextResponse.json({ error: '时间段参数无效' }, { status: 400 });
+    }
     const userIdFilter = searchParams.get('userId')
       ? parseInt(searchParams.get('userId')!, 10)
       : null;
@@ -129,6 +137,10 @@ export const POST = withAuth(
     const playedAt = body.playedAt ? new Date(body.playedAt as string) : new Date();
     if (Number.isNaN(playedAt.getTime())) {
       return NextResponse.json({ error: '开局时间格式无效' }, { status: 400 });
+    }
+    const playedAtError = validatePlayedAt(playedAt);
+    if (playedAtError) {
+      return NextResponse.json({ error: playedAtError }, { status: 400 });
     }
     const note = String(body.note || '').trim();
     const noteError = validateGameNote(note);

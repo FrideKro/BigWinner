@@ -95,6 +95,9 @@ export function ShareModal({ open, initialPeriod, availableMonths, onClose }: Sh
   const [expiryDate, setExpiryDate] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // 表单是否被修改过：修改后点遮罩/关闭按钮需二次确认，防止误触丢已填设置
+  const [dirty, setDirty] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   // 创建成功横幅
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);
@@ -125,6 +128,8 @@ export function ShareModal({ open, initialPeriod, availableMonths, onClose }: Sh
     setSaving(false);
     setCreatedUrl(null);
     setCopiedNew(false);
+    setDirty(false);
+    setConfirmDiscard(false);
     setScopes(['board']);
 
     const period = initialPeriod || 'all';
@@ -171,7 +176,17 @@ export function ShareModal({ open, initialPeriod, availableMonths, onClose }: Sh
   }, [open]);
 
   function toggleScope(key: string) {
+    setDirty(true);
     setScopes((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+  }
+
+  // 遮罩/关闭按钮的统一出口：表单已修改时先确认，避免误触丢失已填设置
+  function requestClose() {
+    if (dirty) {
+      setConfirmDiscard(true);
+      return;
+    }
+    onClose();
   }
 
   async function refreshShares() {
@@ -210,11 +225,7 @@ export function ShareModal({ open, initialPeriod, availableMonths, onClose }: Sh
 
     // 有效期：今天 → 上海今天；自定义 → 所选日；永久 → null（均含当天，至当天 24:00）
     const expiresOn =
-      expiryKind === 'today'
-        ? shanghaiTodayDate()
-        : expiryKind === 'custom'
-          ? expiryDate
-          : null;
+      expiryKind === 'today' ? shanghaiTodayDate() : expiryKind === 'custom' ? expiryDate : null;
 
     setSaving(true);
     try {
@@ -234,6 +245,7 @@ export function ShareModal({ open, initialPeriod, availableMonths, onClose }: Sh
               expiresOn,
             });
       setCreatedUrl(shareUrl(created.code));
+      setDirty(false); // 表单已消费，关闭无需再确认
       await refreshShares();
     } catch (err) {
       setError(err instanceof Error ? err.message : '创建失败，请稍后重试');
@@ -274,7 +286,7 @@ export function ShareModal({ open, initialPeriod, availableMonths, onClose }: Sh
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={requestClose} />
       <div
         ref={dialogRef}
         role="dialog"
@@ -293,7 +305,7 @@ export function ShareModal({ open, initialPeriod, availableMonths, onClose }: Sh
             分享战报
           </h2>
           <button
-            onClick={onClose}
+            onClick={requestClose}
             aria-label="关闭分享弹窗"
             className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-slate-100 text-slate-500"
           >
@@ -372,7 +384,10 @@ export function ShareModal({ open, initialPeriod, availableMonths, onClose }: Sh
                 <button
                   key={item.key}
                   type="button"
-                  onClick={() => setPeriodKind(item.key as typeof periodKind)}
+                  onClick={() => {
+                    setDirty(true);
+                    setPeriodKind(item.key as typeof periodKind);
+                  }}
                   aria-pressed={periodKind === item.key}
                   className={`flex-1 min-h-9 py-1 rounded-lg text-sm font-medium transition ${
                     periodKind === item.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
@@ -386,6 +401,7 @@ export function ShareModal({ open, initialPeriod, availableMonths, onClose }: Sh
                 value={periodKind === 'month' ? monthValue : ''}
                 onChange={(e) => {
                   if (e.target.value) {
+                    setDirty(true);
                     setPeriodKind('month');
                     setMonthValue(e.target.value);
                   }
@@ -411,7 +427,10 @@ export function ShareModal({ open, initialPeriod, availableMonths, onClose }: Sh
                     type="date"
                     value={rangeStart}
                     max={rangeEnd || undefined}
-                    onChange={(e) => setRangeStart(e.target.value)}
+                    onChange={(e) => {
+                      setDirty(true);
+                      setRangeStart(e.target.value);
+                    }}
                     aria-label="开始日期"
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
                   />
@@ -419,7 +438,10 @@ export function ShareModal({ open, initialPeriod, availableMonths, onClose }: Sh
                     type="date"
                     value={rangeEnd}
                     min={rangeStart || undefined}
-                    onChange={(e) => setRangeEnd(e.target.value)}
+                    onChange={(e) => {
+                      setDirty(true);
+                      setRangeEnd(e.target.value);
+                    }}
                     aria-label="结束日期"
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
                   />
@@ -439,7 +461,10 @@ export function ShareModal({ open, initialPeriod, availableMonths, onClose }: Sh
                   <button
                     key={o.key}
                     type="button"
-                    onClick={() => setExpiryKind(o.key)}
+                    onClick={() => {
+                      setDirty(true);
+                      setExpiryKind(o.key);
+                    }}
                     aria-pressed={selected}
                     className={`py-2 rounded-xl border text-sm font-medium transition ${
                       selected
@@ -458,7 +483,10 @@ export function ShareModal({ open, initialPeriod, availableMonths, onClose }: Sh
                 value={expiryDate}
                 min={shanghaiTodayDate()}
                 max={shanghaiDateAfterDays(MAX_EXPIRY_DAYS)}
-                onChange={(e) => setExpiryDate(e.target.value)}
+                onChange={(e) => {
+                  setDirty(true);
+                  setExpiryDate(e.target.value);
+                }}
                 aria-label="有效期至"
                 className="w-full mt-2 px-3 py-2 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
               />
@@ -566,6 +594,19 @@ export function ShareModal({ open, initialPeriod, availableMonths, onClose }: Sh
         busy={deleting}
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
+      />
+      <ConfirmDialog
+        open={confirmDiscard}
+        title="放弃当前分享设置？"
+        message="关闭后本次填写的分享内容与时间段将不会保留。"
+        confirmText="放弃并关闭"
+        busy={saving}
+        onConfirm={() => {
+          setConfirmDiscard(false);
+          setDirty(false);
+          onClose();
+        }}
+        onCancel={() => setConfirmDiscard(false)}
       />
     </div>
   );

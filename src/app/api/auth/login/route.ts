@@ -16,9 +16,18 @@ export async function GET() {
   }
 }
 
+// 预生成的随机串哈希：账号不存在时也执行一次同代价的 bcrypt 比对，
+// 抹平「存在/不存在」之间的响应时间差，防用户名枚举计时侧信道
+const DUMMY_PASSWORD_HASH = '$2a$10$fcwlKdp9e4OUb8LEXZae9.V0SlY9ejPWirrQ33Jh1nKD4VIxoc7fq';
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    let body: Record<string, unknown>;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: '请求体格式无效' }, { status: 400 });
+    }
     const username = String(body.username || '').trim();
     const password = String(body.password || '');
 
@@ -66,6 +75,8 @@ export async function POST(req: NextRequest) {
     );
 
     if (userRes.rowCount === 0) {
+      // 与存在账号的失败路径保持同代价耗时，避免计时暴露账号是否存在
+      await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
       recordFailure(ipKey, 5);
       recordFailure(userKey, 10);
       return NextResponse.json({ error: '账号或密码错误' }, { status: 401 });

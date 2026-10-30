@@ -120,6 +120,29 @@ export function currentShanghaiDate(now: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(now);
 }
 
+// 是否为合法的周期参数（'all' | 'year' | 'month' | 'YYYY' | 'YYYY-MM'）。
+// 非法值在 buildPeriodFilter 中会静默退化为「全部数据」，查询入口应先用此函数拒绝并返回 400
+export function isValidPeriod(period: string): boolean {
+  return (
+    period === 'all' ||
+    period === 'year' ||
+    period === 'month' ||
+    /^\d{4}$/.test(period) ||
+    /^(\d{4})-(0[1-9]|1[0-2])$/.test(period)
+  );
+}
+
+// 开局时间合理区间（上海时区 2000-01-01 ~ 2100-01-01）：
+// 防误输入的远古/远期时间污染统计，返回中文错误或 null
+export function validatePlayedAt(date: Date): string | null {
+  const t = date.getTime();
+  // 2000-01-01 00:00 上海 = 1999-12-31 16:00 UTC；2100-01-01 00:00 上海 = 2099-12-31 16:00 UTC
+  if (t < Date.UTC(1999, 11, 31, 16) || t >= Date.UTC(2099, 11, 31, 16)) {
+    return '开局时间超出合理范围（2000 ~ 2100 年）';
+  }
+  return null;
+}
+
 export function buildPeriodFilter(
   period: string,
   paramStartIndex: number,

@@ -72,6 +72,15 @@ describe('POST /api/auth/login', () => {
     expect(res.status).toBe(400);
   });
 
+  it('非法 JSON 请求体返回 400', async () => {
+    const res = await POST(
+      new NextRequest('http://localhost/api/auth/login', { method: 'POST', body: '{not-json' }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: '请求体格式无效' });
+  });
+
   it('用户不存在返回 401 且文案不暴露存在性', async () => {
     mocks.query.mockResolvedValue({ rows: [], rowCount: 0 });
 

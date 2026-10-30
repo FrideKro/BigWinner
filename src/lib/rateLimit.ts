@@ -21,6 +21,32 @@ function cleanupExpired(now: number): void {
   }
 }
 
+// 容量上限时的逐出策略：优先逐出「窗口最新开始且未锁定」的记录。
+// 攻击者用随机 key 洪水灌桶时，逐出最新者牺牲的是洪水自身，
+// 既有失败计数与锁定记录得以保留（按插入序逐出最旧会被洪水挤掉真实攻击记录）
+function evictNewestUnlocked(
+  map: Map<string, { windowStart: number; lockedUntil: number }>,
+  now: number,
+): void {
+  let victimKey: string | undefined;
+  let newest = -Infinity;
+  for (const [k, rec] of map) {
+    if (rec.lockedUntil > now) continue; // 锁定中的记录不逐出，避免提前解锁
+    if (rec.windowStart > newest) {
+      newest = rec.windowStart;
+      victimKey = k;
+    }
+  }
+  if (victimKey === undefined) {
+    // 全部处于锁定中的极端场景：退回逐出插入序最末者
+    const keys = [...map.keys()];
+    victimKey = keys[keys.length - 1];
+  }
+  if (victimKey !== undefined) {
+    map.delete(victimKey);
+  }
+}
+
 export interface RateLimitState {
   locked: boolean;
   retryAfterSeconds: number;
@@ -48,10 +74,7 @@ export function recordFailure(key: string, maxFailures = MAX_FAILURES): void {
   if (attempts.size >= MAX_ENTRIES) {
     cleanupExpired(now);
     if (attempts.size >= MAX_ENTRIES && !attempts.has(key)) {
-      const oldestKey = attempts.keys().next().value;
-      if (oldestKey !== undefined) {
-        attempts.delete(oldestKey);
-      }
+      evictNewestUnlocked(attempts, now);
     }
   }
 
@@ -107,10 +130,7 @@ export function checkRateLimit(
       }
     }
     if (rateBuckets.size >= MAX_ENTRIES && !rateBuckets.has(key)) {
-      const oldestKey = rateBuckets.keys().next().value;
-      if (oldestKey !== undefined) {
-        rateBuckets.delete(oldestKey);
-      }
+      evictNewestUnlocked(rateBuckets, now);
     }
   }
 

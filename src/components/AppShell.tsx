@@ -235,6 +235,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       invalidateApiCache();
       setUser(null);
       setPlayers([]);
+      setDefaultRoomFee(100);
       setPasswordLoginEnabled(false);
       if (pathname !== '/login' && pathname !== '/bind' && !pathname.startsWith('/s/')) {
         router.replace('/login');

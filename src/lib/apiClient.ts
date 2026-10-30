@@ -18,6 +18,8 @@ export class ApiError extends Error {
  */
 export function isAbortError(err: unknown): boolean {
   if (!err) return false;
+  // 本封装抛出的 ApiError 携带服务端原文，即使文案恰好含 "abort" 也不是中止错误，不得被静默吞掉
+  if (err instanceof ApiError) return false;
   if (
     typeof DOMException !== 'undefined' &&
     err instanceof DOMException &&
@@ -53,6 +55,23 @@ const cache = new Map<string, CacheEntry>();
 const inflight = new Map<string, InflightEntry<unknown>>();
 
 const DEFAULT_TTL_MS = 30_000;
+// 缓存容量上限：长会话中 period/userId/offset 组合的 URL 会持续累积，
+// 超限时先清已过期项、仍超限则按插入序逐出最旧项，防止内存无界增长
+const MAX_CACHE_ENTRIES = 100;
+
+function setCacheEntry(url: string, data: unknown, ttl: number): void {
+  cache.set(url, { data, expiresAt: Date.now() + ttl });
+  if (cache.size <= MAX_CACHE_ENTRIES) return;
+  const now = Date.now();
+  for (const [key, entry] of cache) {
+    if (entry.expiresAt <= now) cache.delete(key);
+  }
+  while (cache.size > MAX_CACHE_ENTRIES) {
+    const oldest = cache.keys().next().value;
+    if (oldest === undefined) break;
+    cache.delete(oldest);
+  }
+}
 
 export function invalidateApiCache(prefix?: string): void {
   if (!prefix) {
@@ -106,6 +125,8 @@ export async function apiGet<T>(url: string, options: ApiGetOptions = {}): Promi
     }
   }
 
+  // force 有意绕过 in-flight 去重：force 用于「写操作后强制刷新」，
+  // 若复用写操作前发起的 in-flight 请求会拿到旧账本数据，宁可重复打一次网络
   let entry = !force ? (inflight.get(url) as InflightEntry<T> | undefined) : undefined;
 
   if (!entry) {
@@ -122,7 +143,7 @@ export async function apiGet<T>(url: string, options: ApiGetOptions = {}): Promi
         }
         const data = (await res.json()) as T;
         if (ttl > 0) {
-          cache.set(url, { data, expiresAt: Date.now() + ttl });
+          setCacheEntry(url, data, ttl);
         }
         return data;
       } finally {

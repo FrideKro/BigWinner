@@ -4,16 +4,25 @@ import { clearFailures, getClientIp, getRateLimitState, recordFailure } from '@/
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    let body: Record<string, unknown>;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: '请求体格式无效' }, { status: 400 });
+    }
     const deviceToken = String(body.deviceToken || '').trim();
 
     if (!deviceToken) {
       return NextResponse.json({ error: '无有效本地凭证' }, { status: 401 });
     }
 
-    const ipKey = `restore:ip:${getClientIp(req.headers)}`;
-    const limitState = getRateLimitState(ipKey);
-    if (limitState.locked) {
+    // 限流按 IP 记账；无 x-forwarded-for（直连部署）时跳过计数，
+    // 避免所有匿名访客共享同一空桶被集体锁定（同 bind / /api/s/[code] 先例）；
+    // device_token 为高熵随机串，枚举不可行，跳过限流的代价可接受
+    const clientIp = getClientIp(req.headers);
+    const ipKey = clientIp ? `restore:ip:${clientIp}` : null;
+    const limitState = ipKey ? getRateLimitState(ipKey) : null;
+    if (limitState?.locked) {
       const minutes = Math.max(1, Math.ceil(limitState.retryAfterSeconds / 60));
       return NextResponse.json(
         { error: `尝试次数过多，请约 ${minutes} 分钟后再试` },
@@ -23,11 +32,11 @@ export async function POST(req: NextRequest) {
 
     const user = await verifyAndExtendDeviceToken(deviceToken);
     if (!user) {
-      recordFailure(ipKey, 10);
+      if (ipKey) recordFailure(ipKey, 10);
       return NextResponse.json({ error: '设备凭证已过期' }, { status: 401 });
     }
 
-    clearFailures(ipKey);
+    if (ipKey) clearFailures(ipKey);
 
     const res = NextResponse.json({
       user: {

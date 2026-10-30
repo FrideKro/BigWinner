@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query, withTransaction } from '@/lib/db';
-import { validateAndComputeRecords } from '@/lib/gameLogic';
+import { validateAndComputeRecords, validatePlayedAt } from '@/lib/gameLogic';
 import { validateGameNote } from '@/lib/profileValidation';
 import { withAuth, parseJsonBody, ApiError } from '../../_lib/handler';
 import { assertRecordsUsersExist } from '../../_lib/shared';
@@ -22,6 +22,10 @@ export const PUT = withAuth<{ id: string }>(
     const playedAt = body.playedAt ? new Date(body.playedAt as string) : new Date();
     if (Number.isNaN(playedAt.getTime())) {
       return NextResponse.json({ error: '开局时间格式无效' }, { status: 400 });
+    }
+    const playedAtError = validatePlayedAt(playedAt);
+    if (playedAtError) {
+      return NextResponse.json({ error: playedAtError }, { status: 400 });
     }
     const note = String(body.note || '').trim();
     const noteError = validateGameNote(note);

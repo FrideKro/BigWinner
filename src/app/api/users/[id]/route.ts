@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { withTransaction, generateToken } from '@/lib/db';
+import { hashToken } from '@/lib/auth';
 import { validatePassword, validateProfileLengths } from '@/lib/profileValidation';
 import { withAuth, parseJsonBody, ApiError } from '../../_lib/handler';
 
 export const PATCH = withAuth<{ id: string }>(
-  async (req, _user, { params }) => {
+  async (req, user, { params }) => {
     const { id } = await params;
     const targetId = parseInt(id, 10);
     if (Number.isNaN(targetId)) {
@@ -56,17 +57,34 @@ export const PATCH = withAuth<{ id: string }>(
         }
       }
 
-      if (role === 'PLAYER') {
-        // 先锁定现有管理员行再计数：并发降级请求在此串行化，
-        // 后到者能看到先到者已提交的降级结果，防止把仅有的两名管理员同时降级
+      if (role === 'PLAYER' || isActive === false) {
+        // 先锁定现有管理员行再计数：并发降级/停用请求在此串行化，
+        // 后到者能看到先到者已提交的结果，防止把仅有的两名管理员同时降级/停用
         await client.query(`SELECT id FROM users WHERE role = 'ADMIN' FOR UPDATE`);
-        const adminCountRes = await client.query<{ count: string }>(
-          `SELECT COUNT(*)::text AS count FROM users WHERE role = 'ADMIN' AND id != $1`,
-          [targetId],
-        );
-        const remainingAdmins = parseInt(adminCountRes.rows[0]?.count || '0', 10);
-        if (remainingAdmins === 0) {
-          throw new ApiError(400, '系统中必须保留至少一位管理员，无法降级');
+
+        if (role === 'PLAYER') {
+          const adminCountRes = await client.query<{ count: string }>(
+            `SELECT COUNT(*)::text AS count FROM users WHERE role = 'ADMIN' AND id != $1`,
+            [targetId],
+          );
+          const remainingAdmins = parseInt(adminCountRes.rows[0]?.count || '0', 10);
+          if (remainingAdmins === 0) {
+            throw new ApiError(400, '系统中必须保留至少一位管理员，无法降级');
+          }
+        }
+
+        // 停用与降级同等级守卫：登录与设备校验全链路拒绝停用账号，
+        // 停用唯一「启用中」的管理员会让管理入口全灭（玩家密码登录默认关闭，无自恢复入口）
+        if (isActive === false) {
+          const activeAdminRes = await client.query<{ count: string }>(
+            `SELECT COUNT(*)::text AS count
+             FROM users WHERE role = 'ADMIN' AND is_active = TRUE AND id != $1`,
+            [targetId],
+          );
+          const remainingActiveAdmins = parseInt(activeAdminRes.rows[0]?.count || '0', 10);
+          if (remainingActiveAdmins === 0) {
+            throw new ApiError(400, '必须保留至少一位启用中的管理员，无法停用');
+          }
         }
       }
 
@@ -81,13 +99,21 @@ export const PATCH = withAuth<{ id: string }>(
         }
       }
 
-      // 重置密码后下线该用户全部设备，确保旧登录凭据立即失效
+      // 重置密码后下线该用户设备，确保旧登录凭据立即失效；
+      // 管理员重置自己的密码时保留当前设备避免自登出（与 me PATCH 行为一致），重置他人则全下线
       if (passwordHash) {
         await client.query(`UPDATE users SET password_hash = $1 WHERE id = $2`, [
           passwordHash,
           targetId,
         ]);
-        await client.query(`DELETE FROM user_devices WHERE user_id = $1`, [targetId]);
+        if (targetId === user.id) {
+          await client.query(`DELETE FROM user_devices WHERE user_id = $1 AND device_token <> $2`, [
+            targetId,
+            hashToken(user.deviceToken),
+          ]);
+        } else {
+          await client.query(`DELETE FROM user_devices WHERE user_id = $1`, [targetId]);
+        }
       }
 
       const updatedRes = await client.query<{

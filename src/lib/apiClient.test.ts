@@ -29,6 +29,7 @@ describe('apiClient', () => {
 
       expect(isAbortError(new Error('Network error'))).toBe(false);
       expect(isAbortError(new ApiError('Not found', 404))).toBe(false);
+      expect(isAbortError(new ApiError('request aborted by server', 500))).toBe(false);
       expect(isAbortError(null)).toBe(false);
       expect(isAbortError(undefined)).toBe(false);
     });
@@ -82,6 +83,29 @@ describe('apiClient', () => {
       expect(r1).toEqual({ name: 'winner' });
       expect(r2).toEqual({ name: 'winner' });
       expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('缓存超过容量上限时逐出最旧条目，防止长会话内存无界增长', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: 1 }),
+      });
+      vi.stubGlobal('fetch', mockFetch);
+
+      // 灌入 101 条缓存：插入第 101 条时超限，逐出最早插入的第 0 条
+      for (let i = 0; i <= 100; i += 1) {
+        await apiGet(`/api/cache-cap:${i}`, { ttl: 60000 });
+      }
+      expect(mockFetch).toHaveBeenCalledTimes(101);
+
+      // 第 0 条已被逐出：再次请求重新 fetch（此次插入又会逐出当时的第 1 条）
+      await apiGet('/api/cache-cap:0', { ttl: 60000 });
+      expect(mockFetch).toHaveBeenCalledTimes(102);
+
+      // 第 2 条仍在缓存内：不重新 fetch
+      await apiGet('/api/cache-cap:2', { ttl: 60000 });
+      expect(mockFetch).toHaveBeenCalledTimes(102);
     });
   });
 

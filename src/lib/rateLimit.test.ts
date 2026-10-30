@@ -83,16 +83,39 @@ describe('rateLimit', () => {
     clearFailures(globalKey);
   });
 
-  it('窗口内活跃键达到 500 条上限时淘汰最早插入的键，防内存膨胀', () => {
-    const keys = Array.from({ length: 501 }, (_, i) => `evict:key:${i}`);
+  it('容量上限时逐出未锁定的新记录，锁定中的攻击者记录不被随机 key 洪水挤掉', () => {
+    // 唯一锁定记录（真实攻击者）
+    const victim = 'evict:victim';
+    recordFailure(victim, 1);
+    expect(getRateLimitState(victim).locked).toBe(true);
+
+    // 用未锁定的普通失败记录灌满剩余容量
+    const flood = Array.from({ length: 499 }, (_, i) => `evict:flood:${i}`);
+    for (const k of flood) {
+      recordFailure(k, 5);
+    }
+
+    // 洪水继续灌入：逐出的只会是未锁定记录，victim 的锁定保留
+    for (let i = 0; i < 50; i += 1) {
+      recordFailure(`evict:wave:${i}`, 5);
+      expect(getRateLimitState(victim).locked).toBe(true);
+    }
+
+    clearFailures(victim);
+    for (const k of flood) clearFailures(k);
+    for (let i = 0; i < 50; i += 1) clearFailures(`evict:wave:${i}`);
+  });
+
+  it('全部条目处于锁定中的极端场景下退回逐出插入序最新者', () => {
+    const keys = Array.from({ length: 501 }, (_, i) => `evict:locked:${i}`);
     for (let i = 0; i < 500; i += 1) {
       recordFailure(keys[i], 1);
     }
-    expect(getRateLimitState(keys[0]).locked).toBe(true);
 
-    // 插入第 501 个键时，所有条目均未过期，应淘汰最早的 keys[0]
+    // 插入第 501 个键：全部已锁定无从按「未锁定优先」，退回逐出最新的 keys[499]
     recordFailure(keys[500], 1);
-    expect(getRateLimitState(keys[0]).locked).toBe(false);
+    expect(getRateLimitState(keys[499]).locked).toBe(false);
+    expect(getRateLimitState(keys[0]).locked).toBe(true);
     expect(getRateLimitState(keys[500]).locked).toBe(true);
 
     for (const k of keys) {

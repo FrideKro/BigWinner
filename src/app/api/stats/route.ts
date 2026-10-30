@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { buildPeriodFilter } from '@/lib/gameLogic';
+import { buildPeriodFilter, isValidPeriod } from '@/lib/gameLogic';
 import { withAuth } from '../_lib/handler';
 import {
   buildPersonalTrend,
@@ -14,6 +14,9 @@ export const GET = withAuth(
   async (req, user) => {
     const { searchParams } = new URL(req.url);
     const period = searchParams.get('period') || 'all';
+    if (!isValidPeriod(period)) {
+      return NextResponse.json({ error: '时间段参数无效' }, { status: 400 });
+    }
     const rawUserId = searchParams.get('userId');
     const targetUserId = rawUserId ? parseInt(rawUserId, 10) : user.id;
     if (!Number.isInteger(targetUserId) || targetUserId <= 0) {

@@ -7,7 +7,13 @@ import { LogoMark } from '@/components/LogoMark';
 import { TrendChart, TrendPoint } from '@/components/TrendChart';
 import { ErrorState } from '@/components/ErrorState';
 import { ApiError, apiGet, isAbortError } from '@/lib/apiClient';
-import { formatDateTime, formatSignedAmount, formatShareExpiryDate, getAmountColorClass } from '@/lib/format';
+import {
+  formatDateTime,
+  formatSignedAmount,
+  formatShareExpiryDate,
+  getAmountColorClass,
+} from '@/lib/format';
+import type { LeaderboardItem } from '@/app/api/_lib/statsAgg';
 import { Sparkles, Trophy, ListOrdered, BarChart3 } from 'lucide-react';
 
 // 免登录分享页：凭 /s/{code} 查看指定时间段的实时数据，只读、无登录态依赖
@@ -30,25 +36,6 @@ interface ShareSummary {
   totalGames: number;
   totalRoomFee: number;
   avgRoomFee: number;
-}
-
-interface LeaderboardItem {
-  rank: number;
-  userId: number;
-  nickname: string;
-  avatarColor: string;
-  isActive: boolean;
-  gamesPlayed: number;
-  netAmount: number;
-  winCount: number;
-  drawCount: number;
-  lossCount: number;
-  winRate: number;
-  avgAmount: number;
-  bigWinnerCount: number;
-  bigWinnerRate: number;
-  maxWin: number;
-  maxLoss: number;
 }
 
 interface BoardData {
@@ -408,15 +395,14 @@ export default function SharePage() {
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-5 shrink-0 text-center text-xs font-black text-slate-500">
-                    {player.gamesPlayed === 0
-                      ? '-'
-                      : player.rank === 1
-                        ? '🥇'
-                        : player.rank === 2
-                          ? '🥈'
-                          : player.rank === 3
-                            ? '🥉'
-                            : player.rank}
+                    {/* 榜单渲染前已过滤 0 记录玩家，rank 恒有效 */}
+                    {player.rank === 1
+                      ? '🥇'
+                      : player.rank === 2
+                        ? '🥈'
+                        : player.rank === 3
+                          ? '🥉'
+                          : player.rank}
                   </div>
 
                   <PlayerAvatar

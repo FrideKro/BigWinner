@@ -14,6 +14,11 @@ function BindContent() {
   const [message, setMessage] = useState('正在为您绑定微信免密访问…');
 
   useEffect(() => {
+    // cancelled 守卫 + 定时器清理：组件卸载（含 StrictMode 开发态双挂载）后
+    // 不再写状态、不再跳转，避免对已卸载组件 setState
+    let cancelled = false;
+    let redirectTimer: ReturnType<typeof setTimeout> | undefined;
+
     const token = searchParams.get('token');
     if (!token) {
       setStatus('error');
@@ -29,6 +34,7 @@ function BindContent() {
           body: JSON.stringify({ bindToken: token }),
         });
         const data = await res.json();
+        if (cancelled) return;
         if (!res.ok) {
           setStatus('error');
           setMessage(data.error || '绑定失败');
@@ -47,21 +53,28 @@ function BindContent() {
         setMessage(`欢迎【${data.user?.nickname}】，微信绑定成功！即将进入系统…`);
         invalidateApiCache();
         const loggedIn = await refreshUser();
+        if (cancelled) return;
         if (!loggedIn) {
           setStatus('error');
           setMessage('绑定成功，但加载用户信息失败，请刷新重试');
           return;
         }
-        setTimeout(() => {
+        redirectTimer = setTimeout(() => {
           router.replace('/');
         }, 1200);
       } catch {
+        if (cancelled) return;
         setStatus('error');
         setMessage('网络连接失败，请稍后刷新重试');
       }
     }
 
     doBind();
+
+    return () => {
+      cancelled = true;
+      if (redirectTimer) clearTimeout(redirectTimer);
+    };
   }, [searchParams, refreshUser, router]);
 
   return (

@@ -9,23 +9,11 @@ import { ErrorState } from '@/components/ErrorState';
 import { formatSignedAmount, getAmountColorClass, formatDateTime } from '@/lib/format';
 import { apiGet, isAbortError } from '@/lib/apiClient';
 import { useRefreshOnVisible } from '@/lib/useRefreshOnVisible';
+import type { LeaderboardItem, StreakSummary } from '@/app/api/_lib/statsAgg';
 import { Flame, Award, TrendingUp, TrendingDown, Coins, Calendar } from 'lucide-react';
 
-interface PersonalStats {
-  userId: number;
-  nickname: string;
-  avatarColor: string;
-  gamesPlayed: number;
-  netAmount: number;
-  winCount: number;
-  drawCount: number;
-  lossCount: number;
-  winRate: number;
-  avgAmount: number;
-  bigWinnerCount: number;
-  bigWinnerRate: number;
-  maxWin: number;
-  maxLoss: number;
+// 个人面板 = 总榜汇总字段（不含 rank/isActive）+ 明细计算字段，服务端 /api/stats 同此结构
+type PersonalStats = Omit<LeaderboardItem, 'rank' | 'isActive'> & {
   maxWinRecord: {
     amount: number;
     gameId: number;
@@ -38,11 +26,11 @@ interface PersonalStats {
     playedAt: string;
     note: string;
   } | null;
-  currentStreak: { type: 'WIN' | 'LOSS' | 'NONE'; count: number };
+  currentStreak: StreakSummary;
   longestWinStreak: number;
   longestLossStreak: number;
   trend: TrendPoint[];
-}
+};
 
 interface MonthlyRoomFeeItem {
   month: string;

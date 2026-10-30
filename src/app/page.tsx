@@ -10,31 +10,13 @@ import { ErrorState } from '@/components/ErrorState';
 import { formatSignedAmount, getAmountColorClass } from '@/lib/format';
 import { apiGet, isAbortError } from '@/lib/apiClient';
 import { useRefreshOnVisible } from '@/lib/useRefreshOnVisible';
+import type { LeaderboardItem } from '@/app/api/_lib/statsAgg';
 import { Share2, Sparkles, ChevronRight } from 'lucide-react';
 
 // 分享弹窗仅在点击后渲染，避免拖慢首屏
 const ShareModal = dynamic(() => import('@/components/ShareModal').then((m) => m.ShareModal), {
   ssr: false,
 });
-
-interface LeaderboardItem {
-  rank: number;
-  userId: number;
-  nickname: string;
-  avatarColor: string;
-  isActive: boolean;
-  gamesPlayed: number;
-  netAmount: number;
-  winCount: number;
-  drawCount: number;
-  lossCount: number;
-  winRate: number;
-  avgAmount: number;
-  bigWinnerCount: number;
-  bigWinnerRate: number;
-  maxWin: number;
-  maxLoss: number;
-}
 
 interface StatsSummary {
   period: string;
@@ -337,15 +319,14 @@ export default function HomePage() {
                     <div className="flex items-center gap-3 min-w-0">
                       {/* 排名 */}
                       <div className="w-5 shrink-0 text-center text-xs font-black text-slate-500">
-                        {player.gamesPlayed === 0
-                          ? '-'
-                          : player.rank === 1
-                            ? '🥇'
-                            : player.rank === 2
-                              ? '🥈'
-                              : player.rank === 3
-                                ? '🥉'
-                                : player.rank}
+                        {/* 榜单渲染前已过滤 0 记录玩家，rank 恒有效 */}
+                        {player.rank === 1
+                          ? '🥇'
+                          : player.rank === 2
+                            ? '🥈'
+                            : player.rank === 3
+                              ? '🥉'
+                              : player.rank}
                       </div>
 
                       <PlayerAvatar

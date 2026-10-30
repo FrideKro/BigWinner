@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildPeriodFilter, validateAndComputeRecords } from './gameLogic';
+import {
+  buildPeriodFilter,
+  isValidPeriod,
+  validateAndComputeRecords,
+  validatePlayedAt,
+} from './gameLogic';
 
 describe('validateAndComputeRecords', () => {
   it('正常配平：返回各玩家金额并标记唯一大赢家', () => {
@@ -276,5 +281,33 @@ describe('buildPeriodFilter', () => {
       new Date('2026-01-31T16:00:00.000Z'),
       new Date('2026-02-28T16:00:00.000Z'),
     ]);
+  });
+});
+
+describe('isValidPeriod', () => {
+  it('接受 all / year / month / YYYY / YYYY-MM', () => {
+    for (const p of ['all', 'year', 'month', '2025', '2025-03']) {
+      expect(isValidPeriod(p)).toBe(true);
+    }
+  });
+
+  it('拒绝非法周期参数（避免静默退化为全部数据）', () => {
+    for (const p of ['', 'abc', '202-3', '2025-13', '2025-00', '2025年', 'all ', 'YYYY-MM']) {
+      expect(isValidPeriod(p)).toBe(false);
+    }
+  });
+});
+
+describe('validatePlayedAt', () => {
+  it('接受 2000 ~ 2100 年（上海时区）内的时间', () => {
+    expect(validatePlayedAt(new Date('2000-01-01T00:00:00+08:00'))).toBeNull();
+    expect(validatePlayedAt(new Date('2026-10-31T14:00:00+08:00'))).toBeNull();
+    expect(validatePlayedAt(new Date('2099-12-31T23:59:59+08:00'))).toBeNull();
+  });
+
+  it('拒绝区间外的远古/远期时间', () => {
+    expect(validatePlayedAt(new Date('1999-12-31T23:59:59+08:00'))).not.toBeNull();
+    expect(validatePlayedAt(new Date('2100-01-01T00:00:00+08:00'))).not.toBeNull();
+    expect(validatePlayedAt(new Date('1899-01-01T00:00:00Z'))).not.toBeNull();
   });
 });
