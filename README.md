@@ -40,7 +40,7 @@
 移动端（微信内置浏览器）：
 
 <p align="center">
-  <img src="demo/手机竖屏1.png" width="49%" alt="总榜、场次流水、记一局" />
+  <img src="demo/手机竖屏1.png" width="49%" alt="总榜、流水、记一局" />
   <img src="demo/手机竖屏2.png" width="49%" alt="看板、个人设置、管理员控制台" />
 </p>
 
@@ -48,7 +48,7 @@
 
 <p align="center">
   <img src="demo/宽屏-总榜.png" width="49%" alt="宽屏总榜" />
-  <img src="demo/宽屏-流水.png" width="49%" alt="宽屏场次流水" />
+  <img src="demo/宽屏-流水.png" width="49%" alt="宽屏流水" />
 </p>
 
 ## 快速部署
@@ -63,7 +63,7 @@ ghcr.io/fridekro/bigwinner
 | `1.0`    | 1.0.x 系列最新补丁版     |
 | `1.0.0`  | 固定版本（生产环境推荐） |
 
-> 镜像目前只提供 `linux/amd64`，ARM 设备（树莓派、部分 NAS / VPS）请参考[方式三：自行构建镜像](#方式三自行构建镜像)
+> 镜像目前只提供 `linux/amd64`，其他请参考[方式三：自行构建镜像](#方式三自行构建镜像)
 
 ### 前置条件
 
