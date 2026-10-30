@@ -148,13 +148,15 @@ export default function HomePage() {
     <div className="space-y-4 px-4 pt-4">
       {/* 顶部标题栏 */}
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <LogoMark size={30} />
+        <div className="flex items-center gap-2.5 min-w-0">
+          {/* Logo 与右侧「标题 + 副标题」文字块整体齐高：text-lg 行高 28px + text-xs 行高 16px = 44px */}
+          <LogoMark size={44} className="h-11 w-11 shrink-0" />
           <div className="min-w-0">
             <h1 className="text-lg font-medium text-slate-900 tracking-tight truncate">
               大赢家 · 战绩榜
             </h1>
-            <p className="text-xs text-slate-500">好友娱乐战绩 · 房费记账</p>
+            {/* truncate 保证标题块恒为两行 44px，Logo 才能与文字块始终齐高 */}
+            <p className="text-xs text-slate-500 truncate">好友娱乐战绩 · 房费记账</p>
           </div>
         </div>
 
