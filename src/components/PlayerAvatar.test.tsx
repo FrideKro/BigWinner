@@ -7,10 +7,17 @@ afterEach(() => {
 });
 
 describe('PlayerAvatar', () => {
-  it('显示昵称前两个字', () => {
+  it('显示昵称前三个字', () => {
     render(<PlayerAvatar nickname="张三丰" />);
 
-    expect(screen.getByText('张三')).toBeInTheDocument();
+    expect(screen.getByText('张三丰')).toBeInTheDocument();
+  });
+
+  it('超长昵称截断为前三个字', () => {
+    render(<PlayerAvatar nickname="欧阳夏丹青" />);
+
+    expect(screen.getByText('欧阳夏')).toBeInTheDocument();
+    expect(screen.queryByText('欧阳夏丹')).not.toBeInTheDocument();
   });
 
   it('大赢家显示皇冠角标', () => {

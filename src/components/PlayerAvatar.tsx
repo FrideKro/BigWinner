@@ -11,6 +11,13 @@ interface PlayerAvatarProps {
   rank?: number;
 }
 
+// 各尺寸的容器与字号；3 个字比 2 个字宽约 50%，需缩字号（sm 还要加大容器）避免溢出圆形
+const SIZE_STYLES = {
+  sm: { normal: 'w-8 h-8 text-xs', wide: 'w-9 h-9 text-xs' },
+  md: { normal: 'w-10 h-10 text-sm', wide: 'w-10 h-10 text-xs' },
+  lg: { normal: 'w-12 h-12 text-base', wide: 'w-12 h-12 text-sm' },
+} as const;
+
 function PlayerAvatarInner({
   nickname,
   color = 'red',
@@ -19,10 +26,8 @@ function PlayerAvatarInner({
   rank,
 }: PlayerAvatarProps) {
   const theme = getAvatarTheme(color);
-  const label = (nickname || '友').trim().slice(0, 2);
-
-  const sizeClass =
-    size === 'sm' ? 'w-8 h-8 text-xs' : size === 'lg' ? 'w-12 h-12 text-base' : 'w-10 h-10 text-sm';
+  const label = Array.from((nickname || '友').trim()).slice(0, 3).join('');
+  const sizeClass = SIZE_STYLES[size][label.length >= 3 ? 'wide' : 'normal'];
 
   return (
     <div className="relative inline-flex items-center justify-center shrink-0">
