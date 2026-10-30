@@ -156,7 +156,7 @@ export default function HomePage() {
           onClick={() => setShareModalOpen(true)}
           disabled={!summary}
           aria-label="打开分享战报弹窗"
-          className="flex shrink-0 items-center gap-1 px-3 py-2 rounded-full bg-white border border-slate-200 text-sm font-medium text-slate-700 shadow-sm active:scale-95 transition disabled:opacity-50"
+          className="flex shrink-0 items-center gap-1 px-3 py-2 rounded-full bg-[#07C160] text-sm font-medium text-white shadow-sm active:scale-95 transition disabled:opacity-50"
         >
           <Share2 size={14} />
           <span>分享战报</span>
