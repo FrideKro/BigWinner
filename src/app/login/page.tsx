@@ -16,6 +16,9 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [expired, setExpired] = useState(false);
+  // null = 配置加载中/读取失败，此时保留密码表单由服务端兜底校验
+  const [passwordLoginEnabled, setPasswordLoginEnabled] = useState<boolean | null>(null);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
 
   // 会话失效由全局 401 处理写入 sessionStorage，登录页给出一次提示
   useEffect(() => {
@@ -28,6 +31,26 @@ export default function LoginPage() {
       /* ignore */
     }
   }, []);
+
+  // 读取玩家密码登录开关：关闭时只展示免登指引，管理员可手动展开表单
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/auth/login', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { passwordLoginEnabled?: unknown } | null) => {
+        if (!cancelled && typeof data?.passwordLoginEnabled === 'boolean') {
+          setPasswordLoginEnabled(data.passwordLoginEnabled);
+        }
+      })
+      .catch(() => {
+        /* 配置读取失败时保留表单，服务端仍会按开关拦截 */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const showPasswordLogin = passwordLoginEnabled !== false || showPasswordForm;
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -95,82 +118,116 @@ export default function LoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleLogin} className="space-y-4 short:space-y-2.5">
-          <div>
-            <label
-              htmlFor="login-username"
-              className="text-sm font-medium text-slate-400 block mb-1.5"
-            >
-              账号
-            </label>
-            <div className="relative">
-              <User
-                size={18}
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 z-10"
-              />
-              <input
-                id="login-username"
-                type="text"
-                autoCapitalize="none"
-                autoCorrect="off"
-                autoComplete="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="账号"
-                className="w-full pl-11 pr-4 py-3 bg-slate-800/80 border border-slate-700 rounded-2xl text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
-              />
+        {showPasswordLogin ? (
+          <>
+            {passwordLoginEnabled === false && (
+              <div
+                role="status"
+                className="mb-4 text-sm text-amber-200 bg-amber-950/40 border border-amber-800/60 rounded-xl px-3.5 py-2.5"
+              >
+                玩家密码登录已关闭，仅管理员可登录
+              </div>
+            )}
+
+            <form onSubmit={handleLogin} className="space-y-4 short:space-y-2.5">
+              <div>
+                <label
+                  htmlFor="login-username"
+                  className="text-sm font-medium text-slate-400 block mb-1.5"
+                >
+                  账号
+                </label>
+                <div className="relative">
+                  <User
+                    size={18}
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 z-10"
+                  />
+                  <input
+                    id="login-username"
+                    type="text"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    autoComplete="username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="账号"
+                    className="w-full pl-11 pr-4 py-3 bg-slate-800/80 border border-slate-700 rounded-2xl text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="login-password"
+                  className="text-sm font-medium text-slate-400 block mb-1.5"
+                >
+                  密码
+                </label>
+                <div className="relative">
+                  <Lock
+                    size={18}
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 z-10"
+                  />
+                  <PasswordInput
+                    id="login-password"
+                    value={password}
+                    onChange={setPassword}
+                    placeholder="密码"
+                    autoComplete="current-password"
+                    dark
+                    className="w-full pl-11 py-3 bg-slate-800/80 border border-slate-700 rounded-2xl text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <div
+                  role="alert"
+                  className="text-sm text-rose-400 bg-rose-950/40 border border-rose-800/60 rounded-xl px-3.5 py-2.5"
+                >
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full mt-2 min-h-12 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-red-600 font-medium text-slate-950 text-base flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/20 active:scale-[0.99] disabled:opacity-50 transition"
+              >
+                <span>{loading ? '登录中…' : '登录'}</span>
+              </button>
+            </form>
+          </>
+        ) : (
+          <div className="text-center space-y-3 py-2">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-800 text-slate-400">
+              <Lock size={22} />
             </div>
+            <h2 className="text-base font-medium text-slate-200">玩家密码登录已关闭</h2>
+            <p className="text-sm text-slate-400 leading-relaxed">
+              请使用管理员分享的专属免登链接
+              <br />
+              点开一次即可绑定微信访问
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowPasswordForm(true)}
+              className="min-h-11 px-4 text-sm text-slate-400 underline underline-offset-4"
+            >
+              管理员登录
+            </button>
           </div>
+        )}
 
-          <div>
-            <label
-              htmlFor="login-password"
-              className="text-sm font-medium text-slate-400 block mb-1.5"
-            >
-              密码
-            </label>
-            <div className="relative">
-              <Lock
-                size={18}
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 z-10"
-              />
-              <PasswordInput
-                id="login-password"
-                value={password}
-                onChange={setPassword}
-                placeholder="密码"
-                autoComplete="current-password"
-                dark
-                className="w-full pl-11 py-3 bg-slate-800/80 border border-slate-700 rounded-2xl text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
-              />
-            </div>
+        {passwordLoginEnabled !== false && (
+          <div className="mt-5 pt-4 border-t border-slate-800/80 text-center">
+            <p className="text-sm text-slate-400 leading-relaxed">
+              💡 微信中可向管理员索取专属免登链接
+              <br />
+              点开一次即可绑定微信永久免密访问
+            </p>
           </div>
-
-          {error && (
-            <div
-              role="alert"
-              className="text-sm text-rose-400 bg-rose-950/40 border border-rose-800/60 rounded-xl px-3.5 py-2.5"
-            >
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full mt-2 min-h-12 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-red-600 font-medium text-slate-950 text-base flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/20 active:scale-[0.99] disabled:opacity-50 transition"
-          >
-            <span>{loading ? '登录中…' : '登录'}</span>
-          </button>
-        </form>
-
-        <div className="mt-5 pt-4 border-t border-slate-800/80 text-center">
-          <p className="text-sm text-slate-400 leading-relaxed">
-            💡 微信中可向管理员索取专属免登链接
-            <br />
-            点开一次即可绑定微信永久免密访问
-          </p>
-        </div>
+        )}
       </div>
 
       {/* 底部版权 */}

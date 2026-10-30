@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   hash: vi.fn(),
   createDeviceSession: vi.fn(),
   setDeviceCookie: vi.fn(),
+  getPasswordLoginEnabled: vi.fn(),
 }));
 
 vi.mock('@/lib/db', () => ({ query: mocks.query }));
@@ -16,9 +17,12 @@ vi.mock('@/lib/auth', () => ({
   createDeviceSession: mocks.createDeviceSession,
   setDeviceCookie: mocks.setDeviceCookie,
 }));
+vi.mock('../../_lib/shared', () => ({
+  getPasswordLoginEnabled: mocks.getPasswordLoginEnabled,
+}));
 
 import { clearFailures } from '@/lib/rateLimit';
-import { POST } from './route';
+import { GET, POST } from './route';
 
 function loginReq(username: string, password: string) {
   return new NextRequest('http://localhost/api/auth/login', {
@@ -52,11 +56,15 @@ describe('POST /api/auth/login', () => {
     mocks.compare.mockReset();
     mocks.createDeviceSession.mockReset();
     mocks.setDeviceCookie.mockReset();
+    mocks.getPasswordLoginEnabled.mockReset();
+    mocks.getPasswordLoginEnabled.mockResolvedValue(true);
     mocks.createDeviceSession.mockResolvedValue('d'.repeat(64));
     clearFailures('login:ip:lockeduser:');
     clearFailures('login:user:lockeduser');
     clearFailures('login:ip:fride:');
     clearFailures('login:user:fride');
+    clearFailures('login:ip:player1:');
+    clearFailures('login:user:player1');
   });
 
   it('缺账号或密码返回 400', async () => {
@@ -121,6 +129,43 @@ describe('POST /api/auth/login', () => {
     expect(mocks.createDeviceSession).not.toHaveBeenCalled();
   });
 
+  it('普通玩家密码登录关闭时返回 403 且不创建会话', async () => {
+    mocks.query.mockResolvedValue(userRow({ role: 'PLAYER' }));
+    mocks.compare.mockResolvedValue(true);
+    mocks.getPasswordLoginEnabled.mockResolvedValue(false);
+
+    const res = await POST(loginReq('player1', 'correct'));
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: '密码登录已关闭，请使用管理员分享的免密登录链接',
+    });
+    expect(mocks.createDeviceSession).not.toHaveBeenCalled();
+  });
+
+  it('管理员不受密码登录开关限制', async () => {
+    mocks.query.mockResolvedValue(userRow());
+    mocks.compare.mockResolvedValue(true);
+    mocks.getPasswordLoginEnabled.mockResolvedValue(false);
+
+    const res = await POST(loginReq('fride', 'correct'));
+
+    expect(res.status).toBe(200);
+    expect(mocks.createDeviceSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('密码登录关闭时密码错误仍返回通用 401，不暴露开关与角色', async () => {
+    mocks.query.mockResolvedValue(userRow({ role: 'PLAYER' }));
+    mocks.compare.mockResolvedValue(false);
+    mocks.getPasswordLoginEnabled.mockResolvedValue(false);
+
+    const res = await POST(loginReq('player1', 'wrong'));
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: '账号或密码错误' });
+    expect(mocks.createDeviceSession).not.toHaveBeenCalled();
+  });
+
   it('同一账号连续失败 5 次后触发 429 限流', async () => {
     mocks.query.mockResolvedValue({ rows: [], rowCount: 0 });
 
@@ -133,5 +178,20 @@ describe('POST /api/auth/login', () => {
     expect(res.status).toBe(429);
     const body = await res.json();
     expect(body.error).toContain('尝试次数过多');
+  });
+});
+
+describe('GET /api/auth/login', () => {
+  beforeEach(() => {
+    mocks.getPasswordLoginEnabled.mockReset();
+  });
+
+  it('公开返回玩家密码登录开关', async () => {
+    mocks.getPasswordLoginEnabled.mockResolvedValue(false);
+
+    const res = await GET();
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ passwordLoginEnabled: false });
   });
 });

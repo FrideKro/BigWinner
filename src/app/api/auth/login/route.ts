@@ -4,6 +4,17 @@ import { query } from '@/lib/db';
 import { createDeviceSession, setDeviceCookie } from '@/lib/auth';
 import { MAX_PASSWORD_LENGTH, MAX_USERNAME_LENGTH } from '@/lib/profileValidation';
 import { clearFailures, getClientIp, getRateLimitState, recordFailure } from '@/lib/rateLimit';
+import { getPasswordLoginEnabled } from '../../_lib/shared';
+
+// 公开配置：登录页据此决定是否展示密码表单（关闭时仅管理员可展开登录）
+export async function GET() {
+  try {
+    return NextResponse.json({ passwordLoginEnabled: await getPasswordLoginEnabled() });
+  } catch (error) {
+    console.error('Login config error:', error);
+    return NextResponse.json({ error: '获取登录配置失败' }, { status: 500 });
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -70,6 +81,15 @@ export async function POST(req: NextRequest) {
 
     if (!user.is_active) {
       return NextResponse.json({ error: '该账号已停用，请联系管理员' }, { status: 401 });
+    }
+
+    // 密码登录开关仅约束普通玩家；管理员始终保留密码登录，避免关闭后无人可管理。
+    // 校验放在密码验证之后，未持有正确密码时仍只返回通用错误，不暴露开关与账号角色
+    if (user.role !== 'ADMIN' && !(await getPasswordLoginEnabled())) {
+      return NextResponse.json(
+        { error: '密码登录已关闭，请使用管理员分享的免密登录链接' },
+        { status: 403 },
+      );
     }
 
     clearFailures(ipKey);

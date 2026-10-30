@@ -45,7 +45,8 @@ interface ConfirmState {
 }
 
 export default function ProfilePage() {
-  const { user, players, defaultRoomFee, logout, refreshUser, showToast } = useApp();
+  const { user, players, defaultRoomFee, passwordLoginEnabled, logout, refreshUser, showToast } =
+    useApp();
   const isAdmin = user?.role === 'ADMIN';
 
   // 个人资料修改
@@ -61,6 +62,10 @@ export default function ProfilePage() {
   const [feeInput, setFeeInput] = useState(defaultRoomFee);
   const [feeSaving, setFeeSaving] = useState(false);
   const [feeErr, setFeeErr] = useState('');
+
+  // 管理员设置：玩家密码登录开关
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordErr, setPasswordErr] = useState('');
 
   // 管理子页
   const [tab, setTab] = useState<'personal' | 'admin'>('personal');
@@ -195,6 +200,23 @@ export default function ProfilePage() {
       setFeeErr(err instanceof Error ? err.message : '保存失败');
     } finally {
       setFeeSaving(false);
+    }
+  }
+
+  // 切换玩家密码登录开关
+  async function handleTogglePasswordLogin() {
+    if (passwordSaving) return;
+    setPasswordErr('');
+    const next = !passwordLoginEnabled;
+    setPasswordSaving(true);
+    try {
+      await apiMutate('/api/settings', 'PUT', { passwordLoginEnabled: next });
+      showToast(next ? '已开启玩家密码登录' : '已关闭玩家密码登录');
+      await refreshUser();
+    } catch (err) {
+      setPasswordErr(err instanceof Error ? err.message : '保存失败');
+    } finally {
+      setPasswordSaving(false);
     }
   }
 
@@ -488,6 +510,57 @@ export default function ProfilePage() {
 
       {isAdmin && tab === 'admin' && (
         <div className="space-y-4">
+          {/* 玩家密码登录开关 */}
+          <div className="rounded-3xl bg-white border border-slate-100 p-5 shadow-sm space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="text-sm font-medium text-slate-800 flex items-center gap-1.5">
+                  <KeyRound size={15} className="text-amber-500" />
+                  <span>玩家密码登录</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  关闭后普通玩家只能通过微信免登链接访问，管理员始终可用密码登录
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={passwordLoginEnabled}
+                aria-label="玩家密码登录开关"
+                disabled={passwordSaving}
+                onClick={handleTogglePasswordLogin}
+                className={`relative shrink-0 w-14 h-8 rounded-full transition-colors disabled:opacity-50 ${
+                  passwordLoginEnabled ? 'bg-emerald-500' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`absolute top-1 left-1 h-6 w-6 rounded-full bg-white shadow transition-transform ${
+                    passwordLoginEnabled ? 'translate-x-6' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span
+                className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                  passwordLoginEnabled
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : 'bg-slate-100 text-slate-500'
+                }`}
+              >
+                {passwordLoginEnabled ? '已开启' : '已关闭'}
+              </span>
+              <span className="text-xs text-slate-500">
+                {passwordLoginEnabled ? '玩家可用账号密码登录' : '玩家需使用免登链接'}
+              </span>
+            </div>
+            {passwordErr && (
+              <span role="alert" className="text-sm text-rose-600 block">
+                {passwordErr}
+              </span>
+            )}
+          </div>
+
           {/* 默认房费配置 */}
           <div className="rounded-3xl bg-white border border-slate-100 p-5 shadow-sm space-y-3">
             <h3 className="text-sm font-medium text-slate-800 flex items-center gap-1.5">
@@ -579,7 +652,7 @@ export default function ProfilePage() {
                         onClick={() => handleCopyBindUrl(u)}
                         title="复制微信专属免登激活链接"
                         aria-label={`复制 ${u.nickname} 的微信免登链接`}
-                        className="flex shrink-0 items-center gap-1 min-h-10 px-2.5 rounded-lg bg-amber-400 text-slate-950 font-medium text-xs shadow-sm active:scale-95 transition"
+                        className="flex shrink-0 items-center gap-1 min-h-10 px-2.5 rounded-lg bg-[#07C160] text-white font-medium text-xs shadow-sm active:scale-95 transition"
                       >
                         {isCopied ? (
                           <>

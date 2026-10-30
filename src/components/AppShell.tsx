@@ -47,6 +47,7 @@ interface BootstrapPayload {
   user: CurrentUser;
   players: PlayerListItem[];
   defaultRoomFee: number;
+  passwordLoginEnabled: boolean;
   deviceToken?: string;
 }
 
@@ -60,6 +61,8 @@ interface AppContextValue {
   /** 全量玩家列表（含隐藏），供看板选人条、记账弹窗等复用 */
   players: PlayerListItem[];
   defaultRoomFee: number;
+  /** 普通玩家是否允许账号密码登录（管理员始终可登录） */
+  passwordLoginEnabled: boolean;
   showToast: (message: string) => void;
 }
 
@@ -72,6 +75,7 @@ const AppContext = createContext<AppContextValue>({
   gameSavedVersion: 0,
   players: [],
   defaultRoomFee: 100,
+  passwordLoginEnabled: false,
   showToast: () => {},
 });
 
@@ -95,6 +99,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [gameSavedVersion, setGameSavedVersion] = useState(0);
   const [players, setPlayers] = useState<PlayerListItem[]>([]);
   const [defaultRoomFee, setDefaultRoomFee] = useState(100);
+  const [passwordLoginEnabled, setPasswordLoginEnabled] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -117,6 +122,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setUser(data.user);
     setPlayers(data.players || []);
     setDefaultRoomFee(data.defaultRoomFee ?? 100);
+    setPasswordLoginEnabled(Boolean(data.passwordLoginEnabled));
     if (data.deviceToken) {
       try {
         localStorage.setItem(LS_DEVICE_TOKEN, data.deviceToken);
@@ -182,6 +188,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         setUser(null);
         setPlayers([]);
         setDefaultRoomFee(100);
+        setPasswordLoginEnabled(false);
         setOffline(false);
         return null;
       } catch (err) {
@@ -221,6 +228,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       invalidateApiCache();
       setUser(null);
       setPlayers([]);
+      setPasswordLoginEnabled(false);
       if (pathname !== '/login' && pathname !== '/bind') {
         router.replace('/login');
       }
@@ -291,6 +299,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       gameSavedVersion,
       players,
       defaultRoomFee,
+      passwordLoginEnabled,
       showToast,
     }),
     [
@@ -302,6 +311,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       gameSavedVersion,
       players,
       defaultRoomFee,
+      passwordLoginEnabled,
       showToast,
     ],
   );

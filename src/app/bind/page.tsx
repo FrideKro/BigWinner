@@ -92,7 +92,7 @@ function BindContent() {
               onClick={() => router.replace('/login')}
               className="mt-4 px-6 py-2.5 rounded-xl bg-slate-800 text-sm font-medium text-slate-200"
             >
-              使用账号密码登录
+              返回登录页
             </button>
           </div>
         )}

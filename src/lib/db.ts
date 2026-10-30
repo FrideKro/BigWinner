@@ -161,6 +161,13 @@ async function runInitialization(): Promise<void> {
       [String(Number.isNaN(defaultRoomFee) ? 100 : defaultRoomFee)],
     );
 
+    // 初始化玩家密码登录开关（默认关闭：普通玩家只能通过管理员分享的免登链接访问）
+    await client.query(
+      `INSERT INTO system_settings (key, value)
+       VALUES ('password_login_enabled', 'false')
+       ON CONFLICT (key) DO NOTHING`,
+    );
+
     // 检查是否存在管理员账号，不存在则自动创建初始管理员
     const adminCheck = await client.query(`SELECT id FROM users WHERE role = 'ADMIN' LIMIT 1`);
     if (adminCheck.rowCount === 0) {

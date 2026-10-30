@@ -108,6 +108,14 @@ export async function getDefaultRoomFee(): Promise<number> {
   return Number.isNaN(value) ? 100 : value;
 }
 
+// 玩家密码登录开关：默认关闭，普通玩家只能通过免登链接绑定后访问
+export async function getPasswordLoginEnabled(): Promise<boolean> {
+  const res = await query<{ value: string }>(
+    `SELECT value FROM system_settings WHERE key = 'password_login_enabled'`,
+  );
+  return res.rows[0]?.value === 'true';
+}
+
 // 校验本场全部玩家存在，避免命中外键约束后返回不友好的 500。
 // 默认要求全部玩家处于启用状态（新建场次口径）；编辑历史场次时通过
 // allowInactiveUserIds 放行原对局已有的玩家，避免停用玩家卡死历史对局编辑
