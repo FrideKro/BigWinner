@@ -26,7 +26,9 @@ function PlayerAvatarInner({
   rank,
 }: PlayerAvatarProps) {
   const theme = getAvatarTheme(color);
-  const label = Array.from((nickname || '友').trim()).slice(0, 3).join('');
+  const label = Array.from((nickname || '友').trim())
+    .slice(0, 3)
+    .join('');
   const sizeClass = SIZE_STYLES[size][label.length >= 3 ? 'wide' : 'normal'];
 
   return (
