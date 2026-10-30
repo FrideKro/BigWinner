@@ -91,6 +91,12 @@ export function toDatetimeLocalValue(date: Date = new Date()): string {
   return shanghaiDate.toISOString().slice(0, 16);
 }
 
+/** 今日（上海自然日）固定时刻的 datetime-local 值，如 14:00；新建对局的默认开局时间 */
+export function toTodayDatetimeLocalValue(hour: number, minute = 0): string {
+  const day = toDatetimeLocalValue().slice(0, 10);
+  return `${day}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}
+
 // 把 datetime-local 控件里的上海墙上时间转成 UTC ISO，避免设备时区不同导致偏移
 export function shanghaiInputToIso(value: string): string | null {
   if (!value) return null;

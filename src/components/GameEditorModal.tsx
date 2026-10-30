@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { X, Check, Wand2, Plus, Minus, Trash2 } from 'lucide-react';
 import { PlayerAvatar } from './PlayerAvatar';
 import { ConfirmDialog } from './ConfirmDialog';
-import { toDatetimeLocalValue, shanghaiInputToIso } from '@/lib/format';
+import { toDatetimeLocalValue, toTodayDatetimeLocalValue, shanghaiInputToIso } from '@/lib/format';
 import { apiMutate } from '@/lib/apiClient';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import { useFocusTrap } from '@/lib/useFocusTrap';
@@ -131,7 +131,8 @@ export function GameEditorModal({
       setSigns(sMap);
       setRoomFee(defaultRoomFee);
       setRoomFeeStr(String(defaultRoomFee));
-      setPlayedAt(toDatetimeLocalValue());
+      // 新建默认今日 14:00（上海时间），贴合傍晚开局习惯
+      setPlayedAt(toTodayDatetimeLocalValue(14));
       setNote('');
     }
     // 故意不依赖 players/modalPlayers：仅在打开弹窗或切换编辑场次时重置表单
@@ -458,7 +459,8 @@ export function GameEditorModal({
             <span className="text-sm font-medium text-slate-500 block">
               各玩家本场输赢（正为赢，负为输）
             </span>
-            <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 md:items-start">
+            {/* 单列全宽：两列布局会把 672px 弹窗挤到每列约 311px，行内控件放不下导致横向溢出 */}
+            <div className="grid grid-cols-1 gap-2.5">
               {selectedPlayers.map((p) => {
                 const currentSign = signs[p.id] ?? 1;
                 const rawVal = rawAmounts[p.id];
@@ -470,7 +472,7 @@ export function GameEditorModal({
                 return (
                   <div
                     key={p.id}
-                    className={`flex flex-wrap xs:flex-nowrap items-center gap-2.5 p-2.5 rounded-2xl border ${
+                    className={`flex flex-wrap items-center gap-2.5 p-2.5 rounded-2xl border ${
                       isBigWinner
                         ? 'bg-amber-50/80 border-amber-300 ring-1 ring-amber-200'
                         : 'bg-slate-50 border-slate-100'
@@ -493,7 +495,7 @@ export function GameEditorModal({
                       </div>
                     </div>
 
-                    {/* 正负号 / 金额 / 配平：窄屏整体换行并右对齐 */}
+                    {/* 正负号 / 金额 / 配平：行宽不足时整体换行并右对齐 */}
                     <div className="ml-auto flex items-center gap-2">
                       <div className="flex rounded-lg overflow-hidden border border-slate-200 shrink-0">
                         <button

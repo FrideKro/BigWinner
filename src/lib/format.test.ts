@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   buildGameShareText,
   buildLeaderboardShareText,
@@ -10,6 +10,7 @@ import {
   shareExpiryEndDay,
   shanghaiInputToIso,
   toDatetimeLocalValue,
+  toTodayDatetimeLocalValue,
 } from './format';
 
 describe('formatSignedAmount', () => {
@@ -50,6 +51,18 @@ describe('时间格式化（Asia/Shanghai）', () => {
 
   it('toDatetimeLocalValue 固定加 8 小时偏移并截断到分钟', () => {
     expect(toDatetimeLocalValue(new Date('2026-01-01T16:00:00Z'))).toBe('2026-01-02T00:00');
+  });
+
+  it('toTodayDatetimeLocalValue 取今日上海自然日的指定时刻', () => {
+    vi.useFakeTimers();
+    try {
+      // UTC 2026-01-01 16:00 = 上海 2026-01-02 00:00，跨日边界
+      vi.setSystemTime(new Date('2026-01-01T16:00:00Z'));
+      expect(toTodayDatetimeLocalValue(14)).toBe('2026-01-02T14:00');
+      expect(toTodayDatetimeLocalValue(9, 30)).toBe('2026-01-02T09:30');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('shanghaiInputToIso 把上海墙上时间转回 UTC', () => {
