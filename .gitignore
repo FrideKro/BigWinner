@@ -27,6 +27,9 @@ yarn-error.log*
 .env
 .env*.local
 
+# docker compose 本机覆盖（如连接外部数据库、不启动内置 db）
+docker-compose.override.yaml
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
