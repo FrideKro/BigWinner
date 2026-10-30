@@ -42,15 +42,12 @@
 移动端（微信内置浏览器）：
 
 <p align="center">
-  <img src="demo/手机竖屏1.png" width="49%" alt="总榜、流水、记一局" />
-  <img src="demo/手机竖屏2.png" width="49%" alt="看板、个人设置、管理员控制台" />
-</p>
-
-宽屏（平板 / 桌面浏览器）：
-
-<p align="center">
-  <img src="demo/宽屏-总榜.png" width="49%" alt="宽屏总榜" />
-  <img src="demo/宽屏-流水.png" width="49%" alt="宽屏流水" />
+  <img src="demo/1-总榜.png" width="32%" alt="总榜" />
+  <img src="demo/2-流水.png" width="32%" alt="流水" />
+  <img src="demo/3-看板.png" width="32%" alt="看板" />
+  <img src="demo/4-管理员控制台.png" width="32%" alt="管理员控制台" />
+  <img src="demo/5-记一局.png" width="32%" alt="记一局" />
+  <img src="demo/6-分享战报.png" width="32%" alt="分享战报" />
 </p>
 
 ## 快速部署
