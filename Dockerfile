@@ -7,7 +7,8 @@ ENV PATH="$PNPM_HOME:$PATH"
 # 固定 pnpm 版本，与 CI（pnpm/setup）和本地开发保持一致
 RUN corepack enable pnpm && corepack prepare pnpm@12.6.0 --activate
 
-COPY package.json pnpm-lock.yaml ./
+# pnpm-workspace.yaml 携带 allowBuilds 等安装配置，缺失会导致 pnpm 12 报 ERR_PNPM_IGNORED_BUILDS
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
 # 阶段 2：构建
