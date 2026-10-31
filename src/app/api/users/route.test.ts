@@ -97,9 +97,14 @@ describe('POST /api/users', () => {
     const body = await res.json();
     expect(body.user.bindToken).toBe('new-bind-token');
     expect(body.user.isActive).toBe(true);
-    expect(mocks.query).toHaveBeenCalledWith(
-      expect.stringContaining('INSERT INTO users'),
-      ['p1', '玩家一', '$2a$10$newhash', 'PLAYER', 'red', true, 'new-bind-token'],
-    );
+    expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO users'), [
+      'p1',
+      '玩家一',
+      '$2a$10$newhash',
+      'PLAYER',
+      'red',
+      true,
+      'new-bind-token',
+    ]);
   });
 });

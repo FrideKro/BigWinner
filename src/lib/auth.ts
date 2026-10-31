@@ -8,7 +8,9 @@ export const DEVICE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60; // 365天
 
 // Cookie Secure 标志：HTTPS 部署需设 COOKIE_SECURE=true；兼容 true/1/yes（忽略大小写）
 function isCookieSecure(): boolean {
-  const value = String(process.env.COOKIE_SECURE || '').trim().toLowerCase();
+  const value = String(process.env.COOKIE_SECURE || '')
+    .trim()
+    .toLowerCase();
   return value === 'true' || value === '1' || value === 'yes';
 }
 
