@@ -136,7 +136,8 @@ jobs:
 
   # =============================================================================
   # 发版说明：镜像推送成功后创建 GitHub Release
-  #   generate_release_notes 自动汇总本次 tag 的提交与 PR
+  #   正文读取 tag 内的 .github/RELEASE_NOTES.md——发版第一步先更新并提交该文件，
+  #   tag 指向的 commit 未包含最新说明时，Release 会带上上一版的旧内容
   # =============================================================================
   release:
     needs: build-images
@@ -146,7 +147,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: 创建 GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          generate_release_notes: true
+          body_path: .github/RELEASE_NOTES.md
