@@ -8,6 +8,8 @@ export interface PlayerListItem {
   nickname: string;
   avatarColor: string;
   isActive: boolean;
+  /** 头像版本号：设置/清除头像时 +1，客户端据此判断本地缓存头像是否失效 */
+  avatarVersion?: number;
   // 以下字段仅管理员可见
   username?: string;
   role?: 'ADMIN' | 'PLAYER';
@@ -47,9 +49,10 @@ export async function listPlayers(user: AuthUser): Promise<PlayerListItem[]> {
       id: number;
       nickname: string;
       avatar_color: string;
+      avatar_version: number;
       is_active: boolean;
     }>(
-      `SELECT id, nickname, avatar_color, is_active
+      `SELECT id, nickname, avatar_color, avatar_version, is_active
        FROM users
        ORDER BY is_active DESC, id ASC`,
     );
@@ -57,6 +60,7 @@ export async function listPlayers(user: AuthUser): Promise<PlayerListItem[]> {
       id: u.id,
       nickname: u.nickname,
       avatarColor: u.avatar_color,
+      avatarVersion: u.avatar_version,
       isActive: u.is_active,
     }));
   }
@@ -67,6 +71,7 @@ export async function listPlayers(user: AuthUser): Promise<PlayerListItem[]> {
     nickname: string;
     role: 'ADMIN' | 'PLAYER';
     avatar_color: string;
+    avatar_version: number;
     is_active: boolean;
     bind_token: string | null;
     created_at: string;
@@ -77,6 +82,7 @@ export async function listPlayers(user: AuthUser): Promise<PlayerListItem[]> {
             u.nickname,
             u.role,
             u.avatar_color,
+            u.avatar_version,
             u.is_active,
             u.bind_token,
             u.created_at,
@@ -93,6 +99,7 @@ export async function listPlayers(user: AuthUser): Promise<PlayerListItem[]> {
     nickname: u.nickname,
     role: u.role,
     avatarColor: u.avatar_color,
+    avatarVersion: u.avatar_version,
     isActive: u.is_active,
     bindToken: u.bind_token,
     deviceCount: parseInt(u.device_count || '0', 10),

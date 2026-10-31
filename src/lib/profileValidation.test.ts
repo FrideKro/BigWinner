@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { validateGameNote, validatePassword, validateProfileLengths } from './profileValidation';
+import {
+  MAX_AVATAR_IMAGE_LENGTH,
+  validateAvatarImage,
+  validateGameNote,
+  validatePassword,
+  validateProfileLengths,
+} from './profileValidation';
 
 describe('validateProfileLengths', () => {
   it('未传或在上限内返回 null', () => {
@@ -37,6 +43,37 @@ describe('validatePassword', () => {
     expect(validatePassword('123', '新密码')).toBe('新密码长度至少为 4 位');
     expect(validatePassword('p'.repeat(73))).toBe('密码长度不能超过 72 位');
     expect(validatePassword('p'.repeat(73), '初始密码')).toBe('初始密码长度不能超过 72 位');
+  });
+});
+
+describe('validateAvatarImage', () => {
+  it('undefined / null 合法（跳过 / 清除语义）', () => {
+    expect(validateAvatarImage(undefined)).toBeNull();
+    expect(validateAvatarImage(null)).toBeNull();
+  });
+
+  it('jpeg / png / webp data URL 通过校验', () => {
+    expect(validateAvatarImage('data:image/jpeg;base64,QQ==')).toBeNull();
+    expect(validateAvatarImage('data:image/png;base64,QQ==')).toBeNull();
+    expect(validateAvatarImage('data:image/webp;base64,UklGRg==')).toBeNull();
+  });
+
+  it('非法前缀或非字符串报错', () => {
+    expect(validateAvatarImage('https://example.com/a.jpg')).toBe('头像图片无效或过大，请重新选择');
+    expect(validateAvatarImage('data:image/svg+xml;base64,QQ==')).toBe(
+      '头像图片无效或过大，请重新选择',
+    );
+    expect(validateAvatarImage('data:text/html;base64,QQ==')).toBe(
+      '头像图片无效或过大，请重新选择',
+    );
+    expect(validateAvatarImage(123)).toBe('头像图片无效或过大，请重新选择');
+  });
+
+  it('超过长度上限报错', () => {
+    const prefix = 'data:image/jpeg;base64,';
+    expect(validateAvatarImage(prefix + 'a'.repeat(MAX_AVATAR_IMAGE_LENGTH))).toBe(
+      '头像图片无效或过大，请重新选择',
+    );
   });
 });
 

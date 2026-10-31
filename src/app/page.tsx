@@ -39,7 +39,7 @@ interface StatsResponse {
 
 export default function HomePage() {
   const router = useRouter();
-  const { user, openGameEditor, gameSavedVersion } = useApp();
+  const { user, openGameEditor, gameSavedVersion, getAvatarImage } = useApp();
 
   const [period, setPeriod] = useState<string>('all');
   const [summary, setSummary] = useState<StatsSummary | null>(null);
@@ -230,6 +230,7 @@ export default function HomePage() {
                   color={topWinner.avatarColor}
                   size="lg"
                   isBigWinner
+                  src={getAvatarImage(topWinner.userId)}
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1 text-xs font-medium text-amber-300/90">
@@ -334,6 +335,7 @@ export default function HomePage() {
                         color={player.avatarColor}
                         size="md"
                         isBigWinner={player.bigWinnerCount > 0 && player.rank === 1}
+                        src={getAvatarImage(player.userId)}
                       />
 
                       <div className="min-w-0">

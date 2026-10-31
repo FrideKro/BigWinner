@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '@/components/AppShell';
 import { PlayerAvatar } from '@/components/PlayerAvatar';
+import { AvatarImagePicker } from '@/components/AvatarImagePicker';
 import { PasswordInput } from '@/components/PasswordInput';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { CopyFallbackModal } from '@/components/CopyFallbackModal';
@@ -45,13 +46,23 @@ interface ConfirmState {
 }
 
 export default function ProfilePage() {
-  const { user, players, defaultRoomFee, passwordLoginEnabled, logout, refreshUser, showToast } =
-    useApp();
+  const {
+    user,
+    players,
+    defaultRoomFee,
+    passwordLoginEnabled,
+    logout,
+    refreshUser,
+    showToast,
+    getAvatarImage,
+  } = useApp();
   const isAdmin = user?.role === 'ADMIN';
 
   // 个人资料修改
   const [nickname, setNickname] = useState('');
   const [avatarColor, setAvatarColor] = useState('red');
+  // 头像图片选择态：undefined = 未改动；null = 待移除；string = 待设置的新图
+  const [avatarImage, setAvatarImage] = useState<string | null | undefined>(undefined);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [profileSaving, setProfileSaving] = useState(false);
@@ -87,6 +98,7 @@ export default function ProfilePage() {
   const [editUsername, setEditUsername] = useState('');
   const [editNickname, setEditNickname] = useState('');
   const [editColor, setEditColor] = useState('red');
+  const [editAvatarImage, setEditAvatarImage] = useState<string | null | undefined>(undefined);
   const [editRole, setEditRole] = useState<'PLAYER' | 'ADMIN'>('PLAYER');
   const [editIsActive, setEditIsActive] = useState(true);
   const [editSaving, setEditSaving] = useState(false);
@@ -125,8 +137,12 @@ export default function ProfilePage() {
     if (user) {
       setNickname(user.nickname);
       setAvatarColor(user.avatarColor || 'red');
+      setAvatarImage(undefined);
     }
   }, [user]);
+
+  // 我当前已保存的头像图片（随头像本地缓存同步，玩家列表不再内联下发 data URL）
+  const myAvatarImage = user ? getAvatarImage(user.id) : null;
 
   useEffect(() => {
     setFeeInput(defaultRoomFee);
@@ -162,10 +178,14 @@ export default function ProfilePage() {
     setProfileSaving(true);
 
     try {
-      const payload: Record<string, string> = {
+      const payload: Record<string, string | null> = {
         nickname: nickname.trim(),
         avatarColor,
       };
+      // 头像图片仅在有改动时提交（undefined = 不动，null = 清除）
+      if (avatarImage !== undefined) {
+        payload.avatarImage = avatarImage;
+      }
       if (newPassword) {
         payload.currentPassword = currentPassword;
         payload.newPassword = newPassword;
@@ -294,6 +314,7 @@ export default function ProfilePage() {
     setEditUsername(u.username);
     setEditNickname(u.nickname);
     setEditColor(u.avatarColor || 'red');
+    setEditAvatarImage(undefined);
     setEditRole(u.role);
     setEditIsActive(u.isActive);
     setEditErr('');
@@ -318,13 +339,17 @@ export default function ProfilePage() {
 
     setEditSaving(true);
     try {
-      await apiMutate(`/api/users/${editingUser.id}`, 'PATCH', {
+      const payload: Record<string, string | boolean | null> = {
         username: editUsername.trim(),
         nickname: editNickname.trim(),
         avatarColor: editColor,
         role: editRole,
         isActive: editIsActive,
-      });
+      };
+      if (editAvatarImage !== undefined) {
+        payload.avatarImage = editAvatarImage;
+      }
+      await apiMutate(`/api/users/${editingUser.id}`, 'PATCH', payload);
       setEditingUser(null);
       showToast('玩家资料已更新');
       await refreshUser();
@@ -370,7 +395,12 @@ export default function ProfilePage() {
       {/* 头部身份卡片 */}
       <div className="rounded-3xl bg-white border border-slate-100 p-5 shadow-sm flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
-          <PlayerAvatar nickname={user?.nickname || '我'} color={user?.avatarColor} size="lg" />
+          <PlayerAvatar
+            nickname={user?.nickname || '我'}
+            color={user?.avatarColor}
+            size="lg"
+            src={user ? getAvatarImage(user.id) : null}
+          />
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 min-w-0">
               <h1 className="text-base font-medium text-slate-900 truncate">{user?.nickname}</h1>
@@ -432,6 +462,16 @@ export default function ProfilePage() {
                 onChange={(e) => setNickname(e.target.value)}
                 autoComplete="nickname"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
+            </div>
+
+            <div>
+              <span className="text-sm text-slate-500 mb-1.5 block">头像图片</span>
+              <AvatarImagePicker
+                current={myAvatarImage}
+                value={avatarImage}
+                onChange={setAvatarImage}
+                disabled={profileSaving}
               />
             </div>
 
@@ -625,7 +665,12 @@ export default function ProfilePage() {
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <PlayerAvatar nickname={u.nickname} color={u.avatarColor} size="sm" />
+                        <PlayerAvatar
+                          nickname={u.nickname}
+                          color={u.avatarColor}
+                          size="sm"
+                          src={getAvatarImage(u.id)}
+                        />
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5 min-w-0">
                             <span className="text-sm font-medium text-slate-800 truncate">
@@ -730,6 +775,9 @@ export default function ProfilePage() {
                 nickname={editNickname || editingUser.nickname}
                 color={editColor}
                 size="sm"
+                src={
+                  editAvatarImage === undefined ? getAvatarImage(editingUser.id) : editAvatarImage
+                }
               />
               <h3 id="edit-user-title" className="text-base font-medium text-slate-900">
                 编辑玩家 · {editingUser.nickname}
@@ -761,6 +809,16 @@ export default function ProfilePage() {
                   onChange={(e) => setEditNickname(e.target.value)}
                   autoComplete="nickname"
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+
+              <div>
+                <span className="text-sm text-slate-500 mb-1.5 block">头像图片</span>
+                <AvatarImagePicker
+                  current={getAvatarImage(editingUser.id)}
+                  value={editAvatarImage}
+                  onChange={setEditAvatarImage}
+                  disabled={editSaving}
                 />
               </div>
 

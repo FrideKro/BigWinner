@@ -74,7 +74,7 @@ const historyRow = {
   note: '',
 };
 
-// 按表/子句特征分发查询结果（fetchShare → games 分页 → 总榜 → 个人明细 → 月度 → 汇总兜底）
+// 按表/子句特征分发查询结果（fetchShare → games 分页 → 总榜 → 头像 → 个人明细 → 月度 → 汇总兜底）
 function mockShareQueries(share: Record<string, unknown> | null) {
   mocks.query.mockImplementation((sql: string) => {
     if (sql.includes('FROM share_links')) {
@@ -85,6 +85,12 @@ function mockShareQueries(share: Record<string, unknown> | null) {
     }
     if (sql.includes('FROM users u')) {
       return Promise.resolve({ rows: [lbRow], rowCount: 1 });
+    }
+    if (sql.includes('avatar_image IS NOT NULL')) {
+      return Promise.resolve({
+        rows: [{ id: 1, avatar_image: 'data:image/jpeg;base64,QQ==' }],
+        rowCount: 1,
+      });
     }
     // 个人明细 SQL 同样包含 TO_CHAR，须先于月度分支判断
     if (sql.includes('gr.user_id =')) {
@@ -189,6 +195,7 @@ describe('/api/s/[code]', () => {
       data: {
         summary: { totalGames: number };
         leaderboard: Array<{ rank: number; winRate: number }>;
+        avatars: Record<string, string>;
       };
     };
     expect(body.share).toMatchObject({
@@ -197,6 +204,7 @@ describe('/api/s/[code]', () => {
     });
     expect(body.data.summary).toEqual({ totalGames: 2, totalRoomFee: 50, avgRoomFee: 25 });
     expect(body.data.leaderboard[0]).toMatchObject({ rank: 1, userId: 1, winRate: 50 });
+    expect(body.data.avatars).toEqual({ '1': 'data:image/jpeg;base64,QQ==' });
   });
 
   it('分享未包含的内容类型返回 403', async () => {
@@ -218,12 +226,17 @@ describe('/api/s/[code]', () => {
 
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      data: { games: Array<{ id: number; records: Array<{ userId: number }> }>; hasMore: boolean };
+      data: {
+        games: Array<{ id: number; records: Array<{ userId: number }> }>;
+        hasMore: boolean;
+        avatars: Record<string, string>;
+      };
     };
     expect(body.data.games).toHaveLength(1);
     expect(body.data.games[0]).toMatchObject({ id: 11, roomFee: 20 });
     expect(body.data.games[0].records[0]).toMatchObject({ userId: 1, amount: 20 });
     expect(body.data.hasMore).toBe(false);
+    expect(body.data.avatars).toEqual({ '1': 'data:image/jpeg;base64,QQ==' });
   });
 
   it('games 分页：超过页大小时裁剪并标记 hasMore', async () => {
@@ -275,6 +288,7 @@ describe('/api/s/[code]', () => {
           trend: Array<{ cumulativeAmount: number }>;
         };
         monthlyRoomFees: Array<{ month: string; avgRoomFee: number }>;
+        avatars: Record<string, string>;
       };
     };
     expect(body.data.players).toEqual([{ userId: 1, nickname: '玩家一', avatarColor: 'red' }]);
@@ -282,6 +296,7 @@ describe('/api/s/[code]', () => {
     expect(body.data.personalStats.trend).toHaveLength(1);
     expect(body.data.personalStats.trend[0]).toMatchObject({ cumulativeAmount: 100 });
     expect(body.data.monthlyRoomFees[0]).toMatchObject({ month: '2026-10', avgRoomFee: 25 });
+    expect(body.data.avatars).toEqual({ '1': 'data:image/jpeg;base64,QQ==' });
   });
 
   it('stats 指定玩家按 userId 查询明细', async () => {

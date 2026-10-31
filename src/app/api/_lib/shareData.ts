@@ -52,6 +52,22 @@ export interface ShareSummary {
   avgRoomFee: number;
 }
 
+/** 指定玩家中已设置自定义头像图片的部分（userId 字符串 → data URL），随分享响应下发供免登录页渲染 */
+export async function queryShareAvatars(userIds: number[]): Promise<Record<string, string>> {
+  if (userIds.length === 0) return {};
+  const res = await query<{ id: number; avatar_image: string }>(
+    `SELECT id, avatar_image
+     FROM users
+     WHERE avatar_image IS NOT NULL AND id = ANY($1)`,
+    [userIds],
+  );
+  const avatars: Record<string, string> = {};
+  for (const row of res.rows) {
+    avatars[String(row.id)] = row.avatar_image;
+  }
+  return avatars;
+}
+
 /** 时间段内的场次与房费汇总（口径同 /api/stats 的周期汇总） */
 export async function queryShareSummary(clause: string, params: unknown[]): Promise<ShareSummary> {
   const res = await query<{ total_games: string; total_room_fee: string }>(

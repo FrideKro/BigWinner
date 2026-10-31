@@ -56,7 +56,15 @@ interface MonthsResponse {
 
 export default function GamesPage() {
   // 玩家列表与默认房费由 AppShell 统一拉取并经 context 共享，本页不再重复请求
-  const { user, openGameEditor, gameSavedVersion, players, defaultRoomFee, showToast } = useApp();
+  const {
+    user,
+    openGameEditor,
+    gameSavedVersion,
+    players,
+    defaultRoomFee,
+    showToast,
+    getAvatarImage,
+  } = useApp();
 
   const [games, setGames] = useState<GameItem[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -376,6 +384,7 @@ export default function GamesPage() {
                               color={r.avatarColor}
                               size="sm"
                               isBigWinner={r.isBigWinner}
+                              src={getAvatarImage(r.userId)}
                             />
                             <span
                               className={`text-sm truncate font-medium ${

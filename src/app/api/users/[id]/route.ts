@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { withTransaction, generateToken } from '@/lib/db';
 import { hashToken } from '@/lib/auth';
-import { validatePassword, validateProfileLengths } from '@/lib/profileValidation';
+import {
+  validatePassword,
+  validateProfileLengths,
+  validateAvatarImage,
+} from '@/lib/profileValidation';
 import { withAuth, parseJsonBody, ApiError } from '../../_lib/handler';
 
 export const PATCH = withAuth<{ id: string }>(
@@ -20,6 +24,13 @@ export const PATCH = withAuth<{ id: string }>(
     const role = body.role !== undefined ? (body.role === 'ADMIN' ? 'ADMIN' : 'PLAYER') : undefined;
     const avatarColor =
       body.avatarColor !== undefined ? String(body.avatarColor).trim() : undefined;
+    // 头像图片三态：undefined = 未提供（不动）；null = 清除；string = 设置（管理员可代设/清除不当图片）
+    const avatarImage =
+      body.avatarImage === undefined
+        ? undefined
+        : body.avatarImage === null
+          ? null
+          : String(body.avatarImage);
     const isActive = body.isActive !== undefined ? Boolean(body.isActive) : undefined;
     const newPassword = body.password ? String(body.password) : undefined;
     const regenerateBindToken = Boolean(body.regenerateBindToken);
@@ -34,6 +45,10 @@ export const PATCH = withAuth<{ id: string }>(
     const lengthError = validateProfileLengths({ username, nickname, avatarColor });
     if (lengthError) {
       return NextResponse.json({ error: lengthError }, { status: 400 });
+    }
+    const avatarImageError = validateAvatarImage(avatarImage);
+    if (avatarImageError) {
+      return NextResponse.json({ error: avatarImageError }, { status: 400 });
     }
     if (newPassword !== undefined) {
       const passwordError = validatePassword(newPassword);
@@ -116,12 +131,21 @@ export const PATCH = withAuth<{ id: string }>(
         }
       }
 
+      // 头像图片需支持置 NULL 清除，不能并入下方 COALESCE 部分更新；同语句递增版本号供客户端本地缓存失效判断
+      if (avatarImage !== undefined) {
+        await client.query(
+          `UPDATE users SET avatar_image = $1, avatar_version = avatar_version + 1 WHERE id = $2`,
+          [avatarImage, targetId],
+        );
+      }
+
       const updatedRes = await client.query<{
         id: number;
         username: string;
         nickname: string;
         role: 'ADMIN' | 'PLAYER';
         avatar_color: string;
+        avatar_version: number;
         is_active: boolean;
         bind_token: string | null;
         created_at: string;
@@ -133,7 +157,7 @@ export const PATCH = withAuth<{ id: string }>(
              avatar_color = COALESCE($4, avatar_color),
              is_active = COALESCE($5, is_active)
          WHERE id = $6
-         RETURNING id, username, nickname, role, avatar_color, is_active, bind_token, created_at`,
+         RETURNING id, username, nickname, role, avatar_color, avatar_version, is_active, bind_token, created_at`,
         [
           username ?? null,
           nickname ?? null,
@@ -157,6 +181,7 @@ export const PATCH = withAuth<{ id: string }>(
         nickname: u.nickname,
         role: u.role,
         avatarColor: u.avatar_color,
+        avatarVersion: u.avatar_version,
         isActive: u.is_active,
         bindToken: u.bind_token,
         createdAt: u.created_at,

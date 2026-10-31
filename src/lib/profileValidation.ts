@@ -6,6 +6,31 @@ export const MIN_PASSWORD_LENGTH = 4;
 // 对齐 Bcrypt 72 字节截断上限，防止传入超大字符串造成 CPU DoS
 export const MAX_PASSWORD_LENGTH = 72;
 export const MAX_GAME_NOTE_LENGTH = 200;
+// 头像图片 data URL 字符数上限（含前缀，约 24KB 原始数据）；前端已压缩到 128×128 JPEG
+export const MAX_AVATAR_IMAGE_LENGTH = 32768;
+// 仅接受前端压缩产物及常见静态图；拒绝 svg（可内嵌脚本）等非常规格式
+const AVATAR_IMAGE_PREFIX_RE = /^data:image\/(jpeg|png|webp);base64,/;
+
+/**
+ * 校验头像图片 data URL。约定三态：
+ * - undefined：未提供（跳过，不修改）
+ * - null：清除头像
+ * - string：必须是合法的图片 data URL 且不超过长度上限
+ * 返回中文错误或 null
+ */
+export function validateAvatarImage(value: unknown): string | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (
+    typeof value !== 'string' ||
+    !AVATAR_IMAGE_PREFIX_RE.test(value) ||
+    value.length > MAX_AVATAR_IMAGE_LENGTH
+  ) {
+    return '头像图片无效或过大，请重新选择';
+  }
+  return null;
+}
 
 /** 校验账号 / 昵称 / 头像色长度，未传（undefined）的字段跳过；返回中文错误或 null */
 export function validateProfileLengths(fields: {

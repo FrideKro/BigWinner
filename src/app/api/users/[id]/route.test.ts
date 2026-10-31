@@ -64,6 +64,7 @@ function updatedUserRow(overrides: Record<string, unknown> = {}) {
         nickname: '玩家二号',
         role: 'PLAYER',
         avatar_color: 'red',
+        avatar_version: 0,
         is_active: true,
         bind_token: 'bind-token-2',
         created_at: '2026-01-01T00:00:00Z',
@@ -181,6 +182,51 @@ describe('PATCH /api/users/[id]', () => {
       expect.stringMatching(/DELETE FROM user_devices WHERE user_id = \$1$/),
       [2],
     );
+  });
+
+  it('管理员为玩家设置头像图片：显式 SET avatar_image 并递增版本号', async () => {
+    const dataUrl = 'data:image/jpeg;base64,QQ==';
+    mockSql([
+      { match: /SET avatar_image = \$1/, result: { rows: [], rowCount: 1 } },
+      {
+        match: /SET username = COALESCE/,
+        result: updatedUserRow({ avatar_version: 3 }),
+      },
+    ]);
+
+    const res = await callPatch(2, { avatarImage: dataUrl });
+
+    expect(res.status).toBe(200);
+    expect(mocks.query).toHaveBeenCalledWith(
+      expect.stringContaining('SET avatar_image = $1, avatar_version = avatar_version + 1'),
+      [dataUrl, 2],
+    );
+    // 响应只回传版本号，data URL 由客户端按需拉取
+    const body = await res.json();
+    expect(body.user.avatarVersion).toBe(3);
+  });
+
+  it('管理员清除玩家头像图片（avatarImage 传 null）', async () => {
+    mockSql([
+      { match: /SET avatar_image = \$1/, result: { rows: [], rowCount: 1 } },
+      { match: /SET username = COALESCE/, result: updatedUserRow() },
+    ]);
+
+    const res = await callPatch(2, { avatarImage: null });
+
+    expect(res.status).toBe(200);
+    expect(mocks.query).toHaveBeenCalledWith(
+      expect.stringContaining('SET avatar_image = $1, avatar_version = avatar_version + 1'),
+      [null, 2],
+    );
+  });
+
+  it('头像图片非法返回 400，不进入事务', async () => {
+    const res = await callPatch(2, { avatarImage: 'data:image/svg+xml;base64,QQ==' });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: '头像图片无效或过大，请重新选择' });
+    expect(mocks.query).not.toHaveBeenCalled();
   });
 
   it('目标玩家不存在返回 404', async () => {

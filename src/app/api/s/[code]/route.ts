@@ -11,6 +11,7 @@ import { buildPersonalTrend, mapLeaderboardRows, pickPlayerSummary } from '../..
 import {
   fetchShareByCode,
   mapShareGameRows,
+  queryShareAvatars,
   queryShareGamesPage,
   queryShareLeaderboard,
   queryShareMonthlyFees,
@@ -117,10 +118,12 @@ export async function GET(req: NextRequest, context: { params: Promise<{ code: s
         queryShareSummary(clause, params),
         queryShareLeaderboard(clause, params),
       ]);
+      // 已设置自定义头像的玩家（免登录页按 userId 解析，未设置的落字母主题色头像）
+      const avatars = await queryShareAvatars(leaderboardRes.rows.map((r) => r.user_id));
       return NextResponse.json(
         {
           share: meta,
-          data: { summary, leaderboard: mapLeaderboardRows(leaderboardRes.rows) },
+          data: { summary, leaderboard: mapLeaderboardRows(leaderboardRes.rows), avatars },
         },
         { headers: NO_STORE_HEADERS },
       );
@@ -138,10 +141,12 @@ export async function GET(req: NextRequest, context: { params: Promise<{ code: s
       const hasMoreRaw = gamesRes.rows.length > GAMES_PAGE_SIZE;
       const pageRows = hasMoreRaw ? gamesRes.rows.slice(0, GAMES_PAGE_SIZE) : gamesRes.rows;
       const hasMore = hasMoreRaw && offset + GAMES_PAGE_SIZE <= GAMES_MAX_OFFSET;
+      const userIds = [...new Set(pageRows.flatMap((g) => g.records.map((r) => r.userId)))];
+      const avatars = await queryShareAvatars(userIds);
       return NextResponse.json(
         {
           share: meta,
-          data: { games: mapShareGameRows(pageRows), hasMore },
+          data: { games: mapShareGameRows(pageRows), hasMore, avatars },
         },
         { headers: NO_STORE_HEADERS },
       );
@@ -170,12 +175,17 @@ export async function GET(req: NextRequest, context: { params: Promise<{ code: s
       .map((p) => ({ userId: p.userId, nickname: p.nickname, avatarColor: p.avatarColor }));
     const targetUserId = requestedUserId ?? players[0]?.userId ?? null;
 
+    const [personalStatsResult, avatars] = await Promise.all([
+      targetUserId !== null
+        ? querySharePersonalHistory(clause, params, targetUserId)
+        : Promise.resolve(null),
+      queryShareAvatars(leaderboard.map((p) => p.userId)),
+    ]);
     let personalStats: SharePersonalStats | null = null;
-    if (targetUserId !== null) {
-      const historyRes = await querySharePersonalHistory(clause, params, targetUserId);
+    if (targetUserId !== null && personalStatsResult) {
       personalStats = {
         ...pickPlayerSummary(leaderboard, targetUserId),
-        ...buildPersonalTrend(historyRes.rows),
+        ...buildPersonalTrend(personalStatsResult.rows),
       };
     }
 
@@ -193,7 +203,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ code: s
     return NextResponse.json(
       {
         share: meta,
-        data: { summary, monthlyRoomFees, players, personalStats },
+        data: { summary, monthlyRoomFees, players, personalStats, avatars },
       },
       { headers: NO_STORE_HEADERS },
     );

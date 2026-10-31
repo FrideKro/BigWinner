@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { query, withTransaction, generateToken } from '@/lib/db';
 import { setDeviceCookie, getCurrentUser, hashToken } from '@/lib/auth';
-import { validatePassword, validateProfileLengths } from '@/lib/profileValidation';
+import {
+  validatePassword,
+  validateProfileLengths,
+  validateAvatarImage,
+} from '@/lib/profileValidation';
 import { withAuth, parseJsonBody } from '../../_lib/handler';
 import { toPublicUser } from '../../_lib/shared';
 
@@ -26,6 +30,13 @@ export const PATCH = withAuth(
     const nickname = body.nickname !== undefined ? String(body.nickname).trim() : undefined;
     const avatarColor =
       body.avatarColor !== undefined ? String(body.avatarColor).trim() : undefined;
+    // 头像图片三态：undefined = 未提供（不动）；null = 清除；string = 设置
+    const avatarImage =
+      body.avatarImage === undefined
+        ? undefined
+        : body.avatarImage === null
+          ? null
+          : String(body.avatarImage);
     const currentPassword = body.currentPassword ? String(body.currentPassword) : undefined;
     const newPassword = body.newPassword ? String(body.newPassword) : undefined;
 
@@ -36,6 +47,10 @@ export const PATCH = withAuth(
     const lengthError = validateProfileLengths({ nickname, avatarColor });
     if (lengthError) {
       return NextResponse.json({ error: lengthError }, { status: 400 });
+    }
+    const avatarImageError = validateAvatarImage(avatarImage);
+    if (avatarImageError) {
+      return NextResponse.json({ error: avatarImageError }, { status: 400 });
     }
 
     let newHash: string | null = null;
@@ -58,7 +73,12 @@ export const PATCH = withAuth(
       newHash = await bcrypt.hash(newPassword, 10);
     }
 
-    if (newHash || nickname !== undefined || avatarColor !== undefined) {
+    if (
+      newHash ||
+      nickname !== undefined ||
+      avatarColor !== undefined ||
+      avatarImage !== undefined
+    ) {
       // 密码与资料同一事务提交；改密码后轮换 bind_token 并下线其他设备，保留当前设备避免把自己登出
       await withTransaction(async (client) => {
         if (newHash) {
@@ -80,6 +100,13 @@ export const PATCH = withAuth(
                avatar_color = COALESCE($2, avatar_color)
            WHERE id = $3`,
             [nickname ?? null, avatarColor ?? null, user.id],
+          );
+        }
+        // 头像图片需支持置 NULL 清除，不能走 COALESCE 部分更新；同语句递增版本号供客户端本地缓存失效判断
+        if (avatarImage !== undefined) {
+          await client.query(
+            `UPDATE users SET avatar_image = $1, avatar_version = avatar_version + 1 WHERE id = $2`,
+            [avatarImage, user.id],
           );
         }
       });

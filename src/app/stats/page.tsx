@@ -107,7 +107,7 @@ function RoomFeeSkeleton() {
 function StatsContent() {
   const searchParams = useSearchParams();
   // 玩家列表由 AppShell 统一拉取并经 context 共享，本页不再重复请求
-  const { user, gameSavedVersion, players } = useApp();
+  const { user, gameSavedVersion, players, getAvatarImage } = useApp();
 
   const [activeTab, setActiveTab] = useState<'personal' | 'roomFee'>('personal');
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
@@ -248,7 +248,12 @@ function StatsContent() {
                       : 'bg-white border-slate-200 text-slate-700'
                   }`}
                 >
-                  <PlayerAvatar nickname={p.nickname} color={p.avatarColor} size="sm" />
+                  <PlayerAvatar
+                    nickname={p.nickname}
+                    color={p.avatarColor}
+                    size="sm"
+                    src={getAvatarImage(p.id)}
+                  />
                   <span className="text-sm font-medium">{p.nickname}</span>
                 </button>
               );
@@ -326,6 +331,7 @@ function StatsContent() {
                           color={targetPlayer.avatarColor}
                           size="lg"
                           isBigWinner={personalStats.bigWinnerCount > 0}
+                          src={getAvatarImage(targetPlayer.id)}
                         />
                         <div className="min-w-0">
                           <h2 className="text-base font-medium text-slate-900 truncate">

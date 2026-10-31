@@ -51,4 +51,26 @@ describe('PlayerAvatar', () => {
     expect(screen.getByTitle('当场大赢家')).toBeInTheDocument();
     expect(screen.queryByText('🥇')).not.toBeInTheDocument();
   });
+
+  it('有自定义头像图片时渲染 <img>，不显示文字', () => {
+    render(<PlayerAvatar nickname="张三" src="data:image/jpeg;base64,QQ==" />);
+
+    const img = screen.getByAltText('张三的头像');
+    expect(img).toHaveAttribute('src', 'data:image/jpeg;base64,QQ==');
+    expect(screen.queryByText('张三')).not.toBeInTheDocument();
+  });
+
+  it('src 为空时落回昵称文字头像', () => {
+    render(<PlayerAvatar nickname="张三" src={null} />);
+
+    expect(screen.getByText('张三')).toBeInTheDocument();
+    expect(screen.queryByAltText('张三的头像')).not.toBeInTheDocument();
+  });
+
+  it('图片头像与奖牌角标可同时存在', () => {
+    render(<PlayerAvatar nickname="张三" src="data:image/jpeg;base64,QQ==" rank={2} />);
+
+    expect(screen.getByAltText('张三的头像')).toBeInTheDocument();
+    expect(screen.getByText('🥈')).toBeInTheDocument();
+  });
 });

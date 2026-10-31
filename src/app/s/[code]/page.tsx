@@ -41,6 +41,8 @@ interface ShareSummary {
 interface BoardData {
   summary: ShareSummary;
   leaderboard: LeaderboardItem[];
+  /** userId → 自定义头像图片（仅含已设置的玩家），未设置落字母主题色头像 */
+  avatars: Record<string, string>;
 }
 
 interface GameRecordItem {
@@ -65,6 +67,7 @@ interface GameItem {
 interface GamesData {
   games: GameItem[];
   hasMore: boolean;
+  avatars: Record<string, string>;
 }
 
 interface MonthlyRoomFeeItem {
@@ -88,6 +91,7 @@ interface StatsData {
   monthlyRoomFees: MonthlyRoomFeeItem[];
   players: Array<{ userId: number; nickname: string; avatarColor: string }>;
   personalStats: PersonalStats | null;
+  avatars: Record<string, string>;
 }
 
 interface ShareViewResponse {
@@ -122,6 +126,8 @@ export default function SharePage() {
   const [games, setGames] = useState<GameItem[]>([]);
   const [gamesHasMore, setGamesHasMore] = useState(false);
   const [statsData, setStatsData] = useState<StatsData | null>(null);
+  // userId → 自定义头像图片（随各 tab 响应下发；games 追加翻页时增量合并）
+  const [avatars, setAvatars] = useState<Record<string, string>>({});
   const [statsUserId, setStatsUserId] = useState<number | null>(null);
   const [invalid, setInvalid] = useState<{ title: string; message: string } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -167,6 +173,8 @@ export default function SharePage() {
         const res = await apiGet<ShareViewResponse>(url, { force: true });
         if (abortRef.current !== controller) return;
         setMeta(res.share);
+        const nextAvatars = res.data.avatars ?? {};
+        setAvatars((prev) => (options.append ? { ...prev, ...nextAvatars } : nextAvatars));
         // 未指定 tab 时服务端返回第一个已分享模块的数据，需同步 tab 状态，
         // 否则首个模块非「总榜」的分享会因渲染条件不命中而白屏
         const actualTab = targetTab || res.share.contentScope[0] || 'board';
@@ -326,6 +334,7 @@ export default function SharePage() {
                 color={topWinner.avatarColor}
                 size="lg"
                 isBigWinner
+                src={avatars[String(topWinner.userId)]}
               />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1 text-xs font-medium text-amber-300/90">
@@ -410,6 +419,7 @@ export default function SharePage() {
                     color={player.avatarColor}
                     size="md"
                     isBigWinner={player.bigWinnerCount > 0 && player.rank === 1}
+                    src={avatars[String(player.userId)]}
                   />
 
                   <div className="min-w-0">
@@ -494,6 +504,7 @@ export default function SharePage() {
                         color={r.avatarColor}
                         size="sm"
                         isBigWinner={r.isBigWinner}
+                        src={avatars[String(r.userId)]}
                       />
                       <span className="text-sm truncate font-medium text-slate-700">
                         {r.nickname}
@@ -585,7 +596,12 @@ export default function SharePage() {
                       : 'bg-white border-slate-200 text-slate-700'
                   }`}
                 >
-                  <PlayerAvatar nickname={p.nickname} color={p.avatarColor} size="sm" />
+                  <PlayerAvatar
+                    nickname={p.nickname}
+                    color={p.avatarColor}
+                    size="sm"
+                    src={avatars[String(p.userId)]}
+                  />
                   <span className="text-sm font-medium">{p.nickname}</span>
                 </button>
               );
@@ -603,6 +619,7 @@ export default function SharePage() {
                   color={personalStats.avatarColor}
                   size="lg"
                   isBigWinner={personalStats.bigWinnerCount > 0}
+                  src={avatars[String(personalStats.userId)]}
                 />
                 <div className="min-w-0">
                   <h2 className="text-base font-medium text-slate-900 truncate">

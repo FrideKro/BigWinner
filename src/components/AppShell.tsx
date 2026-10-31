@@ -15,7 +15,14 @@ import dynamic from 'next/dynamic';
 import { Trophy, ListOrdered, BarChart3, User, Plus } from 'lucide-react';
 import { LogoMark } from './LogoMark';
 import { Toast } from './Toast';
-import { invalidateApiCache, isAbortError } from '@/lib/apiClient';
+import { apiGet, invalidateApiCache, isAbortError } from '@/lib/apiClient';
+import {
+  avatarMapFromCache,
+  diffAvatarVersions,
+  loadAvatarCache,
+  putAvatar,
+  saveAvatarCache,
+} from '@/lib/avatarCache';
 
 const GameEditorModal = dynamic(() => import('./GameEditorModal').then((m) => m.GameEditorModal), {
   ssr: false,
@@ -35,6 +42,8 @@ export interface PlayerListItem {
   nickname: string;
   avatarColor: string;
   isActive: boolean;
+  /** 头像版本号：设置/清除头像时 +1，客户端据此判断本地缓存是否失效 */
+  avatarVersion?: number;
   // 仅管理员返回
   username?: string;
   role?: 'ADMIN' | 'PLAYER';
@@ -60,6 +69,8 @@ interface AppContextValue {
   gameSavedVersion: number;
   /** 全量玩家列表（含隐藏），供看板选人条、记账弹窗等复用 */
   players: PlayerListItem[];
+  /** 按 userId 解析自定义头像图片（未设置返回 null） */
+  getAvatarImage: (userId: number) => string | null;
   defaultRoomFee: number;
   /** 普通玩家是否允许账号密码登录（管理员始终可登录） */
   passwordLoginEnabled: boolean;
@@ -74,6 +85,7 @@ const AppContext = createContext<AppContextValue>({
   openGameEditor: () => {},
   gameSavedVersion: 0,
   players: [],
+  getAvatarImage: () => null,
   defaultRoomFee: 100,
   passwordLoginEnabled: false,
   showToast: () => {},
@@ -235,6 +247,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       invalidateApiCache();
       setUser(null);
       setPlayers([]);
+      setAvatarImageMap(new Map());
       setDefaultRoomFee(100);
       setPasswordLoginEnabled(false);
       if (pathname !== '/login' && pathname !== '/bind' && !pathname.startsWith('/s/')) {
@@ -265,12 +278,58 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     invalidateApiCache();
     setUser(null);
     setPlayers([]);
+    setAvatarImageMap(new Map());
     router.replace('/login');
   }, [router]);
 
   const refreshUser = useCallback(
     () => loadBootstrap({ force: true, silent: true }),
     [loadBootstrap],
+  );
+
+  // userId → 自定义头像 data URL，供各页面按 id 解析。players 只带 avatar_version，
+  // 与 localStorage 缓存版本一致时零请求；不一致才按需拉取 /api/users/[id]/avatar 并回写缓存，
+  // 避免记一局等高频 bootstrap 重拉时重复传输全部头像字节
+  const [avatarImageMap, setAvatarImageMap] = useState<Map<number, string>>(new Map());
+
+  useEffect(() => {
+    if (players.length === 0) return;
+    let cancelled = false;
+    const cache = loadAvatarCache();
+    const needList = diffAvatarVersions(players, cache);
+    if (needList.length === 0) {
+      setAvatarImageMap(avatarMapFromCache(players, cache));
+      return;
+    }
+    void (async () => {
+      // URL 携带期望版本作缓存键：同一头像短时间两次变更也不会命中 apiClient 旧响应
+      const results = await Promise.allSettled(
+        needList.map(async ({ id, version }) => {
+          const res = await apiGet<{ avatar: string | null; version: number }>(
+            `/api/users/${id}/avatar?v=${version}`,
+          );
+          return { id, version: res.version, avatar: res.avatar };
+        }),
+      );
+      if (cancelled) return;
+      let next = cache;
+      for (const r of results) {
+        // 单个失败不阻塞其余：保留旧条目继续展示，下次 players 变化时自动重试
+        if (r.status === 'fulfilled') {
+          next = putAvatar(next, r.value.id, r.value.version, r.value.avatar);
+        }
+      }
+      saveAvatarCache(next);
+      setAvatarImageMap(avatarMapFromCache(players, next));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [players]);
+
+  const getAvatarImage = useCallback(
+    (userId: number) => avatarImageMap.get(userId) ?? null,
+    [avatarImageMap],
   );
 
   const openGameEditor = useCallback(() => {
@@ -306,6 +365,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       openGameEditor,
       gameSavedVersion,
       players,
+      getAvatarImage,
       defaultRoomFee,
       passwordLoginEnabled,
       showToast,
@@ -318,6 +378,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       openGameEditor,
       gameSavedVersion,
       players,
+      getAvatarImage,
       defaultRoomFee,
       passwordLoginEnabled,
       showToast,

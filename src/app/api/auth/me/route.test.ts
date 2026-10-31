@@ -119,6 +119,62 @@ describe('PATCH /api/auth/me', () => {
     ]);
   });
 
+  it('设置头像图片：显式 SET avatar_image（非 COALESCE）', async () => {
+    mocks.query.mockImplementation((sql: string) => {
+      if (/SET avatar_image = \$1/.test(sql)) {
+        return Promise.resolve({ rows: [], rowCount: 1 });
+      }
+      throw new Error(`未预期的 SQL: ${sql}`);
+    });
+    const dataUrl = 'data:image/jpeg;base64,QQ==';
+    mocks.getCurrentUser.mockResolvedValue(me);
+
+    const res = await callPatch({ avatarImage: dataUrl });
+
+    expect(res.status).toBe(200);
+    expect(mocks.query).toHaveBeenCalledWith(
+      expect.stringContaining('SET avatar_image = $1, avatar_version = avatar_version + 1'),
+      [dataUrl, 7],
+    );
+  });
+
+  it('avatarImage 传 null 清除头像图片', async () => {
+    mocks.query.mockImplementation((sql: string) => {
+      if (/SET avatar_image = \$1/.test(sql)) {
+        return Promise.resolve({ rows: [], rowCount: 1 });
+      }
+      throw new Error(`未预期的 SQL: ${sql}`);
+    });
+    mocks.getCurrentUser.mockResolvedValue(me);
+
+    const res = await callPatch({ avatarImage: null });
+
+    expect(res.status).toBe(200);
+    // 清除同样递增版本号，客户端本地缓存据此失效
+    expect(mocks.query).toHaveBeenCalledWith(
+      expect.stringContaining('SET avatar_image = $1, avatar_version = avatar_version + 1'),
+      [null, 7],
+    );
+  });
+
+  it('头像图片前缀非法返回 400，不落库', async () => {
+    const res = await callPatch({ avatarImage: 'https://example.com/a.jpg' });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: '头像图片无效或过大，请重新选择' });
+    expect(mocks.query).not.toHaveBeenCalled();
+  });
+
+  it('头像图片超长返回 400，不落库', async () => {
+    const res = await callPatch({
+      avatarImage: 'data:image/jpeg;base64,' + 'a'.repeat(40000),
+    });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: '头像图片无效或过大，请重新选择' });
+    expect(mocks.query).not.toHaveBeenCalled();
+  });
+
   it('修改密码：轮换 bind_token、下线其他设备并保留当前设备', async () => {
     mocks.query.mockImplementation((sql: string) => {
       if (/SELECT password_hash FROM users/.test(sql)) {

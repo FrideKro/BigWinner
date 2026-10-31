@@ -82,6 +82,10 @@ async function runInitialization(): Promise<void> {
           password_hash TEXT NOT NULL,
           role VARCHAR(16) NOT NULL DEFAULT 'PLAYER',
           avatar_color VARCHAR(32) NOT NULL DEFAULT 'red',
+          -- 自定义头像图片（base64 data URL，NULL = 未设置，落字母主题色头像；前端压缩后应用层限长）
+          avatar_image TEXT,
+          -- 头像版本号：写头像（设置/清除）时 +1，客户端按它判断本地缓存是否失效
+          avatar_version INTEGER NOT NULL DEFAULT 0,
           is_active BOOLEAN NOT NULL DEFAULT TRUE,
           bind_token VARCHAR(128) UNIQUE,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -177,6 +181,13 @@ async function runInitialization(): Promise<void> {
       );
       DROP INDEX IF EXISTS idx_share_links_expires_at;
     `);
+
+    // 自定义头像图片列（老库演进）：base64 data URL，NULL = 未设置；长度由应用层校验
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_image TEXT;`);
+    // 头像版本号列（老库演进）：客户端本地缓存失效判断依据
+    await client.query(
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_version INTEGER NOT NULL DEFAULT 0;`,
+    );
 
     // 用户名大小写不敏感唯一：应用层查重与登录均按 LOWER(username) 口径，
     // 数据库层补幂等唯一索引兜底并发插入；历史数据存在同名冲突时仅告警不阻断启动
