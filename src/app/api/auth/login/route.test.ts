@@ -65,6 +65,7 @@ describe('POST /api/auth/login', () => {
     clearFailures('login:user:fride');
     clearFailures('login:ip:player1:');
     clearFailures('login:user:player1');
+    clearFailures('login:ipmap:203.0.113.9');
   });
 
   it('缺账号或密码返回 400', async () => {
@@ -184,6 +185,28 @@ describe('POST /api/auth/login', () => {
     }
 
     const res = await POST(loginReq('lockeduser', 'wrong'));
+    expect(res.status).toBe(429);
+    const body = await res.json();
+    expect(body.error).toContain('尝试次数过多');
+  });
+
+  it('同 IP 跨账号喷洒 30 次后触发纯 IP 限流', async () => {
+    mocks.query.mockResolvedValue({ rows: [], rowCount: 0 });
+
+    const sprayReq = (username: string) =>
+      new NextRequest('http://localhost/api/auth/login', {
+        method: 'POST',
+        headers: { 'x-forwarded-for': '203.0.113.9' },
+        body: JSON.stringify({ username, password: 'wrong' }),
+      });
+
+    // 每个账号各自未达「账号+IP 5 次 / 账号全局 10 次」阈值，唯纯 IP 键累计 30 次锁定
+    for (let i = 0; i < 30; i += 1) {
+      const res = await POST(sprayReq(`spray${i}`));
+      expect(res.status).toBe(401);
+    }
+
+    const res = await POST(sprayReq('spray-other'));
     expect(res.status).toBe(429);
     const body = await res.json();
     expect(body.error).toContain('尝试次数过多');

@@ -6,6 +6,12 @@ import { query, generateToken } from './db';
 export const DEVICE_COOKIE_NAME = 'bw_device_token';
 export const DEVICE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60; // 365天
 
+// Cookie Secure 标志：HTTPS 部署需设 COOKIE_SECURE=true；兼容 true/1/yes（忽略大小写）
+function isCookieSecure(): boolean {
+  const value = String(process.env.COOKIE_SECURE || '').trim().toLowerCase();
+  return value === 'true' || value === '1' || value === 'yes';
+}
+
 // 设备 Token 入库前先做 SHA-256：数据库泄露时无法从库中还原出可用会话凭据
 export function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
@@ -27,7 +33,7 @@ export function setDeviceCookie(res: NextResponse, deviceToken: string): void {
     httpOnly: true,
     path: '/',
     sameSite: 'lax',
-    secure: process.env.COOKIE_SECURE === 'true',
+    secure: isCookieSecure(),
     maxAge: DEVICE_MAX_AGE_SECONDS,
   });
 }
@@ -37,7 +43,7 @@ export function clearDeviceCookie(res: NextResponse): void {
     httpOnly: true,
     path: '/',
     sameSite: 'lax',
-    secure: process.env.COOKIE_SECURE === 'true',
+    secure: isCookieSecure(),
     maxAge: 0,
   });
 }

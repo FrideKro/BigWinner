@@ -2,14 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { createDeviceSession, getCurrentUser, setDeviceCookie } from '@/lib/auth';
 import { clearFailures, getClientIp, getRateLimitState, recordFailure } from '@/lib/rateLimit';
+import { ApiError, parseJsonBody } from '../../_lib/handler';
+
+// bind_token 实际为 48 位 hex；超长输入按无效凭据处理，防超大字符串进查询与哈希
+const MAX_BIND_TOKEN_LENGTH = 128;
 
 export async function POST(req: NextRequest) {
   try {
     let body: Record<string, unknown>;
     try {
-      body = await req.json();
-    } catch {
-      return NextResponse.json({ error: '请求体格式无效' }, { status: 400 });
+      body = await parseJsonBody(req);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        return NextResponse.json({ error: error.message }, { status: error.status });
+      }
+      throw error;
     }
     const bindToken = String(body.bindToken || '').trim();
 
@@ -28,6 +35,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: `尝试次数过多，请约 ${minutes} 分钟后再试` },
         { status: 429 },
+      );
+    }
+
+    if (bindToken.length > MAX_BIND_TOKEN_LENGTH) {
+      if (ipKey) recordFailure(ipKey, 10);
+      return NextResponse.json(
+        { error: '该专属绑定链接已失效，请联系管理员重新获取' },
+        { status: 401 },
       );
     }
 

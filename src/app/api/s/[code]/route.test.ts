@@ -185,6 +185,23 @@ describe('/api/s/[code]', () => {
     expect(await res.json()).toEqual({ error: '分享链接已过期' });
   });
 
+  it('period 脏数据（非白名单值）按失效处理返回 404，防止静默扩大可见范围', async () => {
+    mockShareQueries({ ...shareRow, period: 'garbage' });
+
+    const res = await callGet('?tab=board');
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: '分享链接不存在或已失效' });
+  });
+
+  it('period_type 脏数据按失效处理返回 404', async () => {
+    mockShareQueries({ ...shareRow, period_type: 'week' });
+
+    const res = await callGet('?tab=board');
+
+    expect(res.status).toBe(404);
+  });
+
   it('board 数据：汇总 + 榜单映射 + 分享元信息', async () => {
     const res = await callGet('?tab=board');
 

@@ -4,6 +4,7 @@ import { query } from '@/lib/db';
 import { createDeviceSession, setDeviceCookie } from '@/lib/auth';
 import { MAX_PASSWORD_LENGTH, MAX_USERNAME_LENGTH } from '@/lib/profileValidation';
 import { clearFailures, getClientIp, getRateLimitState, recordFailure } from '@/lib/rateLimit';
+import { ApiError, parseJsonBody } from '../../_lib/handler';
 import { getPasswordLoginEnabled } from '../../_lib/shared';
 
 // 公开配置：登录页据此决定是否展示密码表单（关闭时仅管理员可展开登录）
@@ -20,13 +21,20 @@ export async function GET() {
 // 抹平「存在/不存在」之间的响应时间差，防用户名枚举计时侧信道
 const DUMMY_PASSWORD_HASH = '$2a$10$fcwlKdp9e4OUb8LEXZae9.V0SlY9ejPWirrQ33Jh1nKD4VIxoc7fq';
 
+// 纯 IP 失败阈值：拦截同机多账号密码喷洒（账号+IP 与账号全局键均拦不住跨账号轮换）。
+// 阈值放宽到 30 次，避免 NAT 下多家庭成员共享 IP 时被无关失败误伤
+const LOGIN_IP_MAX_FAILURES = 30;
+
 export async function POST(req: NextRequest) {
   try {
     let body: Record<string, unknown>;
     try {
-      body = await req.json();
-    } catch {
-      return NextResponse.json({ error: '请求体格式无效' }, { status: 400 });
+      body = await parseJsonBody(req);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        return NextResponse.json({ error: error.message }, { status: error.status });
+      }
+      throw error;
     }
     const username = String(body.username || '').trim();
     const password = String(body.password || '');
@@ -35,14 +43,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '请输入账号和密码' }, { status: 400 });
     }
 
-    // 双键限流：IP+账号（5 次）防止单机爆破；账号全局（10 次）防止伪造
-    // x-forwarded-for 轮换绕过。无反向代理时 getClientIp 为空，两条键都按账号生效。
+    // 三键限流：账号+IP（5 次）+ 账号全局（10 次）防伪造 x-forwarded-for 轮换绕过，
+    // 纯 IP（30 次）拦截同机多账号密码喷洒。无反向代理时 getClientIp 为空，
+    // 纯 IP 键跳过，前两条键退化为按账号生效（同 bind/restore 口径）
     const normalized = username.toLowerCase();
-    const ipKey = `login:ip:${normalized}:${getClientIp(req.headers)}`;
+    const clientIp = getClientIp(req.headers);
+    const ipKey = `login:ip:${normalized}:${clientIp}`;
     const userKey = `login:user:${normalized}`;
-    const ipState = getRateLimitState(ipKey);
-    const userState = getRateLimitState(userKey);
-    const limitState = ipState.locked ? ipState : userState.locked ? userState : null;
+    const ipOnlyKey = clientIp ? `login:ipmap:${clientIp}` : null;
+    const limitState =
+      [ipKey, userKey, ...(ipOnlyKey ? [ipOnlyKey] : [])]
+        .map((key) => getRateLimitState(key))
+        .find((state) => state.locked) ?? null;
     if (limitState) {
       const minutes = Math.max(1, Math.ceil(limitState.retryAfterSeconds / 60));
       return NextResponse.json(
@@ -51,10 +63,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 超长账号或密码不进数据库与 bcrypt，直接计入失败并返回 401，防超大字符串 CPU DoS
-    if (username.length > MAX_USERNAME_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
+    // 失败/成功时三键统一记账与清零
+    const recordAllFailures = () => {
       recordFailure(ipKey, 5);
       recordFailure(userKey, 10);
+      if (ipOnlyKey) recordFailure(ipOnlyKey, LOGIN_IP_MAX_FAILURES);
+    };
+    const clearAllFailures = () => {
+      clearFailures(ipKey);
+      clearFailures(userKey);
+      if (ipOnlyKey) clearFailures(ipOnlyKey);
+    };
+
+    // 超长账号或密码不进数据库与 bcrypt，直接计入失败并返回 401，防超大字符串 CPU DoS
+    if (username.length > MAX_USERNAME_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
+      recordAllFailures();
       return NextResponse.json({ error: '账号或密码错误' }, { status: 401 });
     }
 
@@ -77,16 +100,14 @@ export async function POST(req: NextRequest) {
     if (userRes.rowCount === 0) {
       // 与存在账号的失败路径保持同代价耗时，避免计时暴露账号是否存在
       await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
-      recordFailure(ipKey, 5);
-      recordFailure(userKey, 10);
+      recordAllFailures();
       return NextResponse.json({ error: '账号或密码错误' }, { status: 401 });
     }
 
     const user = userRes.rows[0];
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
-      recordFailure(ipKey, 5);
-      recordFailure(userKey, 10);
+      recordAllFailures();
       return NextResponse.json({ error: '账号或密码错误' }, { status: 401 });
     }
 
@@ -103,8 +124,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    clearFailures(ipKey);
-    clearFailures(userKey);
+    clearAllFailures();
 
     const userAgent = req.headers.get('user-agent') || '';
     const deviceToken = await createDeviceSession(user.id, userAgent);

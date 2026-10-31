@@ -24,8 +24,16 @@ interface WithAuthOptions {
   error?: string;
 }
 
-// 解析 JSON 请求体；非法 JSON 统一 400，而不是落入外层 500
+// 请求体大小上限：合法业务请求（含 32KB 内的 base64 头像）远小于该值，
+// 防伪造超大 body 造成内存/CPU 压力
+const MAX_BODY_BYTES = 1024 * 1024;
+
+// 解析 JSON 请求体；非法 JSON 统一 400、超大 body 统一 413，而不是落入外层 500
 export async function parseJsonBody(req: NextRequest): Promise<Record<string, unknown>> {
+  const contentLength = parseInt(req.headers.get('content-length') || '', 10);
+  if (Number.isInteger(contentLength) && contentLength > MAX_BODY_BYTES) {
+    throw new ApiError(413, '请求体过大');
+  }
   try {
     return await req.json();
   } catch {

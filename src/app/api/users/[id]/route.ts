@@ -31,7 +31,14 @@ export const PATCH = withAuth<{ id: string }>(
         : body.avatarImage === null
           ? null
           : String(body.avatarImage);
-    const isActive = body.isActive !== undefined ? Boolean(body.isActive) : undefined;
+    // isActive 仅接受布尔：Boolean("false") === true 的强转会让停用静默变成启用
+    let isActive: boolean | undefined;
+    if (body.isActive !== undefined) {
+      if (typeof body.isActive !== 'boolean') {
+        return NextResponse.json({ error: 'isActive 参数无效' }, { status: 400 });
+      }
+      isActive = body.isActive;
+    }
     const newPassword = body.password ? String(body.password) : undefined;
     const regenerateBindToken = Boolean(body.regenerateBindToken);
     const revokeDevices = Boolean(body.revokeDevices);
@@ -103,15 +110,16 @@ export const PATCH = withAuth<{ id: string }>(
         }
       }
 
-      // 重置专属绑定链接并清除已绑定设备（可选）
+      // 重置专属绑定链接（可选）
       if (newBindToken) {
         await client.query(`UPDATE users SET bind_token = $1 WHERE id = $2`, [
           newBindToken,
           targetId,
         ]);
-        if (revokeDevices) {
-          await client.query(`DELETE FROM user_devices WHERE user_id = $1`, [targetId]);
-        }
+      }
+      // 清除已绑定设备（可选）：可独立于轮换链接单独传入，立即下线目标玩家全部设备
+      if (revokeDevices) {
+        await client.query(`DELETE FROM user_devices WHERE user_id = $1`, [targetId]);
       }
 
       // 重置密码后下线该用户设备，确保旧登录凭据立即失效；
@@ -172,6 +180,12 @@ export const PATCH = withAuth<{ id: string }>(
         throw new ApiError(404, '玩家不存在');
       }
       return updatedRes.rows[0];
+    }).catch((error: unknown) => {
+      // 应用层查重与更新之间的并发窗口由 LOWER(username) 唯一索引兜底，转换为友好 409
+      if ((error as { code?: string }).code === '23505') {
+        throw new ApiError(409, `登录账号 "${username ?? ''}" 已被占用`);
+      }
+      throw error;
     });
 
     return NextResponse.json({

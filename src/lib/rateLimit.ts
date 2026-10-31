@@ -52,9 +52,17 @@ export interface RateLimitState {
   retryAfterSeconds: number;
 }
 
+// 取 x-forwarded-for 最后一个非空段：单层可信反向代理以「追加」模式转发时，
+// 末段才是代理写入的真实客户端 IP（首段可被客户端伪造轮换）；
+// 直连部署无该头时返回空串，由调用方决定跳过计数或按账号兜底
 export function getClientIp(headers: Headers): string {
   const forwarded = headers.get('x-forwarded-for');
-  return forwarded ? forwarded.split(',')[0].trim().slice(0, 64) : '';
+  if (!forwarded) return '';
+  const parts = forwarded
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return parts.length ? parts[parts.length - 1].slice(0, 64) : '';
 }
 
 export function getRateLimitState(key: string): RateLimitState {

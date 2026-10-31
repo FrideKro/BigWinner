@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { buildDateRangeFilter, buildPeriodFilter } from '@/lib/gameLogic';
+import { buildDateRangeFilter, buildPeriodFilter, isValidPeriod } from '@/lib/gameLogic';
 import {
   checkRateLimit,
   clearFailures,
@@ -94,6 +94,15 @@ export async function GET(req: NextRequest, context: { params: Promise<{ code: s
     }
     if (!contentScope.includes(rawTab)) {
       return jsonError(403, '该内容未包含在此分享中');
+    }
+
+    // 分享参数完整性守卫：period_type / period 出现脏数据（手工改库、历史遗留）时
+    // buildPeriodFilter 会静默退化为「全部数据」，必须先按失效处理，防止扩大访客可见范围
+    if (
+      (share.period_type !== 'period' && share.period_type !== 'range') ||
+      (share.period_type === 'period' && !isValidPeriod(share.period))
+    ) {
+      return notFound();
     }
 
     // 时间过滤：period 创建时已固化为具体年/月（或 all），复用 buildPeriodFilter；range 用自定义区间

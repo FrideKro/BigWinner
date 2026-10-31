@@ -218,6 +218,14 @@ async function runInitialization(): Promise<void> {
        ON CONFLICT (key) DO NOTHING`,
     );
 
+    // HTTPS 部署需显式开启 Cookie Secure 标志，否则会话 Cookie 可经明文链路传输；
+    // 纯 HTTP 内网部署可忽略此提醒
+    if (process.env.NODE_ENV === 'production' && !process.env.COOKIE_SECURE) {
+      console.warn(
+        '⚠️ 未设置 COOKIE_SECURE=true：HTTPS 部署请配置以启用 Cookie Secure 标志；纯 HTTP 内网部署可忽略',
+      );
+    }
+
     // 检查是否存在管理员账号，不存在则自动创建初始管理员
     const adminCheck = await client.query(`SELECT id FROM users WHERE role = 'ADMIN' LIMIT 1`);
     if (adminCheck.rowCount === 0) {

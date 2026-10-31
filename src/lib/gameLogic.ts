@@ -109,9 +109,13 @@ export function currentShanghaiYearMonth(): { year: string; month: string } {
     year: 'numeric',
     month: '2-digit',
   }).formatToParts(new Date());
+  // formatToParts 实际不会失败；兜底回退 UTC 年月分量，避免硬编码年份过期后静默错年
+  const now = new Date();
   return {
-    year: parts.find((p) => p.type === 'year')?.value || '2026',
-    month: parts.find((p) => p.type === 'month')?.value || '01',
+    year: parts.find((p) => p.type === 'year')?.value || String(now.getUTCFullYear()),
+    month:
+      parts.find((p) => p.type === 'month')?.value ||
+      String(now.getUTCMonth() + 1).padStart(2, '0'),
   };
 }
 

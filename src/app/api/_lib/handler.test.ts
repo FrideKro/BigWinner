@@ -127,6 +127,28 @@ describe('parseJsonBody', () => {
       message: '请求体格式无效',
     });
   });
+
+  it('content-length 超过 1MB 抛出 413 ApiError，不读取 body', async () => {
+    const json = vi.fn();
+    const req = {
+      headers: new Headers({ 'content-length': String(1024 * 1024 + 1) }),
+      json,
+    } as unknown as NextRequest;
+
+    await expect(parseJsonBody(req)).rejects.toMatchObject({
+      status: 413,
+      message: '请求体过大',
+    });
+    expect(json).not.toHaveBeenCalled();
+  });
+
+  it('无 content-length 头（分块传输）跳过大小拦截正常解析', async () => {
+    const json = vi.fn(() => Promise.resolve({ a: 1 }));
+    const req = { headers: new Headers(), json } as unknown as NextRequest;
+
+    await expect(parseJsonBody(req)).resolves.toEqual({ a: 1 });
+    expect(json).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('toPublicUser', () => {

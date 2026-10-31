@@ -125,8 +125,13 @@ describe('rateLimit', () => {
 });
 
 describe('getClientIp', () => {
-  it('提取 x-forwarded-for 首段并去除首尾空白', () => {
+  it('提取 x-forwarded-for 末段（单层可信反代追加模式下的真实客户端 IP）', () => {
     const headers = new Headers({ 'x-forwarded-for': ' 203.0.113.5 , 10.0.0.1 ' });
+    expect(getClientIp(headers)).toBe('10.0.0.1');
+  });
+
+  it('客户端伪造的前导 IP 不影响末段取值', () => {
+    const headers = new Headers({ 'x-forwarded-for': '6.6.6.6, 203.0.113.5' });
     expect(getClientIp(headers)).toBe('203.0.113.5');
   });
 

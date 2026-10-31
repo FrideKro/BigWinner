@@ -17,9 +17,15 @@ export const GET = withAuth(
     if (!isValidPeriod(period)) {
       return NextResponse.json({ error: '时间段参数无效' }, { status: 400 });
     }
-    const userIdFilter = searchParams.get('userId')
-      ? parseInt(searchParams.get('userId')!, 10)
-      : null;
+    // userId 过滤口径与 /api/stats 一致：传了就必须是正整数，非法一律 400
+    let userIdFilter: number | null = null;
+    if (searchParams.get('userId')) {
+      const parsed = parseInt(searchParams.get('userId')!, 10);
+      if (!Number.isInteger(parsed) || parsed <= 0) {
+        return NextResponse.json({ error: '无效的玩家 ID' }, { status: 400 });
+      }
+      userIdFilter = parsed;
+    }
 
     const rawLimit = parseInt(searchParams.get('limit') || '100', 10);
     const limit = Number.isInteger(rawLimit) ? Math.min(Math.max(rawLimit, 1), 200) : 100;
@@ -30,7 +36,7 @@ export const GET = withAuth(
     const queryParams: unknown[] = [...params];
     let userFilterClause = '';
 
-    if (userIdFilter && !Number.isNaN(userIdFilter)) {
+    if (userIdFilter) {
       queryParams.push(userIdFilter);
       userFilterClause = `AND EXISTS (
       SELECT 1 FROM game_records gr_sub

@@ -251,4 +251,49 @@ describe('PATCH /api/users/[id]', () => {
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: '登录账号 "taken" 已被占用' });
   });
+
+  it('并发改名撞唯一索引（23505）转换为 409 而非 500', async () => {
+    mockSql([
+      {
+        match: /LOWER\(username\) = LOWER\(\$1\) AND id != \$2/,
+        result: { rows: [], rowCount: 0 },
+      },
+      {
+        match: /SET username = COALESCE/,
+        result: () => {
+          const error = new Error('duplicate key value violates unique constraint');
+          (error as { code?: string }).code = '23505';
+          throw error;
+        },
+      },
+    ]);
+
+    const res = await callPatch(2, { username: 'race' });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: '登录账号 "race" 已被占用' });
+  });
+
+  it('isActive 传非布尔值返回 400，不进入事务', async () => {
+    const res = await callPatch(2, { isActive: 'false' });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'isActive 参数无效' });
+    expect(mocks.query).not.toHaveBeenCalled();
+  });
+
+  it('单独传 revokeDevices 也下线目标玩家全部设备', async () => {
+    mockSql([
+      { match: /DELETE FROM user_devices WHERE user_id = \$1$/, result: { rows: [], rowCount: 1 } },
+      { match: /SET username = COALESCE/, result: updatedUserRow() },
+    ]);
+
+    const res = await callPatch(2, { revokeDevices: true });
+
+    expect(res.status).toBe(200);
+    expect(mocks.query).toHaveBeenCalledWith(
+      expect.stringMatching(/DELETE FROM user_devices WHERE user_id = \$1$/),
+      [2],
+    );
+  });
 });

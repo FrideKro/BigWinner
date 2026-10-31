@@ -246,7 +246,11 @@ export function ShareModal({ open, initialPeriod, availableMonths, onClose }: Sh
             });
       setCreatedUrl(shareUrl(created.code));
       setDirty(false); // 表单已消费，关闭无需再确认
-      await refreshShares();
+      try {
+        await refreshShares();
+      } catch {
+        // 列表刷新失败不影响创建结果，避免误报「创建失败」诱导重复创建
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : '创建失败，请稍后重试');
     } finally {

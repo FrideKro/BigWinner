@@ -5,6 +5,7 @@ import { X, Check, Wand2, Plus, Minus, Trash2 } from 'lucide-react';
 import { PlayerAvatar } from './PlayerAvatar';
 import { ConfirmDialog } from './ConfirmDialog';
 import { toDatetimeLocalValue, toTodayDatetimeLocalValue, shanghaiInputToIso } from '@/lib/format';
+import { MAX_GAME_NOTE_LENGTH } from '@/lib/profileValidation';
 import { apiMutate } from '@/lib/apiClient';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import { useFocusTrap } from '@/lib/useFocusTrap';
@@ -373,6 +374,7 @@ export function GameEditorModal({
                 id="game-note"
                 type="text"
                 value={note}
+                maxLength={MAX_GAME_NOTE_LENGTH}
                 onChange={(e) => {
                   setDirty(true);
                   setNote(e.target.value);

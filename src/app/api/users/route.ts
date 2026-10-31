@@ -21,7 +21,14 @@ export const POST = withAuth(
     const password = String(body.password || '123456');
     const role = body.role === 'ADMIN' ? 'ADMIN' : 'PLAYER';
     const avatarColor = String(body.avatarColor || 'red').trim();
-    const isActive = body.isActive !== undefined ? Boolean(body.isActive) : true;
+    // isActive 仅接受布尔：Boolean("false") === true 的强转会让停用静默变成启用
+    let isActive = true;
+    if (body.isActive !== undefined) {
+      if (typeof body.isActive !== 'boolean') {
+        return NextResponse.json({ error: 'isActive 参数无效' }, { status: 400 });
+      }
+      isActive = body.isActive;
+    }
 
     if (!username || !nickname) {
       return NextResponse.json({ error: '登录账号和显示昵称不能为空' }, { status: 400 });
