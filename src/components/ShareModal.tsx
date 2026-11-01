@@ -42,8 +42,6 @@ interface ShareListItem {
 
 interface ShareModalProps {
   open: boolean;
-  /** 打开时的预填周期（总榜页当前所选：all / year / month / YYYY-MM） */
-  initialPeriod?: string;
   /** 可选的具体月份列表（来自总榜页 summary） */
   availableMonths?: string[];
   onClose: () => void;
@@ -82,11 +80,11 @@ function scopeLabel(keys: string[]): string {
   return keys.map((k) => SCOPE_OPTIONS.find((o) => o.key === k)?.label || k).join(' · ');
 }
 
-export function ShareModal({ open, initialPeriod, availableMonths, onClose }: ShareModalProps) {
+export function ShareModal({ open, availableMonths, onClose }: ShareModalProps) {
   const { showToast } = useApp();
 
-  // 创建表单
-  const [scopes, setScopes] = useState<string[]>(['board']);
+  // 创建表单：内容默认「总榜 + 流水」，时间段默认「自定义」
+  const [scopes, setScopes] = useState<string[]>(['board', 'games']);
   const [periodKind, setPeriodKind] = useState<'all' | 'year' | 'month' | 'custom'>('all');
   const [monthValue, setMonthValue] = useState('');
   const [rangeStart, setRangeStart] = useState('');
@@ -130,26 +128,16 @@ export function ShareModal({ open, initialPeriod, availableMonths, onClose }: Sh
     setCopiedNew(false);
     setDirty(false);
     setConfirmDiscard(false);
-    setScopes(['board']);
+    setScopes(['board', 'games']);
 
-    const period = initialPeriod || 'all';
-    if (period === 'year') {
-      setPeriodKind('year');
-      setMonthValue('');
-    } else if (/^\d{4}-\d{2}$/.test(period)) {
-      setPeriodKind('month');
-      setMonthValue(period);
-    } else {
-      setPeriodKind('all');
-      setMonthValue('');
-    }
+    // 时间段默认「自定义」：本月 1 日 ~ 上海今天
+    setPeriodKind('custom');
+    setMonthValue('');
     const today = shanghaiTodayDate();
     setRangeStart(`${today.slice(0, 7)}-01`);
     setRangeEnd(today);
     setExpiryKind('today');
     setExpiryDate(shanghaiDateAfterDays(7));
-    // 故意不依赖 initialPeriod/availableMonths：仅打开瞬间重置
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   // 已创建分享列表：每次 open 变为 true 都重新拉取。
@@ -502,7 +490,7 @@ export function ShareModal({ open, initialPeriod, availableMonths, onClose }: Sh
           <div className="pt-1">
             <div className="flex items-center justify-between mb-1.5">
               <h3 className="text-sm font-medium text-slate-500">已创建的分享</h3>
-              <span className="text-xs text-slate-400">最近 20 条</span>
+              <span className="text-xs text-slate-400">全部有效分享</span>
             </div>
             {sharesError ? (
               <ErrorState

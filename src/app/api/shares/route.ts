@@ -11,7 +11,6 @@ import { sharePeriodLabel, type ShareRow } from '../_lib/shareData';
 
 // 分享码：generateToken(8) → 16 位 hex，碰撞概率极低；插入冲突时换码重试
 const CODE_ATTEMPTS = 3;
-const SHARE_LIST_LIMIT = 20;
 
 // 创建分享链接（仅管理员）：内容模块 + 时间段（周期/自定义区间）+ 预设有效期
 export const POST = withAuth(
@@ -77,7 +76,7 @@ export const POST = withAuth(
   { admin: '仅管理员可创建分享链接', error: '创建分享链接失败' },
 );
 
-// 最近创建的分享列表（仅管理员），供分享弹窗内管理与复制
+// 全部有效分享列表（仅管理员），供分享弹窗内管理与复制；已过期的不再展示
 export const GET = withAuth(
   async () => {
     const res = await query<ShareRow>(
@@ -85,8 +84,8 @@ export const GET = withAuth(
               range_start::text AS range_start, range_end::text AS range_end,
               expires_at, created_at
        FROM share_links
-       ORDER BY created_at DESC, id DESC
-       LIMIT ${SHARE_LIST_LIMIT}`,
+       WHERE expires_at IS NULL OR expires_at > NOW()
+       ORDER BY created_at DESC, id DESC`,
     );
     const shares = res.rows.map((row) => ({
       id: row.id,

@@ -386,7 +386,6 @@ export default function HomePage() {
       {shareModalOpen && (
         <ShareModal
           open={shareModalOpen}
-          initialPeriod={period}
           availableMonths={summary?.availableMonths}
           onClose={() => setShareModalOpen(false)}
         />

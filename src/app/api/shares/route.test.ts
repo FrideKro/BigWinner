@@ -192,7 +192,7 @@ describe('/api/shares GET', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
   });
 
-  it('返回最近分享的驼峰结构列表', async () => {
+  it('返回全部有效分享（过滤已过期、不限条数）的驼峰结构列表', async () => {
     const req = new NextRequest('http://localhost/api/shares');
     const res = await GET(req, { params: Promise.resolve({}) });
 
@@ -207,6 +207,10 @@ describe('/api/shares GET', () => {
       periodLabel: '2026-10-01 ~ 2026-10-20',
       expiresAt: '2026-11-01T00:00:00.000Z',
     });
+    // 仅返回未过期分享（含永久），不限制条数
+    const [sql] = mocks.query.mock.calls[0] as [string];
+    expect(sql).toContain('WHERE expires_at IS NULL OR expires_at > NOW()');
+    expect(sql).not.toContain('LIMIT');
   });
 
   it('非管理员不能查看分享列表', async () => {
