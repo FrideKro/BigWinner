@@ -6,6 +6,7 @@ import { useApp } from '@/components/AppShell';
 import { PlayerAvatar } from '@/components/PlayerAvatar';
 import { TrendChart, TrendPoint } from '@/components/TrendChart';
 import { ErrorState } from '@/components/ErrorState';
+import { PeriodFilterBar, periodFilterQuery } from '@/components/PeriodFilterBar';
 import { formatSignedAmount, getAmountColorClass, formatDateTime } from '@/lib/format';
 import { apiGet, isAbortError } from '@/lib/apiClient';
 import { useRefreshOnVisible } from '@/lib/useRefreshOnVisible';
@@ -50,7 +51,6 @@ interface StatsSummary {
   thisYearRoomFee: number;
   thisMonthGames: number;
   thisMonthRoomFee: number;
-  availableMonths: string[];
 }
 
 interface StatsResponse {
@@ -107,11 +107,18 @@ function RoomFeeSkeleton() {
 function StatsContent() {
   const searchParams = useSearchParams();
   // 玩家列表由 AppShell 统一拉取并经 context 共享，本页不再重复请求
-  const { user, gameSavedVersion, players, getAvatarImage } = useApp();
+  const {
+    user,
+    gameSavedVersion,
+    players,
+    getAvatarImage,
+    // 周期筛选由 AppShell 统一持有（会话内记忆，切页/刷新保持），本页只消费
+    periodFilter: filter,
+    setPeriodFilter: setFilter,
+  } = useApp();
 
   const [activeTab, setActiveTab] = useState<'personal' | 'roomFee'>('personal');
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
-  const [period, setPeriod] = useState<string>('all');
   const [personalStats, setPersonalStats] = useState<PersonalStats | null>(null);
   const [monthlyRoomFees, setMonthlyRoomFees] = useState<MonthlyRoomFeeItem[]>([]);
   const [summary, setSummary] = useState<StatsSummary | null>(null);
@@ -153,7 +160,7 @@ function StatsContent() {
 
       try {
         const data = await apiGet<StatsResponse>(
-          `/api/stats?period=${encodeURIComponent(period)}&userId=${selectedUserId}`,
+          `/api/stats?${periodFilterQuery(filter)}&userId=${selectedUserId}`,
           { force, signal: controller.signal },
         );
         if (abortRef.current !== controller) return;
@@ -168,7 +175,7 @@ function StatsContent() {
         if (abortRef.current === controller) setLoading(false);
       }
     },
-    [period, selectedUserId],
+    [filter, selectedUserId],
   );
 
   useEffect(() => {
@@ -261,42 +268,7 @@ function StatsContent() {
           </div>
 
           {/* 时间周期筛选 */}
-          <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-xl text-sm">
-            {[
-              { key: 'all', label: '全部' },
-              { key: 'year', label: '本年' },
-              { key: 'month', label: '本月' },
-            ].map((item) => (
-              <button
-                key={item.key}
-                onClick={() => setPeriod(item.key)}
-                className={`flex-1 min-h-9 py-1 rounded-lg font-medium transition ${
-                  period === item.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
-            {summary && summary.availableMonths.length > 0 && (
-              <select
-                aria-label="选择月份"
-                value={/^\d{4}-\d{2}$/.test(period) ? period : ''}
-                onChange={(e) => e.target.value && setPeriod(e.target.value)}
-                className={`min-h-9 py-1 px-1.5 text-sm font-medium rounded-lg border-none focus:outline-none transition ${
-                  /^\d{4}-\d{2}$/.test(period)
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'bg-transparent text-slate-600'
-                }`}
-              >
-                <option value="">月份…</option>
-                {summary.availableMonths.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
+          <PeriodFilterBar value={filter} onChange={setFilter} />
 
           {error && !personalStats ? (
             <ErrorState message={error} onRetry={() => fetchStats(true, true)} />

@@ -6,6 +6,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { CopyFallbackModal } from './CopyFallbackModal';
 import { useApp } from './AppShell';
 import { ErrorState } from './ErrorState';
+import { defaultCustomRange } from './PeriodFilterBar';
 import { apiGet, apiMutate } from '@/lib/apiClient';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import { useFocusTrap } from '@/lib/useFocusTrap';
@@ -42,8 +43,6 @@ interface ShareListItem {
 
 interface ShareModalProps {
   open: boolean;
-  /** 可选的具体月份列表（来自总榜页 summary） */
-  availableMonths?: string[];
   onClose: () => void;
 }
 
@@ -80,13 +79,12 @@ function scopeLabel(keys: string[]): string {
   return keys.map((k) => SCOPE_OPTIONS.find((o) => o.key === k)?.label || k).join(' · ');
 }
 
-export function ShareModal({ open, availableMonths, onClose }: ShareModalProps) {
+export function ShareModal({ open, onClose }: ShareModalProps) {
   const { showToast } = useApp();
 
   // 创建表单：内容默认「总榜 + 流水」，时间段默认「自定义」
   const [scopes, setScopes] = useState<string[]>(['board', 'games']);
-  const [periodKind, setPeriodKind] = useState<'all' | 'year' | 'month' | 'custom'>('all');
-  const [monthValue, setMonthValue] = useState('');
+  const [periodKind, setPeriodKind] = useState<'all' | 'year' | 'custom'>('all');
   const [rangeStart, setRangeStart] = useState('');
   const [rangeEnd, setRangeEnd] = useState('');
   const [expiryKind, setExpiryKind] = useState<'today' | 'custom' | 'never'>('today');
@@ -130,12 +128,11 @@ export function ShareModal({ open, availableMonths, onClose }: ShareModalProps) 
     setConfirmDiscard(false);
     setScopes(['board', 'games']);
 
-    // 时间段默认「自定义」：本月 1 日 ~ 上海今天
+    // 时间段默认「自定义」：前天 ~ 上海今天
     setPeriodKind('custom');
-    setMonthValue('');
-    const today = shanghaiTodayDate();
-    setRangeStart(`${today.slice(0, 7)}-01`);
-    setRangeEnd(today);
+    const defaultRange = defaultCustomRange();
+    setRangeStart(defaultRange.from);
+    setRangeEnd(defaultRange.to);
     setExpiryKind('today');
     setExpiryDate(shanghaiDateAfterDays(7));
   }, [open]);
@@ -188,10 +185,6 @@ export function ShareModal({ open, availableMonths, onClose }: ShareModalProps) 
       setError('请至少选择一个分享内容');
       return;
     }
-    if (periodKind === 'month' && !monthValue) {
-      setError('请选择具体月份');
-      return;
-    }
     if (periodKind === 'custom') {
       if (!rangeStart || !rangeEnd) {
         setError('请选择自定义时间段的起止日期');
@@ -229,7 +222,7 @@ export function ShareModal({ open, availableMonths, onClose }: ShareModalProps) 
           : await apiMutate<{ code: string }>('/api/shares', 'POST', {
               contentScope: scopes,
               periodType: 'period',
-              period: periodKind === 'month' ? monthValue : periodKind,
+              period: periodKind,
               expiresOn,
             });
       setCreatedUrl(shareUrl(created.code));
@@ -388,29 +381,6 @@ export function ShareModal({ open, availableMonths, onClose }: ShareModalProps) 
                   {item.label}
                 </button>
               ))}
-              <select
-                aria-label="选择月份"
-                value={periodKind === 'month' ? monthValue : ''}
-                onChange={(e) => {
-                  if (e.target.value) {
-                    setDirty(true);
-                    setPeriodKind('month');
-                    setMonthValue(e.target.value);
-                  }
-                }}
-                className={`min-h-9 py-1 px-1.5 text-sm font-medium rounded-lg border-none focus:outline-none transition ${
-                  periodKind === 'month'
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'bg-transparent text-slate-600'
-                }`}
-              >
-                <option value="">月份…</option>
-                {(availableMonths || []).map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
             </div>
             {periodKind === 'custom' && (
               <>

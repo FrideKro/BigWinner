@@ -7,6 +7,11 @@ import { useApp } from '@/components/AppShell';
 import { PlayerAvatar } from '@/components/PlayerAvatar';
 import { LogoMark } from '@/components/LogoMark';
 import { ErrorState } from '@/components/ErrorState';
+import {
+  PeriodFilterBar,
+  periodFilterQuery,
+  type PeriodFilterValue,
+} from '@/components/PeriodFilterBar';
 import { formatSignedAmount, getAmountColorClass } from '@/lib/format';
 import { apiGet, isAbortError } from '@/lib/apiClient';
 import { useRefreshOnVisible } from '@/lib/useRefreshOnVisible';
@@ -29,7 +34,6 @@ interface StatsSummary {
   thisYearRoomFee: number;
   thisMonthGames: number;
   thisMonthRoomFee: number;
-  availableMonths: string[];
 }
 
 interface StatsResponse {
@@ -39,9 +43,16 @@ interface StatsResponse {
 
 export default function HomePage() {
   const router = useRouter();
-  const { user, openGameEditor, gameSavedVersion, getAvatarImage } = useApp();
+  // 周期筛选由 AppShell 统一持有（会话内记忆，切页/刷新保持），本页只消费
+  const {
+    user,
+    openGameEditor,
+    gameSavedVersion,
+    getAvatarImage,
+    periodFilter: filter,
+    setPeriodFilter: setFilter,
+  } = useApp();
 
-  const [period, setPeriod] = useState<string>('all');
   const [summary, setSummary] = useState<StatsSummary | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,7 +61,7 @@ export default function HomePage() {
 
   const abortRef = useRef<AbortController | null>(null);
   const hasDataRef = useRef(false);
-  const fetchedPeriodRef = useRef<string | null>(null);
+  const fetchedFilterRef = useRef<PeriodFilterValue | null>(null);
 
   const fetchStats = useCallback(
     async (force = false) => {
@@ -59,8 +70,8 @@ export default function HomePage() {
       abortRef.current = controller;
 
       // 周期变化时旧数据不再适用，显示骨架；同周期后台刷新则保留旧数据
-      if (fetchedPeriodRef.current !== period) {
-        fetchedPeriodRef.current = period;
+      if (fetchedFilterRef.current !== filter) {
+        fetchedFilterRef.current = filter;
         hasDataRef.current = false;
         setSummary(null);
         setLeaderboard([]);
@@ -69,7 +80,7 @@ export default function HomePage() {
       try {
         // scope=board：首页只需要概览与总榜，跳过个人明细查询并减小响应体积
         const data = await apiGet<StatsResponse>(
-          `/api/stats?period=${encodeURIComponent(period)}&scope=board`,
+          `/api/stats?${periodFilterQuery(filter)}&scope=board`,
           { force, signal: controller.signal },
         );
         if (abortRef.current !== controller) return;
@@ -85,7 +96,7 @@ export default function HomePage() {
         if (abortRef.current === controller) setLoading(false);
       }
     },
-    [period],
+    [filter],
   );
 
   useEffect(() => {
@@ -107,13 +118,13 @@ export default function HomePage() {
   useEffect(() => () => abortRef.current?.abort(), []);
 
   const periodLabel =
-    period === 'all'
+    filter.kind === 'all'
       ? '历史总榜'
-      : period === 'year'
+      : filter.kind === 'year'
         ? '本年度'
-        : period === 'month'
+        : filter.kind === 'month'
           ? '本月份'
-          : `${period}`;
+          : `${filter.from} ~ ${filter.to}`;
 
   const topWinner = leaderboard.find((p) => p.gamesPlayed > 0 && p.netAmount > 0);
   const showSkeleton = loading;
@@ -146,44 +157,7 @@ export default function HomePage() {
       </div>
 
       {/* 时间周期筛选器 */}
-      <div className="flex items-center gap-1.5 p-1 bg-slate-200/80 rounded-2xl">
-        {[
-          { key: 'all', label: '全部' },
-          { key: 'year', label: '本年' },
-          { key: 'month', label: '本月' },
-        ].map((item) => (
-          <button
-            key={item.key}
-            onClick={() => setPeriod(item.key)}
-            className={`flex-1 min-h-10 py-1.5 text-sm font-medium rounded-xl transition ${
-              period === item.key
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-        {summary && summary.availableMonths.length > 0 && (
-          <select
-            aria-label="选择月份"
-            value={/^\d{4}-\d{2}$/.test(period) ? period : ''}
-            onChange={(e) => e.target.value && setPeriod(e.target.value)}
-            className={`min-h-10 py-1 px-2 text-sm font-medium rounded-xl border-none focus:outline-none transition ${
-              /^\d{4}-\d{2}$/.test(period)
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'bg-transparent text-slate-600'
-            }`}
-          >
-            <option value="">更多月份…</option>
-            {summary.availableMonths.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
+      <PeriodFilterBar value={filter} onChange={setFilter} />
 
       {error && !summary ? (
         <ErrorState message={error} onRetry={() => fetchStats(true)} />
@@ -384,11 +358,7 @@ export default function HomePage() {
       )}
 
       {shareModalOpen && (
-        <ShareModal
-          open={shareModalOpen}
-          availableMonths={summary?.availableMonths}
-          onClose={() => setShareModalOpen(false)}
-        />
+        <ShareModal open={shareModalOpen} onClose={() => setShareModalOpen(false)} />
       )}
     </div>
   );

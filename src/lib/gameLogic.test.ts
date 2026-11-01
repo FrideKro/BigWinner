@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildPeriodFilter,
+  buildTimeFilter,
   isValidPeriod,
   validateAndComputeRecords,
   validatePlayedAt,
@@ -295,6 +296,71 @@ describe('isValidPeriod', () => {
     for (const p of ['', 'abc', '202-3', '2025-13', '2025-00', '2025年', 'all ', 'YYYY-MM']) {
       expect(isValidPeriod(p)).toBe(false);
     }
+  });
+});
+
+describe('buildTimeFilter', () => {
+  it('无 from/to 时按 period 走 buildPeriodFilter（含缺省 all）', () => {
+    const explicit = buildTimeFilter('2025-03', null, null);
+    expect(explicit.error).toBe('');
+    expect(explicit.clause).toContain('g.played_at >= $1');
+
+    const fallback = buildTimeFilter(null, null, null);
+    expect(fallback.error).toBe('');
+    expect(fallback.clause).toBe('');
+    expect(fallback.params).toEqual([]);
+  });
+
+  it('非法 period 返回错误（不静默退化为全部数据）', () => {
+    const result = buildTimeFilter('abc', null, null);
+    expect(result.error).toBe('时间段参数无效');
+  });
+
+  it('自定义区间返回上海时区自然日 UTC 边界（含结束当天）', () => {
+    const result = buildTimeFilter(null, '2025-03-01', '2025-03-10');
+
+    expect(result.error).toBe('');
+    expect(result.clause).toContain('g.played_at >= $1');
+    expect(result.clause).toContain('g.played_at < $2');
+    // 2025-03-01 00:00+08 ~ 2025-03-11 00:00+08
+    expect(result.params).toEqual([
+      new Date('2025-02-28T16:00:00.000Z'),
+      new Date('2025-03-10T16:00:00.000Z'),
+    ]);
+  });
+
+  it('from 与 period 同时提供返回冲突错误', () => {
+    const result = buildTimeFilter('2025', '2025-03-01', '2025-03-10');
+    expect(result.error).toBe('时间段参数冲突：不可同时指定 period 与起止日期');
+  });
+
+  it('只提供 from 或 to 一端返回错误', () => {
+    expect(buildTimeFilter(null, '2025-03-01', null).error).toBe(
+      '自定义时间段需要同时提供开始与结束日期',
+    );
+    expect(buildTimeFilter(null, null, '2025-03-10').error).toBe(
+      '自定义时间段需要同时提供开始与结束日期',
+    );
+  });
+
+  it('日期非法（格式错误、不存在的日期、end 早于 start）返回错误', () => {
+    for (const [from, to] of [
+      ['2025-3-1', '2025-03-10'],
+      ['2025-02-30', '2025-03-10'],
+      ['2025-03-10', '2025-03-01'],
+    ]) {
+      const result = buildTimeFilter(null, from, to);
+      expect(result.error).toBe('自定义时间段日期无效');
+    }
+  });
+
+  it('from 或 to 为空字符串视同缺失一端', () => {
+    expect(buildTimeFilter(null, '', '2025-03-10').error).toBe(
+      '自定义时间段需要同时提供开始与结束日期',
+    );
+    expect(buildTimeFilter(null, '2025-03-01', '').error).toBe(
+      '自定义时间段需要同时提供开始与结束日期',
+    );
   });
 });
 

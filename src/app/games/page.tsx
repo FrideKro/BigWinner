@@ -9,6 +9,11 @@ import { ErrorState } from '@/components/ErrorState';
 import { CopyFallbackModal } from '@/components/CopyFallbackModal';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import {
+  PeriodFilterBar,
+  periodFilterQuery,
+  type PeriodFilterValue,
+} from '@/components/PeriodFilterBar';
+import {
   formatDateTime,
   formatSignedAmount,
   getAmountColorClass,
@@ -50,10 +55,6 @@ interface GamesResponse {
   allTimeTotalRoomFee: number;
 }
 
-interface MonthsResponse {
-  summary?: { availableMonths: string[] };
-}
-
 export default function GamesPage() {
   // 玩家列表与默认房费由 AppShell 统一拉取并经 context 共享，本页不再重复请求
   const {
@@ -64,6 +65,9 @@ export default function GamesPage() {
     defaultRoomFee,
     showToast,
     getAvatarImage,
+    // 周期筛选由 AppShell 统一持有（会话内记忆，切页/刷新保持），本页只消费
+    periodFilter: filter,
+    setPeriodFilter: setFilter,
   } = useApp();
 
   const [games, setGames] = useState<GameItem[]>([]);
@@ -73,8 +77,6 @@ export default function GamesPage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
-  const [period, setPeriod] = useState<string>('all');
-  const [availableMonths, setAvailableMonths] = useState<string[]>([]);
   const [copiedId, setCopiedId] = useState<number | null>(null);
 
   // 单独编辑历史某场战绩
@@ -86,7 +88,7 @@ export default function GamesPage() {
 
   const abortRef = useRef<AbortController | null>(null);
   const offsetRef = useRef(0);
-  const fetchedPeriodRef = useRef<string | null>(null);
+  const fetchedFilterRef = useRef<PeriodFilterValue | null>(null);
   const lastVersionRef = useRef(gameSavedVersion);
   const { copy, fallback, clearFallback } = useCopyText();
 
@@ -99,8 +101,8 @@ export default function GamesPage() {
       if (showSkeleton) setLoading(true);
       if (!reset) setLoadingMore(true);
 
-      if (reset && fetchedPeriodRef.current !== period) {
-        fetchedPeriodRef.current = period;
+      if (reset && fetchedFilterRef.current !== filter) {
+        fetchedFilterRef.current = filter;
         offsetRef.current = 0;
         setGames([]);
         setHasMore(false);
@@ -110,7 +112,7 @@ export default function GamesPage() {
 
       try {
         const data = await apiGet<GamesResponse>(
-          `/api/games?period=${encodeURIComponent(period)}&limit=${PAGE_SIZE}&offset=${offset}`,
+          `/api/games?${periodFilterQuery(filter)}&limit=${PAGE_SIZE}&offset=${offset}`,
           { force, signal: controller.signal },
         );
         if (abortRef.current !== controller) return;
@@ -130,34 +132,19 @@ export default function GamesPage() {
         }
       }
     },
-    [period],
+    [filter],
   );
-
-  const fetchMonths = useCallback(async (force = false) => {
-    try {
-      // scope=months：仅取月份列表，避免为下拉筛选拉取整个统计数据
-      const data = await apiGet<MonthsResponse>('/api/stats?scope=months', {
-        ttl: 60_000,
-        force,
-      });
-      setAvailableMonths(data.summary?.availableMonths || []);
-    } catch {
-      /* 月份列表失败不影响主列表 */
-    }
-  }, []);
 
   useEffect(() => {
     void fetchGames(true);
-    void fetchMonths();
-  }, [fetchGames, fetchMonths]);
+  }, [fetchGames]);
 
   // 记账成功后强制刷新
   useEffect(() => {
     if (lastVersionRef.current === gameSavedVersion) return;
     lastVersionRef.current = gameSavedVersion;
     void fetchGames(true, true, false);
-    void fetchMonths(true);
-  }, [gameSavedVersion, fetchGames, fetchMonths]);
+  }, [gameSavedVersion, fetchGames]);
 
   // 回到前台时刷新；已加载多页时跳过，避免丢失“加载更多”的进度
   useRefreshOnVisible(() => {
@@ -211,7 +198,7 @@ export default function GamesPage() {
   return (
     <div className="space-y-4 px-4 pt-4">
       {/* 头部标题与筛选 */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="space-y-3">
         <div>
           <h1 className="text-lg font-medium text-slate-900 tracking-tight">场次流水</h1>
           <p className="text-xs text-slate-500">
@@ -220,42 +207,7 @@ export default function GamesPage() {
         </div>
 
         {/* 周期切换 */}
-        <div className="flex items-center gap-1 p-0.5 bg-slate-200 rounded-xl text-sm">
-          {[
-            { key: 'all', label: '全部' },
-            { key: 'year', label: '本年' },
-            { key: 'month', label: '本月' },
-          ].map((item) => (
-            <button
-              key={item.key}
-              onClick={() => setPeriod(item.key)}
-              className={`min-h-9 px-2 py-1 rounded-lg font-medium transition ${
-                period === item.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-          {availableMonths.length > 0 && (
-            <select
-              aria-label="选择月份"
-              value={/^\d{4}-\d{2}$/.test(period) ? period : ''}
-              onChange={(e) => e.target.value && setPeriod(e.target.value)}
-              className={`min-h-9 py-1 px-1.5 text-sm font-medium rounded-lg border-none focus:outline-none transition ${
-                /^\d{4}-\d{2}$/.test(period)
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'bg-transparent text-slate-600'
-              }`}
-            >
-              <option value="">月份…</option>
-              {availableMonths.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
+        <PeriodFilterBar value={filter} onChange={setFilter} />
       </div>
 
       {/* 场次列表 */}

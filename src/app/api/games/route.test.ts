@@ -172,6 +172,51 @@ describe('GET /api/games', () => {
     expect(mocks.query).not.toHaveBeenCalled();
   });
 
+  it('from/to 与 period 同时提供返回 400', async () => {
+    const res = await callGet('?period=all&from=2025-03-01&to=2025-03-10');
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: '时间段参数冲突：不可同时指定 period 与起止日期' });
+    expect(mocks.query).not.toHaveBeenCalled();
+  });
+
+  it('from/to 缺一返回 400', async () => {
+    const res = await callGet('?from=2025-03-01');
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: '自定义时间段需要同时提供开始与结束日期' });
+    expect(mocks.query).not.toHaveBeenCalled();
+  });
+
+  it('自定义日期区间合法时按区间查询', async () => {
+    mocks.query.mockImplementation((sql: string) => {
+      if (/page_games/.test(sql)) {
+        return Promise.resolve({ rows: [], rowCount: 0 });
+      }
+      if (/total_room_fee/.test(sql)) {
+        return Promise.resolve({
+          rows: [{ total_games: '3', total_room_fee: '300' }],
+          rowCount: 1,
+        });
+      }
+      throw new Error(`未预期的 SQL: ${sql}`);
+    });
+
+    const res = await callGet('?from=2025-03-01&to=2025-03-10&limit=50&offset=0');
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.games).toEqual([]);
+    // 区间过滤参数：2025-03-01 00:00+08 ~ 2025-03-11 00:00+08，后接 limit/offset
+    expect(mocks.query).toHaveBeenCalledWith(
+      expect.stringContaining('page_games'),
+      expect.arrayContaining([
+        new Date('2025-02-28T16:00:00.000Z'),
+        new Date('2025-03-10T16:00:00.000Z'),
+      ]),
+    );
+  });
+
   it('合法 period 返回分页流水与全量汇总', async () => {
     mocks.query.mockImplementation((sql: string) => {
       if (/page_games/.test(sql)) {

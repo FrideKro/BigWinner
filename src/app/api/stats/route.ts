@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { buildPeriodFilter, isValidPeriod } from '@/lib/gameLogic';
+import { buildPeriodFilter, buildTimeFilter } from '@/lib/gameLogic';
 import { withAuth } from '../_lib/handler';
 import {
   buildPersonalTrend,
@@ -13,48 +13,35 @@ import {
 export const GET = withAuth(
   async (req, user) => {
     const { searchParams } = new URL(req.url);
-    const period = searchParams.get('period') || 'all';
-    if (!isValidPeriod(period)) {
-      return NextResponse.json({ error: '时间段参数无效' }, { status: 400 });
+    // 时间过滤：period 或自定义日期区间 from/to 二选一，非法一律 400
+    const periodParam = searchParams.get('period');
+    const timeFilter = buildTimeFilter(
+      periodParam,
+      searchParams.get('from'),
+      searchParams.get('to'),
+    );
+    if (timeFilter.error) {
+      return NextResponse.json({ error: timeFilter.error }, { status: 400 });
     }
+    const { clause, params } = timeFilter;
+    // 无 from/to 时 period 已由 buildTimeFilter 校验合法，此处仅用于汇总复用判断
+    const period = periodParam || 'all';
+    const isBuiltinPeriod = period === 'all' || period === 'year' || period === 'month';
     const rawUserId = searchParams.get('userId');
     const targetUserId = rawUserId ? parseInt(rawUserId, 10) : user.id;
     if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
       return NextResponse.json({ error: '无效的玩家 ID' }, { status: 400 });
     }
 
-    // scope：months=仅月度明细（流水页取月份列表）；board=概览+总榜（首页，省去个人明细查询与大 payload）；
+    // scope：board=概览+总榜（首页，省去个人明细查询与大 payload）；
     // full=完整数据（看板页，缺省值），保持向后兼容
     const rawScope = searchParams.get('scope') || '';
-    const scope = rawScope === 'board' || rawScope === 'months' ? rawScope : 'full';
-
-    const { clause, params } = buildPeriodFilter(period, 1);
-
-    // 月度明细只依赖全量 games，与周期过滤无关；scope=months 时单独返回
-    if (scope === 'months') {
-      const monthlyFeeRes = await query<{
-        month: string;
-        games_count: string;
-        total_room_fee: string;
-      }>(
-        `SELECT TO_CHAR(played_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM') AS month,
-                COUNT(*)::text AS games_count,
-                COALESCE(SUM(room_fee), 0)::text AS total_room_fee
-         FROM games
-         GROUP BY 1
-         ORDER BY 1 DESC
-         LIMIT 36`,
-      );
-      return NextResponse.json({
-        summary: { availableMonths: monthlyFeeRes.rows.map((m) => m.month) },
-      });
-    }
+    const scope = rawScope === 'board' ? rawScope : 'full';
 
     const { params: yearRange } = buildPeriodFilter('year', 1);
     const { params: monthRange } = buildPeriodFilter('month', 3);
 
     const personalParams = [...params, targetUserId];
-    const isBuiltinPeriod = period === 'all' || period === 'year' || period === 'month';
 
     // 查询相互独立，全部并行执行；
     // period 为 all/year/month 时直接复用 globalRoomFeeRes 的聚合结果，省去第 1 项查询；
@@ -196,7 +183,7 @@ export const GET = withAuth(
 
     return NextResponse.json({
       summary: {
-        period,
+        period: isBuiltinPeriod ? period : 'custom',
         totalGames,
         totalRoomFee,
         avgRoomFee: totalGames > 0 ? Math.round(totalRoomFee / totalGames) : 0,
@@ -206,7 +193,6 @@ export const GET = withAuth(
         thisYearRoomFee,
         thisMonthGames,
         thisMonthRoomFee,
-        availableMonths: monthlyRoomFees.map((m) => m.month),
       },
       leaderboard,
       monthlyRoomFees,

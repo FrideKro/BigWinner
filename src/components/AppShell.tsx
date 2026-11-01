@@ -15,6 +15,11 @@ import dynamic from 'next/dynamic';
 import { Trophy, ListOrdered, BarChart3, User, Plus } from 'lucide-react';
 import { LogoMark } from './LogoMark';
 import { Toast } from './Toast';
+import {
+  parseStoredPeriodFilter,
+  PERIOD_FILTER_STORAGE_KEY,
+  type PeriodFilterValue,
+} from './PeriodFilterBar';
 import { apiGet, invalidateApiCache, isAbortError } from '@/lib/apiClient';
 import {
   avatarMapFromCache,
@@ -74,6 +79,9 @@ interface AppContextValue {
   defaultRoomFee: number;
   /** 普通玩家是否允许账号密码登录（管理员始终可登录） */
   passwordLoginEnabled: boolean;
+  /** 时间周期筛选（总榜/流水/看板共享，会话内记忆：切页与刷新均保持） */
+  periodFilter: PeriodFilterValue;
+  setPeriodFilter: (value: PeriodFilterValue) => void;
   showToast: (message: string) => void;
 }
 
@@ -88,6 +96,8 @@ const AppContext = createContext<AppContextValue>({
   getAvatarImage: () => null,
   defaultRoomFee: 100,
   passwordLoginEnabled: false,
+  periodFilter: { kind: 'all' },
+  setPeriodFilter: () => {},
   showToast: () => {},
 });
 
@@ -105,6 +115,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   // 网络异常 / 服务端不可用标记：此时不清空登录态、不误跳登录页
   const [offline, setOffline] = useState(false);
+
+  // 时间周期筛选：总榜/流水/看板共享同一份，切换页面与刷新后保持（会话级 sessionStorage）
+  const [periodFilter, setPeriodFilterState] = useState<PeriodFilterValue>(() => {
+    try {
+      if (typeof window === 'undefined') return { kind: 'all' };
+      return parseStoredPeriodFilter(sessionStorage.getItem(PERIOD_FILTER_STORAGE_KEY));
+    } catch {
+      return { kind: 'all' };
+    }
+  });
+
+  const setPeriodFilter = useCallback((value: PeriodFilterValue) => {
+    setPeriodFilterState(value);
+    try {
+      sessionStorage.setItem(PERIOD_FILTER_STORAGE_KEY, JSON.stringify(value));
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   // 全局记账弹窗控制
   const [editorOpen, setEditorOpen] = useState(false);
@@ -368,6 +397,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       getAvatarImage,
       defaultRoomFee,
       passwordLoginEnabled,
+      periodFilter,
+      setPeriodFilter,
       showToast,
     }),
     [
@@ -381,6 +412,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       getAvatarImage,
       defaultRoomFee,
       passwordLoginEnabled,
+      periodFilter,
+      setPeriodFilter,
       showToast,
     ],
   );

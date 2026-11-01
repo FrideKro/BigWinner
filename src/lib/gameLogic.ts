@@ -136,6 +136,39 @@ export function isValidPeriod(period: string): boolean {
   );
 }
 
+// 列表/统计接口统一的时间过滤参数解析：period（all/year/month/YYYY/YYYY-MM）与
+// 自定义日期区间 from/to（YYYY-MM-DD，上海时区自然日，含结束当天）二选一。
+// 返回 error 时调用方必须转 400（非法输入不静默退化为全部数据）
+export function buildTimeFilter(
+  period: string | null,
+  from: string | null,
+  to: string | null,
+): { error: string; clause: string; params: unknown[] } {
+  const hasRange = from !== null || to !== null;
+  if (hasRange) {
+    if (period) {
+      return {
+        error: '时间段参数冲突：不可同时指定 period 与起止日期',
+        clause: '',
+        params: [],
+      };
+    }
+    if (!from || !to) {
+      return { error: '自定义时间段需要同时提供开始与结束日期', clause: '', params: [] };
+    }
+    const range = buildDateRangeFilter(from, to, 1);
+    if (!range) {
+      return { error: '自定义时间段日期无效', clause: '', params: [] };
+    }
+    return { ...range, error: '' };
+  }
+  const p = period || 'all';
+  if (!isValidPeriod(p)) {
+    return { error: '时间段参数无效', clause: '', params: [] };
+  }
+  return { ...buildPeriodFilter(p, 1), error: '' };
+}
+
 // 开局时间合理区间（上海时区 2000-01-01 ~ 2100-01-01）：
 // 防误输入的远古/远期时间污染统计，返回中文错误或 null
 export function validatePlayedAt(date: Date): string | null {

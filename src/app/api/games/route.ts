@@ -1,11 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query, withTransaction } from '@/lib/db';
-import {
-  validateAndComputeRecords,
-  buildPeriodFilter,
-  isValidPeriod,
-  validatePlayedAt,
-} from '@/lib/gameLogic';
+import { validateAndComputeRecords, buildTimeFilter, validatePlayedAt } from '@/lib/gameLogic';
 import { validateGameNote } from '@/lib/profileValidation';
 import { withAuth, parseJsonBody } from '../_lib/handler';
 import { assertRecordsUsersExist } from '../_lib/shared';
@@ -13,10 +8,16 @@ import { assertRecordsUsersExist } from '../_lib/shared';
 export const GET = withAuth(
   async (req) => {
     const { searchParams } = new URL(req.url);
-    const period = searchParams.get('period') || 'all';
-    if (!isValidPeriod(period)) {
-      return NextResponse.json({ error: '时间段参数无效' }, { status: 400 });
+    // 时间过滤：period 或自定义日期区间 from/to 二选一，非法一律 400
+    const timeFilter = buildTimeFilter(
+      searchParams.get('period'),
+      searchParams.get('from'),
+      searchParams.get('to'),
+    );
+    if (timeFilter.error) {
+      return NextResponse.json({ error: timeFilter.error }, { status: 400 });
     }
+    const { clause, params } = timeFilter;
     // userId 过滤口径与 /api/stats 一致：传了就必须是正整数，非法一律 400
     let userIdFilter: number | null = null;
     if (searchParams.get('userId')) {
@@ -32,7 +33,6 @@ export const GET = withAuth(
     const rawOffset = parseInt(searchParams.get('offset') || '0', 10);
     const offset = Number.isInteger(rawOffset) ? Math.max(rawOffset, 0) : 0;
 
-    const { clause, params } = buildPeriodFilter(period, 1);
     const queryParams: unknown[] = [...params];
     let userFilterClause = '';
 
