@@ -3,13 +3,14 @@ import { query, withTransaction } from '@/lib/db';
 import { validateAndComputeRecords, validatePlayedAt } from '@/lib/gameLogic';
 import { validateGameNote } from '@/lib/profileValidation';
 import { withAuth, parseJsonBody, ApiError } from '../../_lib/handler';
+import { parsePositiveInt } from '../../_lib/params';
 import { assertRecordsUsersExist } from '../../_lib/shared';
 
 export const PUT = withAuth<{ id: string }>(
   async (req, _user, { params }) => {
     const { id } = await params;
-    const gameId = parseInt(id, 10);
-    if (Number.isNaN(gameId)) {
+    const gameId = parsePositiveInt(id);
+    if (gameId === null) {
       return NextResponse.json({ error: '无效的场次 ID' }, { status: 400 });
     }
 
@@ -83,8 +84,8 @@ export const PUT = withAuth<{ id: string }>(
 export const DELETE = withAuth<{ id: string }>(
   async (_req, _user, { params }) => {
     const { id } = await params;
-    const gameId = parseInt(id, 10);
-    if (Number.isNaN(gameId)) {
+    const gameId = parsePositiveInt(id);
+    if (gameId === null) {
       return NextResponse.json({ error: '无效的场次 ID' }, { status: 400 });
     }
 

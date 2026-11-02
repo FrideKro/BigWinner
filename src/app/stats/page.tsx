@@ -6,6 +6,7 @@ import { useApp } from '@/components/AppShell';
 import { PlayerAvatar } from '@/components/PlayerAvatar';
 import { TrendChart, TrendPoint } from '@/components/TrendChart';
 import { ErrorState } from '@/components/ErrorState';
+import { InlineErrorBanner } from '@/components/InlineErrorBanner';
 import { PeriodFilterBar, periodFilterQuery } from '@/components/PeriodFilterBar';
 import { formatSignedAmount, getAmountColorClass, formatDateTime } from '@/lib/format';
 import { apiGet, isAbortError } from '@/lib/apiClient';
@@ -154,8 +155,10 @@ function StatsContent() {
 
       if (showSkeleton) {
         setLoading(true);
-        // 切换玩家/周期时旧面板不再适用，清空后展示骨架
+        // 切换玩家/周期时旧面板不再适用，清空后展示骨架；
+        // 顺带清掉旧错误，避免 ErrorState 抢占新请求的骨架
         setPersonalStats(null);
+        setError('');
       }
 
       try {
@@ -276,20 +279,7 @@ function StatsContent() {
             <StatsSkeleton />
           ) : (
             <>
-              {error && (
-                <div
-                  role="alert"
-                  className="flex items-center justify-between gap-2 rounded-2xl bg-rose-50 px-3 py-2 text-sm text-rose-700"
-                >
-                  <span className="truncate">刷新失败，显示上次数据</span>
-                  <button
-                    onClick={() => fetchStats(true, false)}
-                    className="shrink-0 min-h-9 px-2 font-medium underline"
-                  >
-                    重试
-                  </button>
-                </div>
-              )}
+              {error && <InlineErrorBanner onRetry={() => fetchStats(true, false)} />}
 
               {/* 宽屏下面板与走势图并排，窄屏纵向堆叠 */}
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:items-start">

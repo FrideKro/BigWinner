@@ -6,11 +6,16 @@ const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
   query: vi.fn(),
   generateToken: vi.fn(),
+  generateRandomPassword: vi.fn(),
   hash: vi.fn(),
   hashToken: vi.fn(),
 }));
 
-vi.mock('@/lib/auth', () => ({ getCurrentUser: mocks.getCurrentUser, hashToken: mocks.hashToken }));
+vi.mock('@/lib/auth', () => ({
+  getCurrentUser: mocks.getCurrentUser,
+  hashToken: mocks.hashToken,
+  generateRandomPassword: mocks.generateRandomPassword,
+}));
 vi.mock('@/lib/db', () => ({
   query: mocks.query,
   generateToken: mocks.generateToken,
@@ -80,10 +85,12 @@ describe('PATCH /api/users/[id]', () => {
     mocks.getCurrentUser.mockReset();
     mocks.query.mockReset();
     mocks.generateToken.mockReset();
+    mocks.generateRandomPassword.mockReset();
     mocks.hash.mockReset();
     mocks.hashToken.mockReset();
     mocks.getCurrentUser.mockResolvedValue(adminUser);
     mocks.generateToken.mockReturnValue('new-bind-token');
+    mocks.generateRandomPassword.mockReturnValue('Xy7kPq2mNv4R');
     mocks.hashToken.mockReturnValue('hashed-current-token');
     mocks.hash.mockResolvedValue('$2a$10$newhash');
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -182,6 +189,48 @@ describe('PATCH /api/users/[id]', () => {
       expect.stringMatching(/DELETE FROM user_devices WHERE user_id = \$1$/),
       [2],
     );
+  });
+
+  it('resetPassword=true 时服务端生成随机密码，仅在响应中返回一次并轮换链接/下线设备', async () => {
+    mockSql([
+      { match: /UPDATE users SET bind_token/, result: { rows: [], rowCount: 1 } },
+      { match: /UPDATE users SET password_hash/, result: { rows: [], rowCount: 1 } },
+      { match: /DELETE FROM user_devices WHERE user_id = \$1$/, result: { rows: [], rowCount: 2 } },
+      { match: /SET username = COALESCE/, result: updatedUserRow() },
+    ]);
+
+    const res = await callPatch(2, { resetPassword: true });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    // 随机密码只在重置响应里出现一次，且哈希的是生成值而非任何客户端传值
+    expect(body.newPassword).toBe('Xy7kPq2mNv4R');
+    expect(mocks.generateRandomPassword).toHaveBeenCalledTimes(1);
+    expect(mocks.hash).toHaveBeenCalledWith('Xy7kPq2mNv4R', 10);
+    // 密码变更同路径：轮换 bind_token 并下线目标玩家设备
+    expect(mocks.generateToken).toHaveBeenCalledTimes(1);
+    expect(mocks.query).toHaveBeenCalledWith(
+      expect.stringMatching(/DELETE FROM user_devices WHERE user_id = \$1$/),
+      [2],
+    );
+  });
+
+  it('resetPassword 传非布尔值返回 400，不进入事务', async () => {
+    const res = await callPatch(2, { resetPassword: 'yes' });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'resetPassword 参数无效' });
+    expect(mocks.query).not.toHaveBeenCalled();
+  });
+
+  it('路径 id 非纯数字返回 400（严格解析，不截断 "2abc"）', async () => {
+    const res = await PATCH(patchReq('2abc' as unknown as number, { nickname: '改名' }), {
+      params: Promise.resolve({ id: '2abc' }),
+    });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: '无效的玩家 ID' });
+    expect(mocks.query).not.toHaveBeenCalled();
   });
 
   it('管理员为玩家设置头像图片：显式 SET avatar_image 并递增版本号', async () => {

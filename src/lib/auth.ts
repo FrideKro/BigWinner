@@ -1,5 +1,5 @@
 import { cookies, headers } from 'next/headers';
-import { createHash } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { NextResponse } from 'next/server';
 import { query, generateToken } from './db';
 
@@ -17,6 +17,18 @@ function isCookieSecure(): boolean {
 // 设备 Token 入库前先做 SHA-256：数据库泄露时无法从库中还原出可用会话凭据
 export function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
+}
+
+// 可读的随机密码（默认 12 位，去除 0/o/1/l/I 等易混淆字符）：
+// 管理员重置密码时由服务端生成，仅在响应中返回一次，不落日志
+const PASSWORD_ALPHABET = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+export function generateRandomPassword(length = 12): string {
+  const bytes = randomBytes(length);
+  let password = '';
+  for (let i = 0; i < length; i++) {
+    password += PASSWORD_ALPHABET[bytes[i] % PASSWORD_ALPHABET.length];
+  }
+  return password;
 }
 
 export interface AuthUser {

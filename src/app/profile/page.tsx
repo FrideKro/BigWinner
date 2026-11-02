@@ -4,14 +4,16 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '@/components/AppShell';
 import { PlayerAvatar } from '@/components/PlayerAvatar';
 import { AvatarImagePicker } from '@/components/AvatarImagePicker';
+import { AvatarThemePicker } from '@/components/AvatarThemePicker';
 import { PasswordInput } from '@/components/PasswordInput';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { CopyFallbackModal } from '@/components/CopyFallbackModal';
-import { AVATAR_THEMES } from '@/lib/format';
+import { validatePassword } from '@/lib/profileValidation';
 import { apiMutate } from '@/lib/apiClient';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import { useCopyText } from '@/lib/useCopyText';
 import { useFocusTrap } from '@/lib/useFocusTrap';
+import { useTimeout } from '@/lib/useTimeout';
 import {
   User,
   KeyRound,
@@ -82,12 +84,15 @@ export default function ProfilePage() {
   const [tab, setTab] = useState<'personal' | 'admin'>('personal');
   const [copiedTokenId, setCopiedTokenId] = useState<number | null>(null);
   const { copy, fallback, clearFallback } = useCopyText();
+  // 两处独立的「延时复位」状态各用一个实例，避免相互覆盖（卸载自动清理）
+  const scheduleProfileMsgClear = useTimeout();
+  const scheduleCopiedTokenClear = useTimeout();
 
   // 新增玩家弹窗
   const [showAddUser, setShowAddUser] = useState(false);
   const [newUsername, setNewUsername] = useState('');
   const [newNickname, setNewNickname] = useState('');
-  const [newInitPassword, setNewInitPassword] = useState('123456');
+  const [newInitPassword, setNewInitPassword] = useState('');
   const [newRole, setNewRole] = useState<'PLAYER' | 'ADMIN'>('PLAYER');
   const [newColor, setNewColor] = useState('red');
   const [addSaving, setAddSaving] = useState(false);
@@ -107,13 +112,20 @@ export default function ProfilePage() {
   // 通用确认弹层
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
+  // 重置密码结果：随机密码仅在重置响应中出现一次，弹层展示给管理员复制
+  const [resetResult, setResetResult] = useState<{ nickname: string; password: string } | null>(
+    null,
+  );
 
   const editDialogRef = useRef<HTMLDivElement>(null);
   const addDialogRef = useRef<HTMLDivElement>(null);
+  const resetDialogRef = useRef<HTMLDivElement>(null);
   useBodyScrollLock(Boolean(editingUser));
   useFocusTrap(Boolean(editingUser), editDialogRef);
   useBodyScrollLock(showAddUser);
   useFocusTrap(showAddUser, addDialogRef);
+  useBodyScrollLock(Boolean(resetResult));
+  useFocusTrap(Boolean(resetResult), resetDialogRef);
 
   // 玩家列表直接复用 AppShell 的 bootstrap 数据，不再单独请求
   const managedUsers = useMemo<ManagedUser[]>(() => {
@@ -196,7 +208,7 @@ export default function ProfilePage() {
       setCurrentPassword('');
       setNewPassword('');
       await refreshUser();
-      setTimeout(() => setProfileMsg(''), 3000);
+      scheduleProfileMsgClear(() => setProfileMsg(''), 3000);
     } catch (err) {
       setProfileErr(err instanceof Error ? err.message : '保存失败');
     } finally {
@@ -247,7 +259,7 @@ export default function ProfilePage() {
     const ok = await copy(url);
     if (ok) {
       setCopiedTokenId(u.id);
-      setTimeout(() => setCopiedTokenId(null), 2500);
+      scheduleCopiedTokenClear(() => setCopiedTokenId(null), 2500);
     } else {
       showToast('复制失败，请长按选择文本');
     }
@@ -273,12 +285,17 @@ export default function ProfilePage() {
   function handleResetPassword(u: ManagedUser) {
     setConfirmState({
       title: `重置【${u.nickname}】的密码？`,
-      message: '密码将重置为 "123456"，其所有已绑定设备会被下线，需重新登录。',
+      message: '将为其生成新的随机密码，并下线所有已绑定设备，需重新登录。',
       confirmText: '重置密码',
       danger: true,
       action: async () => {
-        await apiMutate(`/api/users/${u.id}`, 'PATCH', { password: '123456' });
-        showToast(`已将 ${u.nickname} 的密码重置为 123456`);
+        const res = await apiMutate<{ newPassword?: string }>(`/api/users/${u.id}`, 'PATCH', {
+          resetPassword: true,
+        });
+        // 随机密码只在此响应中出现一次，立即弹出复制弹层
+        if (res.newPassword) {
+          setResetResult({ nickname: u.nickname, password: res.newPassword });
+        }
         await refreshUser();
       },
     });
@@ -368,6 +385,12 @@ export default function ProfilePage() {
       setAddErr('请填写用户名和昵称');
       return;
     }
+    // 与服务端同口径：初始密码必填（4~72 位），不再有弱默认值
+    const passwordError = validatePassword(newInitPassword, '初始密码');
+    if (passwordError) {
+      setAddErr(passwordError);
+      return;
+    }
     setAddSaving(true);
     try {
       await apiMutate('/api/users', 'POST', {
@@ -380,7 +403,7 @@ export default function ProfilePage() {
       setShowAddUser(false);
       setNewUsername('');
       setNewNickname('');
-      setNewInitPassword('123456');
+      setNewInitPassword('');
       showToast('玩家账号已创建');
       await refreshUser();
     } catch (err) {
@@ -477,24 +500,11 @@ export default function ProfilePage() {
 
             <div>
               <span className="text-sm text-slate-500 mb-1.5 block">头像主题色</span>
-              <div className="flex flex-wrap gap-2">
-                {AVATAR_THEMES.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setAvatarColor(t.id)}
-                    aria-label={t.label}
-                    aria-pressed={avatarColor === t.id}
-                    className={`w-11 h-11 rounded-full ${t.bg} flex items-center justify-center transition ${
-                      avatarColor === t.id
-                        ? 'ring-2 ring-slate-900 ring-offset-2 scale-105'
-                        : 'opacity-70'
-                    }`}
-                  >
-                    {avatarColor === t.id && <Check size={18} className="text-white drop-shadow" />}
-                  </button>
-                ))}
-              </div>
+              <AvatarThemePicker
+                value={avatarColor}
+                onChange={setAvatarColor}
+                inactiveClassName="opacity-70"
+              />
             </div>
 
             <div className="pt-2 border-t border-slate-100 space-y-2">
@@ -824,24 +834,7 @@ export default function ProfilePage() {
 
               <div>
                 <span className="text-sm text-slate-500 mb-1.5 block">头像配色</span>
-                <div className="flex flex-wrap gap-2">
-                  {AVATAR_THEMES.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setEditColor(t.id)}
-                      aria-label={t.label}
-                      aria-pressed={editColor === t.id}
-                      className={`w-11 h-11 rounded-full ${t.bg} flex items-center justify-center transition ${
-                        editColor === t.id
-                          ? 'ring-2 ring-slate-900 ring-offset-2 scale-105'
-                          : 'opacity-60'
-                      }`}
-                    >
-                      {editColor === t.id && <Check size={18} className="text-white drop-shadow" />}
-                    </button>
-                  ))}
-                </div>
+                <AvatarThemePicker value={editColor} onChange={setEditColor} />
               </div>
 
               <div>
@@ -986,37 +979,21 @@ export default function ProfilePage() {
 
               <div>
                 <label htmlFor="add-password" className="text-sm text-slate-500 mb-1 block">
-                  初始密码（默认 123456）
+                  初始密码（4 ~ 72 位）
                 </label>
                 <PasswordInput
                   id="add-password"
                   value={newInitPassword}
                   onChange={setNewInitPassword}
                   autoComplete="new-password"
+                  placeholder="必填，用于密码登录或管理员重置"
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
                 />
               </div>
 
               <div>
                 <span className="text-sm text-slate-500 mb-1.5 block">头像配色</span>
-                <div className="flex flex-wrap gap-2">
-                  {AVATAR_THEMES.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setNewColor(t.id)}
-                      aria-label={t.label}
-                      aria-pressed={newColor === t.id}
-                      className={`w-11 h-11 rounded-full ${t.bg} flex items-center justify-center transition ${
-                        newColor === t.id
-                          ? 'ring-2 ring-slate-900 ring-offset-2 scale-105'
-                          : 'opacity-60'
-                      }`}
-                    >
-                      {newColor === t.id && <Check size={18} className="text-white drop-shadow" />}
-                    </button>
-                  ))}
-                </div>
+                <AvatarThemePicker value={newColor} onChange={setNewColor} />
               </div>
 
               <div>
@@ -1072,6 +1049,51 @@ export default function ProfilePage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 重置密码结果弹层：随机密码仅展示一次，关闭后不可再查看 */}
+      {resetResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div
+            ref={resetDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reset-password-title"
+            tabIndex={-1}
+            className="relative w-full max-w-sm md:max-w-md bg-white rounded-3xl p-5 shadow-2xl space-y-4 outline-none pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+          >
+            <h3 id="reset-password-title" className="text-base font-medium text-slate-900">
+              已重置【{resetResult.nickname}】的密码
+            </h3>
+            <p className="text-sm text-slate-600">
+              请立即复制并转告玩家。关闭后无法再次查看，只能重新重置。
+            </p>
+            <div className="px-3 py-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
+              <span className="text-lg font-medium tracking-widest tabular-nums break-all select-all">
+                {resetResult.password}
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  if (await copy(resetResult.password)) showToast('密码已复制');
+                }}
+                className="flex-1 min-h-11 rounded-xl bg-slate-900 text-white text-sm font-medium"
+              >
+                复制密码
+              </button>
+              <button
+                type="button"
+                onClick={() => setResetResult(null)}
+                className="flex-1 min-h-11 rounded-xl bg-slate-100 text-slate-600 text-sm font-medium"
+              >
+                我已复制，关闭
+              </button>
+            </div>
           </div>
         </div>
       )}

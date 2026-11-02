@@ -18,7 +18,8 @@ export const POST = withAuth(
     const body = await parseJsonBody(req);
     const username = String(body.username || '').trim();
     const nickname = String(body.nickname || '').trim();
-    const password = String(body.password || '123456');
+    // 初始密码必填：弱默认密码在「玩家密码登录」开启后可被轻易猜中
+    const password = String(body.password || '');
     const role = body.role === 'ADMIN' ? 'ADMIN' : 'PLAYER';
     const avatarColor = String(body.avatarColor || 'red').trim();
     // isActive 仅接受布尔：Boolean("false") === true 的强转会让停用静默变成启用
@@ -39,6 +40,9 @@ export const POST = withAuth(
       return NextResponse.json({ error: lengthError }, { status: 400 });
     }
 
+    if (!password) {
+      return NextResponse.json({ error: '请填写初始密码' }, { status: 400 });
+    }
     const passwordError = validatePassword(password, '初始密码');
     if (passwordError) {
       return NextResponse.json({ error: passwordError }, { status: 400 });

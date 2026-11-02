@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { withAuth } from '../../../_lib/handler';
+import { parsePositiveInt } from '../../../_lib/params';
 
 // 单个玩家的自定义头像取数：bootstrap 的 players 只下发 avatar_version（小整数），
 // 客户端本地缓存（localStorage）版本一致时零请求，不一致才按需取此接口拉新 data URL。
@@ -9,8 +10,8 @@ import { withAuth } from '../../../_lib/handler';
 export const GET = withAuth<{ id: string }>(
   async (_req, _user, { params }) => {
     const { id } = await params;
-    const targetId = parseInt(id, 10);
-    if (Number.isNaN(targetId) || targetId <= 0) {
+    const targetId = parsePositiveInt(id);
+    if (targetId === null) {
       return NextResponse.json({ error: '无效的玩家 ID' }, { status: 400 });
     }
 

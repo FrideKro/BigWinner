@@ -8,14 +8,13 @@ import {
   recordFailure,
 } from '@/lib/rateLimit';
 import { buildPersonalTrend, mapLeaderboardRows, pickPlayerSummary } from '../../_lib/statsAgg';
+import { parseNonNegativeInt, parsePositiveInt } from '../../_lib/params';
+import { queryLeaderboard, queryMonthlyFees, queryPersonalHistory } from '../../_lib/statsQueries';
 import {
   fetchShareByCode,
   mapShareGameRows,
   queryShareAvatars,
   queryShareGamesPage,
-  queryShareLeaderboard,
-  queryShareMonthlyFees,
-  querySharePersonalHistory,
   queryShareSummary,
   sharePeriodLabel,
 } from '../../_lib/shareData';
@@ -125,7 +124,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ code: s
     if (rawTab === 'board') {
       const [summary, leaderboardRes] = await Promise.all([
         queryShareSummary(clause, params),
-        queryShareLeaderboard(clause, params),
+        queryLeaderboard(clause, params),
       ]);
       // 已设置自定义头像的玩家（免登录页按 userId 解析，未设置的落字母主题色头像）
       const avatars = await queryShareAvatars(leaderboardRes.rows.map((r) => r.user_id));
@@ -139,10 +138,8 @@ export async function GET(req: NextRequest, context: { params: Promise<{ code: s
     }
 
     if (rawTab === 'games') {
-      const rawOffset = parseInt(searchParams.get('offset') || '0', 10);
-      const offset = Number.isInteger(rawOffset)
-        ? Math.min(Math.max(rawOffset, 0), GAMES_MAX_OFFSET)
-        : 0;
+      const parsedOffset = parseNonNegativeInt(searchParams.get('offset'));
+      const offset = parsedOffset !== null ? Math.min(parsedOffset, GAMES_MAX_OFFSET) : 0;
       const gamesRes = await queryShareGamesPage(clause, params, GAMES_PAGE_SIZE + 1, offset);
       // 页裁剪按「超出页大小」判断；hasMore 额外要求未到达 offset 钳位上限——
       // 到达上限后再往后翻页 offset 会被钳回同一页，继续标记会让「加载更多」
@@ -165,8 +162,8 @@ export async function GET(req: NextRequest, context: { params: Promise<{ code: s
     const rawUserId = searchParams.get('userId');
     let requestedUserId: number | null = null;
     if (rawUserId !== null) {
-      const parsed = parseInt(rawUserId, 10);
-      if (!Number.isInteger(parsed) || parsed <= 0) {
+      const parsed = parsePositiveInt(rawUserId);
+      if (parsed === null) {
         return jsonError(400, '无效的玩家 ID');
       }
       requestedUserId = parsed;
@@ -174,8 +171,8 @@ export async function GET(req: NextRequest, context: { params: Promise<{ code: s
 
     const [summary, leaderboardRes, monthlyRes] = await Promise.all([
       queryShareSummary(clause, params),
-      queryShareLeaderboard(clause, params),
-      queryShareMonthlyFees(clause, params),
+      queryLeaderboard(clause, params),
+      queryMonthlyFees(clause, params),
     ]);
 
     const leaderboard = mapLeaderboardRows(leaderboardRes.rows);
@@ -186,7 +183,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ code: s
 
     const [personalStatsResult, avatars] = await Promise.all([
       targetUserId !== null
-        ? querySharePersonalHistory(clause, params, targetUserId)
+        ? queryPersonalHistory(clause, params, targetUserId)
         : Promise.resolve(null),
       queryShareAvatars(leaderboard.map((p) => p.userId)),
     ]);

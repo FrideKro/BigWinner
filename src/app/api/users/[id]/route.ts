@@ -1,19 +1,20 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { withTransaction, generateToken } from '@/lib/db';
-import { hashToken } from '@/lib/auth';
+import { generateRandomPassword, hashToken } from '@/lib/auth';
 import {
   validatePassword,
   validateProfileLengths,
   validateAvatarImage,
 } from '@/lib/profileValidation';
 import { withAuth, parseJsonBody, ApiError } from '../../_lib/handler';
+import { parsePositiveInt } from '../../_lib/params';
 
 export const PATCH = withAuth<{ id: string }>(
   async (req, user, { params }) => {
     const { id } = await params;
-    const targetId = parseInt(id, 10);
-    if (Number.isNaN(targetId)) {
+    const targetId = parsePositiveInt(id);
+    if (targetId === null) {
       return NextResponse.json({ error: '无效的玩家 ID' }, { status: 400 });
     }
 
@@ -40,6 +41,16 @@ export const PATCH = withAuth<{ id: string }>(
       isActive = body.isActive;
     }
     const newPassword = body.password ? String(body.password) : undefined;
+    // 重置密码：服务端生成随机密码并在响应中一次性返回，避免弱默认密码（如 123456）
+    let resetPassword = false;
+    if (body.resetPassword !== undefined) {
+      if (typeof body.resetPassword !== 'boolean') {
+        return NextResponse.json({ error: 'resetPassword 参数无效' }, { status: 400 });
+      }
+      resetPassword = body.resetPassword;
+    }
+    const resetPasswordValue = resetPassword ? generateRandomPassword() : undefined;
+    const passwordToSet = resetPasswordValue ?? newPassword;
     const regenerateBindToken = Boolean(body.regenerateBindToken);
     const revokeDevices = Boolean(body.revokeDevices);
 
@@ -57,14 +68,14 @@ export const PATCH = withAuth<{ id: string }>(
     if (avatarImageError) {
       return NextResponse.json({ error: avatarImageError }, { status: 400 });
     }
-    if (newPassword !== undefined) {
-      const passwordError = validatePassword(newPassword);
+    if (passwordToSet !== undefined) {
+      const passwordError = validatePassword(passwordToSet);
       if (passwordError) {
         return NextResponse.json({ error: passwordError }, { status: 400 });
       }
     }
 
-    const passwordHash = newPassword !== undefined ? await bcrypt.hash(newPassword, 10) : null;
+    const passwordHash = passwordToSet !== undefined ? await bcrypt.hash(passwordToSet, 10) : null;
     // 重置密码时同步轮换专属绑定链接，确保已外泄的免登链接一并失效
     const newBindToken = regenerateBindToken || Boolean(passwordHash) ? generateToken(24) : null;
 
@@ -200,6 +211,8 @@ export const PATCH = withAuth<{ id: string }>(
         bindToken: u.bind_token,
         createdAt: u.created_at,
       },
+      // 随机密码仅在此响应中出现一次，管理端需立即复制转告
+      ...(resetPasswordValue ? { newPassword: resetPasswordValue } : {}),
     });
   },
   { admin: '仅管理员可修改玩家账号', error: '更新玩家信息失败' },

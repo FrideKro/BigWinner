@@ -58,12 +58,35 @@ describe('POST /api/users', () => {
   });
 
   it('isActive 传非布尔值返回 400，不进入查重', async () => {
-    const res = await POST(postReq({ username: 'p1', nickname: '玩家一', isActive: 'false' }), {
+    const res = await POST(
+      postReq({ username: 'p1', nickname: '玩家一', password: 'abc12345', isActive: 'false' }),
+      {
+        params: Promise.resolve({}),
+      },
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'isActive 参数无效' });
+    expect(mocks.query).not.toHaveBeenCalled();
+  });
+
+  it('未传初始密码返回 400，不进入查重（不再有弱默认密码）', async () => {
+    const res = await POST(postReq({ username: 'p1', nickname: '玩家一' }), {
       params: Promise.resolve({}),
     });
 
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: 'isActive 参数无效' });
+    expect(await res.json()).toEqual({ error: '请填写初始密码' });
+    expect(mocks.query).not.toHaveBeenCalled();
+  });
+
+  it('初始密码过短返回 400，不进入查重', async () => {
+    const res = await POST(postReq({ username: 'p1', nickname: '玩家一', password: 'abc' }), {
+      params: Promise.resolve({}),
+    });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: '初始密码长度至少为 4 位' });
     expect(mocks.query).not.toHaveBeenCalled();
   });
 
@@ -89,7 +112,7 @@ describe('POST /api/users', () => {
       });
     });
 
-    const res = await POST(postReq({ username: 'p1', nickname: '玩家一' }), {
+    const res = await POST(postReq({ username: 'p1', nickname: '玩家一', password: 'abc12345' }), {
       params: Promise.resolve({}),
     });
 

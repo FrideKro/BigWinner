@@ -11,6 +11,7 @@ import { apiGet, apiMutate } from '@/lib/apiClient';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import { useFocusTrap } from '@/lib/useFocusTrap';
 import { useCopyText } from '@/lib/useCopyText';
+import { useTimeout } from '@/lib/useTimeout';
 import { formatDateTime, shareExpiryEndDay } from '@/lib/format';
 
 const SCOPE_OPTIONS = [
@@ -108,6 +109,9 @@ export function ShareModal({ open, onClose }: ShareModalProps) {
   const [deleting, setDeleting] = useState(false);
 
   const { copy, fallback, clearFallback } = useCopyText();
+  // 新建成功按钮与列表项复制按钮的「点亮 2 秒」各用一个实例，卸载自动清理
+  const scheduleCopiedNewClear = useTimeout();
+  const scheduleCopiedIdClear = useTimeout();
   const prevOpenRef = useRef(false);
   const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -245,10 +249,10 @@ export function ShareModal({ open, onClose }: ShareModalProps) {
     if (!ok) return;
     if (itemId !== undefined) {
       setCopiedId(itemId);
-      setTimeout(() => setCopiedId((cur) => (cur === itemId ? null : cur)), 2000);
+      scheduleCopiedIdClear(() => setCopiedId((cur) => (cur === itemId ? null : cur)), 2000);
     } else {
       setCopiedNew(true);
-      setTimeout(() => setCopiedNew(false), 2000);
+      scheduleCopiedNewClear(() => setCopiedNew(false), 2000);
     }
   }
 

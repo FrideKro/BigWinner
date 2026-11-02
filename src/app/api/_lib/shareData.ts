@@ -1,8 +1,8 @@
 // 分享链接数据查询：/api/shares（管理列表）与 /api/s/[code]（免登录查看）共用
-// SQL 口径与 /api/stats、/api/games 保持一致；过滤 clause 由 buildPeriodFilter /
-// buildDateRangeFilter 生成（表别名固定为 g），命中 idx_games_played_at_id
+// 统计类查询（总榜/汇总/月度房费/个人明细）统一走 ./statsQueries 共享层，
+// 保证与 /api/stats 口径一致；本文件只保留分享特有的取数（分享码、头像、对局分页）
 import { query } from '@/lib/db';
-import type { LeaderboardSqlRow, PersonalHistorySqlRow } from './statsAgg';
+import { queryPeriodSummary } from './statsQueries';
 
 export interface ShareRow {
   id: number;
@@ -68,15 +68,9 @@ export async function queryShareAvatars(userIds: number[]): Promise<Record<strin
   return avatars;
 }
 
-/** 时间段内的场次与房费汇总（口径同 /api/stats 的周期汇总） */
+/** 时间段内的场次与房费汇总（SQL 走共享层，这里只做行 → 响应结构映射） */
 export async function queryShareSummary(clause: string, params: unknown[]): Promise<ShareSummary> {
-  const res = await query<{ total_games: string; total_room_fee: string }>(
-    `SELECT COUNT(*)::text AS total_games,
-            COALESCE(SUM(g.room_fee), 0)::text AS total_room_fee
-     FROM games g
-     WHERE 1=1 ${clause}`,
-    params,
-  );
+  const res = await queryPeriodSummary(clause, params);
   const totalGames = parseInt(res.rows[0]?.total_games || '0', 10);
   const totalRoomFee = parseInt(res.rows[0]?.total_room_fee || '0', 10);
   return {
@@ -84,73 +78,6 @@ export async function queryShareSummary(clause: string, params: unknown[]): Prom
     totalRoomFee,
     avgRoomFee: totalGames > 0 ? Math.round(totalRoomFee / totalGames) : 0,
   };
-}
-
-/** 时间段内总榜（SQL 与行序口径同 /api/stats；rank 由 mapLeaderboardRows 按行序生成） */
-export function queryShareLeaderboard(clause: string, params: unknown[]) {
-  return query<LeaderboardSqlRow>(
-    `SELECT u.id AS user_id,
-            u.nickname,
-            u.avatar_color,
-            u.is_active,
-            COUNT(gr.id)::text AS games_played,
-            COALESCE(SUM(gr.amount), 0)::text AS net_amount,
-            COUNT(gr.id) FILTER (WHERE gr.amount > 0)::text AS win_count,
-            COUNT(gr.id) FILTER (WHERE gr.amount = 0)::text AS draw_count,
-            COUNT(gr.id) FILTER (WHERE gr.amount < 0)::text AS loss_count,
-            COUNT(gr.id) FILTER (WHERE gr.is_big_winner = TRUE)::text AS big_winner_count,
-            COALESCE(MAX(gr.amount) FILTER (WHERE gr.amount > 0), 0)::text AS max_win,
-            COALESCE(MIN(gr.amount) FILTER (WHERE gr.amount < 0), 0)::text AS max_loss
-     FROM users u
-     LEFT JOIN (
-       SELECT gr_inner.*
-       FROM game_records gr_inner
-       JOIN games g ON g.id = gr_inner.game_id
-       WHERE 1=1 ${clause}
-     ) gr ON gr.user_id = u.id
-     WHERE u.is_active = TRUE OR gr.id IS NOT NULL
-     GROUP BY u.id
-     ORDER BY (COUNT(gr.id) > 0) DESC,
-              COALESCE(SUM(gr.amount), 0) DESC,
-              COUNT(gr.id) FILTER (WHERE gr.is_big_winner = TRUE) DESC,
-              COUNT(gr.id) DESC,
-              u.id ASC`,
-    params,
-  );
-}
-
-/** 按月聚合的房费明细（仅时间段内月份） */
-export function queryShareMonthlyFees(clause: string, params: unknown[]) {
-  return query<{ month: string; games_count: string; total_room_fee: string }>(
-    `SELECT TO_CHAR(g.played_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM') AS month,
-            COUNT(*)::text AS games_count,
-            COALESCE(SUM(g.room_fee), 0)::text AS total_room_fee
-     FROM games g
-     WHERE 1=1 ${clause}
-     GROUP BY 1
-     ORDER BY 1 DESC`,
-    params,
-  );
-}
-
-/** 指定玩家在时间段内的场次明细（供累计盈亏曲线与连胜连败计算） */
-export function querySharePersonalHistory(clause: string, params: unknown[], userId: number) {
-  const queryParams = [...params, userId];
-  return query<PersonalHistorySqlRow>(
-    `SELECT g.id AS game_id,
-            g.played_at,
-            TO_CHAR(g.played_at AT TIME ZONE 'Asia/Shanghai', 'MM-DD') AS date_label,
-            gr.amount,
-            gr.is_big_winner,
-            g.room_fee,
-            g.note
-     FROM game_records gr
-     JOIN games g ON g.id = gr.game_id
-     WHERE gr.user_id = $${queryParams.length}
-       ${clause}
-     ORDER BY g.played_at ASC, g.id ASC`,
-    queryParams,
-  );
 }
 
 export interface ShareGameRow {

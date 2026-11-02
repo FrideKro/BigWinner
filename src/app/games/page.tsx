@@ -6,6 +6,7 @@ import { useApp } from '@/components/AppShell';
 import { PlayerAvatar } from '@/components/PlayerAvatar';
 import type { GameEditorInitial } from '@/components/GameEditorModal';
 import { ErrorState } from '@/components/ErrorState';
+import { InlineErrorBanner } from '@/components/InlineErrorBanner';
 import { CopyFallbackModal } from '@/components/CopyFallbackModal';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import {
@@ -22,6 +23,7 @@ import {
 import { apiGet, apiMutate, isAbortError } from '@/lib/apiClient';
 import { useCopyText } from '@/lib/useCopyText';
 import { useRefreshOnVisible } from '@/lib/useRefreshOnVisible';
+import { useTimeout } from '@/lib/useTimeout';
 import { Share2, Edit2, Trash2, Check } from 'lucide-react';
 
 const GameEditorModal = dynamic(
@@ -91,6 +93,8 @@ export default function GamesPage() {
   const fetchedFilterRef = useRef<PeriodFilterValue | null>(null);
   const lastVersionRef = useRef(gameSavedVersion);
   const { copy, fallback, clearFallback } = useCopyText();
+  // 复制成功后的点亮状态定时复位（卸载自动清理）
+  const scheduleTimeout = useTimeout();
 
   const fetchGames = useCallback(
     async (reset: boolean, force = false, showSkeleton = reset) => {
@@ -106,6 +110,8 @@ export default function GamesPage() {
         offsetRef.current = 0;
         setGames([]);
         setHasMore(false);
+        // 周期变化后旧错误不再适用，清掉避免 ErrorState 抢占新请求的骨架
+        setError('');
       }
 
       const offset = reset ? 0 : offsetRef.current;
@@ -160,7 +166,7 @@ export default function GamesPage() {
     const ok = await copy(text);
     if (ok) {
       setCopiedId(game.id);
-      setTimeout(() => setCopiedId(null), 2000);
+      scheduleTimeout(() => setCopiedId(null), 2000);
     } else {
       showToast('复制失败，请长按选择文本');
     }
@@ -240,18 +246,10 @@ export default function GamesPage() {
         ) : (
           <>
             {error && (
-              <div
-                role="alert"
-                className="flex items-center justify-between gap-2 rounded-2xl bg-rose-50 px-3 py-2 text-sm text-rose-700 lg:col-span-2"
-              >
-                <span className="truncate">刷新失败，显示上次数据</span>
-                <button
-                  onClick={() => fetchGames(true, true, false)}
-                  className="shrink-0 min-h-9 px-2 font-medium underline"
-                >
-                  重试
-                </button>
-              </div>
+              <InlineErrorBanner
+                onRetry={() => fetchGames(true, true, false)}
+                className="lg:col-span-2"
+              />
             )}
 
             {games.map((game) => {

@@ -10,7 +10,12 @@ vi.mock('./db', () => ({
   generateToken: vi.fn(() => `${'a'.repeat(31)}b`),
 }));
 
-import { createDeviceSession, hashToken, verifyAndExtendDeviceToken } from './auth';
+import {
+  createDeviceSession,
+  generateRandomPassword,
+  hashToken,
+  verifyAndExtendDeviceToken,
+} from './auth';
 
 const PLAIN_TOKEN = 'f'.repeat(64);
 const TOKEN_HASH = hashToken(PLAIN_TOKEN);
@@ -110,5 +115,22 @@ describe('verifyAndExtendDeviceToken', () => {
   it('空 Token 直接返回 null，不触达数据库', async () => {
     expect(await verifyAndExtendDeviceToken('')).toBeNull();
     expect(mocks.query).not.toHaveBeenCalled();
+  });
+});
+
+describe('generateRandomPassword', () => {
+  it('默认生成 12 位密码且只含无歧义字符', () => {
+    const password = generateRandomPassword();
+    expect(password).toHaveLength(12);
+    expect(password).toMatch(/^[a-hj-km-np-zA-HJ-NP-Z2-9]+$/);
+    expect(password).not.toMatch(/[0oO1lI]/);
+  });
+
+  it('每次生成结果不同', () => {
+    expect(generateRandomPassword()).not.toBe(generateRandomPassword());
+  });
+
+  it('支持自定义长度', () => {
+    expect(generateRandomPassword(24)).toHaveLength(24);
   });
 });

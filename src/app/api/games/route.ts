@@ -3,6 +3,7 @@ import { query, withTransaction } from '@/lib/db';
 import { validateAndComputeRecords, buildTimeFilter, validatePlayedAt } from '@/lib/gameLogic';
 import { validateGameNote } from '@/lib/profileValidation';
 import { withAuth, parseJsonBody } from '../_lib/handler';
+import { parseNonNegativeInt, parsePositiveInt } from '../_lib/params';
 import { assertRecordsUsersExist } from '../_lib/shared';
 
 export const GET = withAuth(
@@ -20,18 +21,20 @@ export const GET = withAuth(
     const { clause, params } = timeFilter;
     // userId 过滤口径与 /api/stats 一致：传了就必须是正整数，非法一律 400
     let userIdFilter: number | null = null;
-    if (searchParams.get('userId')) {
-      const parsed = parseInt(searchParams.get('userId')!, 10);
-      if (!Number.isInteger(parsed) || parsed <= 0) {
+    const rawUserId = searchParams.get('userId');
+    if (rawUserId) {
+      const parsed = parsePositiveInt(rawUserId);
+      if (parsed === null) {
         return NextResponse.json({ error: '无效的玩家 ID' }, { status: 400 });
       }
       userIdFilter = parsed;
     }
 
-    const rawLimit = parseInt(searchParams.get('limit') || '100', 10);
-    const limit = Number.isInteger(rawLimit) ? Math.min(Math.max(rawLimit, 1), 200) : 100;
-    const rawOffset = parseInt(searchParams.get('offset') || '0', 10);
-    const offset = Number.isInteger(rawOffset) ? Math.max(rawOffset, 0) : 0;
+    const parsedLimit = parsePositiveInt(searchParams.get('limit'));
+    const limit = parsedLimit !== null ? Math.min(parsedLimit, 200) : 100;
+    // offset 上限与分享链路 /api/s/[code] 的 GAMES_MAX_OFFSET 对齐，防深翻页性能退化
+    const parsedOffset = parseNonNegativeInt(searchParams.get('offset'));
+    const offset = parsedOffset !== null ? Math.min(parsedOffset, 2000) : 0;
 
     const queryParams: unknown[] = [...params];
     let userFilterClause = '';

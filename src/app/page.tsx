@@ -7,6 +7,7 @@ import { useApp } from '@/components/AppShell';
 import { PlayerAvatar } from '@/components/PlayerAvatar';
 import { LogoMark } from '@/components/LogoMark';
 import { ErrorState } from '@/components/ErrorState';
+import { InlineErrorBanner } from '@/components/InlineErrorBanner';
 import {
   PeriodFilterBar,
   periodFilterQuery,
@@ -75,6 +76,8 @@ export default function HomePage() {
         hasDataRef.current = false;
         setSummary(null);
         setLeaderboard([]);
+        // 周期变化后旧错误不再适用，清掉避免 ErrorState 抢占新请求的骨架
+        setError('');
       }
       if (!hasDataRef.current) setLoading(true);
       try {
@@ -175,29 +178,17 @@ export default function HomePage() {
         </div>
       ) : (
         <>
-          {error && (
-            <div
-              role="alert"
-              className="flex items-center justify-between gap-2 rounded-2xl bg-rose-50 px-3 py-2 text-sm text-rose-700"
-            >
-              <span className="truncate">刷新失败，显示上次数据</span>
-              <button
-                onClick={() => fetchStats(true)}
-                className="shrink-0 min-h-9 px-2 font-medium underline"
-              >
-                重试
-              </button>
-            </div>
-          )}
+          {error && <InlineErrorBanner onRetry={() => fetchStats(true)} />}
 
           {/* 黑金核心概览卡片：头号赢家为主视觉 */}
           <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950 p-4 xs:p-5 md:p-6 text-white shadow-xl border border-amber-900/40">
             <div className="absolute top-0 right-0 translate-x-4 -translate-y-4 w-32 h-32 rounded-full bg-amber-500/10 blur-2xl pointer-events-none" />
 
             {topWinner ? (
-              <div
+              <button
+                type="button"
                 onClick={() => router.push(`/stats?userId=${topWinner.userId}`)}
-                className="relative flex items-center gap-3 cursor-pointer active:opacity-90 transition"
+                className="relative flex w-full items-center gap-3 text-left cursor-pointer active:opacity-90 transition"
               >
                 <PlayerAvatar
                   nickname={topWinner.nickname}
@@ -224,7 +215,7 @@ export default function HomePage() {
                   </span>
                   <ChevronRight size={16} className="text-slate-500" />
                 </div>
-              </div>
+              </button>
             ) : (
               <div className="relative flex items-center gap-3 py-1">
                 <div className="w-12 h-12 shrink-0 rounded-full bg-white/5 border border-dashed border-white/20 flex items-center justify-center text-xl">
@@ -282,10 +273,11 @@ export default function HomePage() {
               leaderboard.map((player) => {
                 const isMe = user?.id === player.userId;
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={player.userId}
                     onClick={() => router.push(`/stats?userId=${player.userId}`)}
-                    className={`flex items-center justify-between p-3.5 rounded-2xl bg-white border transition active:scale-[0.99] cursor-pointer shadow-sm ${
+                    className={`flex w-full items-center justify-between p-3.5 rounded-2xl bg-white border transition active:scale-[0.99] cursor-pointer text-left shadow-sm ${
                       isMe
                         ? 'border-amber-300 ring-2 ring-amber-100'
                         : 'border-slate-100 hover:border-slate-200'
@@ -349,7 +341,7 @@ export default function HomePage() {
                         <ChevronRight size={12} />
                       </div>
                     </div>
-                  </div>
+                  </button>
                 );
               })
             )}

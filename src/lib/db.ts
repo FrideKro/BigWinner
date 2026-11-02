@@ -259,6 +259,11 @@ async function runInitialization(): Promise<void> {
       ]);
     }
 
+    // 过期分享链接对管理列表与访客入口均已失效，启动时幂等清理防表缓慢膨胀
+    await client.query(
+      `DELETE FROM share_links WHERE expires_at IS NOT NULL AND expires_at <= NOW()`,
+    );
+
     // 开发调试管理员（仅非生产环境生效）：.env 配置 DEV_ADMIN_USERNAME / DEV_ADMIN_PASSWORD 时，
     // 确保对应管理员账号存在且密码同步，便于本地开发调试；生产环境（NODE_ENV=production）一律忽略。
     // 同名真实玩家账号不改动，避免误提升/重置
