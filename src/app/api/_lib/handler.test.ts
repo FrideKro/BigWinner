@@ -129,25 +129,42 @@ describe('parseJsonBody', () => {
   });
 
   it('content-length 超过 1MB 抛出 413 ApiError，不读取 body', async () => {
-    const json = vi.fn();
+    const text = vi.fn();
     const req = {
       headers: new Headers({ 'content-length': String(1024 * 1024 + 1) }),
-      json,
+      text,
     } as unknown as NextRequest;
 
     await expect(parseJsonBody(req)).rejects.toMatchObject({
       status: 413,
       message: '请求体过大',
     });
-    expect(json).not.toHaveBeenCalled();
+    expect(text).not.toHaveBeenCalled();
   });
 
-  it('无 content-length 头（分块传输）跳过大小拦截正常解析', async () => {
-    const json = vi.fn(() => Promise.resolve({ a: 1 }));
-    const req = { headers: new Headers(), json } as unknown as NextRequest;
+  it('无 content-length 头（分块传输）时按实际字节长度校验：正常解析', async () => {
+    const text = vi.fn(() => Promise.resolve('{"a":1}'));
+    const req = { headers: new Headers(), text } as unknown as NextRequest;
 
     await expect(parseJsonBody(req)).resolves.toEqual({ a: 1 });
-    expect(json).toHaveBeenCalledTimes(1);
+    expect(text).toHaveBeenCalledTimes(1);
+  });
+
+  it('无 content-length 头（分块传输）且实际字节超过 1MB 仍强制 413', async () => {
+    // 合法 JSON 但体积超限：解析前即拒绝，不进入 JSON.parse
+    const oversized = JSON.stringify({ pad: 'x'.repeat(1024 * 1024) });
+    const parse = vi.spyOn(JSON, 'parse');
+    const req = {
+      headers: new Headers(),
+      text: () => Promise.resolve(oversized),
+    } as unknown as NextRequest;
+
+    await expect(parseJsonBody(req)).rejects.toMatchObject({
+      status: 413,
+      message: '请求体过大',
+    });
+    expect(parse).not.toHaveBeenCalled();
+    parse.mockRestore();
   });
 });
 

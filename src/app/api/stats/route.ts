@@ -25,9 +25,12 @@ export const GET = withAuth(
       return NextResponse.json({ error: timeFilter.error }, { status: 400 });
     }
     const { clause, params } = timeFilter;
-    // 无 from/to 时 period 已由 buildTimeFilter 校验合法，此处仅用于汇总复用判断
+    // 无 from/to 时 period 已由 buildTimeFilter 校验合法。
+    // 仅在请求显式指定内置周期时才复用全局聚合；自定义日期区间（只传 from/to，无 period）
+    // 不能落入 'all' 兜底，否则汇总数字会退化为全时段、与区间过滤的榜单口径矛盾
     const period = periodParam || 'all';
-    const isBuiltinPeriod = period === 'all' || period === 'year' || period === 'month';
+    const isBuiltinPeriod =
+      periodParam === 'all' || periodParam === 'year' || periodParam === 'month';
     const rawUserId = searchParams.get('userId');
     const targetUserId = rawUserId ? parsePositiveInt(rawUserId) : user.id;
     if (targetUserId === null) {

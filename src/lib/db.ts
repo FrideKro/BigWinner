@@ -240,12 +240,25 @@ async function runInitialization(): Promise<void> {
       const passwordHash = await bcrypt.hash(adminPassword, 10);
       const bindToken = generateToken(24);
 
-      await client.query(
-        `INSERT INTO users (username, nickname, password_hash, role, avatar_color, is_active, bind_token)
-         VALUES ($1, $2, $3, 'ADMIN', 'amber', TRUE, $4)
-         ON CONFLICT (username) DO UPDATE SET role = 'ADMIN'`,
-        [adminUsername, adminNickname, passwordHash, bindToken],
+      // ON CONFLICT (username) 只覆盖大小写完全一致的冲突；若存在仅大小写不同的同名账号，
+      // INSERT 会命中 LOWER(username) 唯一索引抛 23505，回滚整个启动事务且每次重试均失败
+      //（全站 500）。先按 LOWER 口径查重，命中则告警跳过（对齐下方 DEV_ADMIN 的处理方式）
+      const nameConflict = await client.query<{ id: number }>(
+        `SELECT id FROM users WHERE LOWER(username) = LOWER($1) LIMIT 1`,
+        [adminUsername],
       );
+      if ((nameConflict.rowCount ?? 0) > 0) {
+        console.warn(
+          `⚠️ 已存在同名账号 ${adminUsername}，跳过初始管理员创建（请更换 ADMIN_USERNAME 或人工调整该账号角色）`,
+        );
+      } else {
+        await client.query(
+          `INSERT INTO users (username, nickname, password_hash, role, avatar_color, is_active, bind_token)
+           VALUES ($1, $2, $3, 'ADMIN', 'amber', TRUE, $4)
+           ON CONFLICT (username) DO UPDATE SET role = 'ADMIN'`,
+          [adminUsername, adminNickname, passwordHash, bindToken],
+        );
+      }
     }
 
     // 为没有 bind_token 的历史用户补齐 bind_token

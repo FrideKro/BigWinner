@@ -30,12 +30,18 @@ const MAX_BODY_BYTES = 1024 * 1024;
 
 // 解析 JSON 请求体；非法 JSON 统一 400、超大 body 统一 413，而不是落入外层 500
 export async function parseJsonBody(req: NextRequest): Promise<Record<string, unknown>> {
+  // Content-Length 头预检：超大请求在读取前即拒绝
   const contentLength = parseInt(req.headers.get('content-length') || '', 10);
   if (Number.isInteger(contentLength) && contentLength > MAX_BODY_BYTES) {
     throw new ApiError(413, '请求体过大');
   }
+  // 读出后按实际字节长度二次校验：chunked 传输（无 Content-Length）也能强制上限
+  const text = await req.text();
+  if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) {
+    throw new ApiError(413, '请求体过大');
+  }
   try {
-    return await req.json();
+    return JSON.parse(text) as Record<string, unknown>;
   } catch {
     throw new ApiError(400, '请求体格式无效');
   }
