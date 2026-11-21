@@ -173,10 +173,8 @@ describe('deriveAchievements', () => {
     return { user_id: 1, longest_win_streak: '2', ...overrides };
   }
 
-  const holdersOf = (
-    achievements: ReturnType<typeof deriveAchievements>,
-    type: AchievementType,
-  ) => achievements.find((a) => a.type === type)?.holders ?? [];
+  const holdersOf = (achievements: ReturnType<typeof deriveAchievements>, type: AchievementType) =>
+    achievements.find((a) => a.type === type)?.holders ?? [];
 
   it('唯一持有者拿到单场最高与连胜成就', () => {
     const leaderboard = mapLeaderboardRows([
