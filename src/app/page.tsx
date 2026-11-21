@@ -18,7 +18,7 @@ import { formatSignedAmount, getAmountColorClass } from '@/lib/format';
 import { apiGet, isAbortError } from '@/lib/apiClient';
 import { useRefreshOnVisible } from '@/lib/useRefreshOnVisible';
 import type { Achievement, LeaderboardItem } from '@/app/api/_lib/statsAgg';
-import { Share2, Sparkles, ChevronRight } from 'lucide-react';
+import { Share2, Sparkles } from 'lucide-react';
 
 // 分享弹窗仅在点击后渲染，避免拖慢首屏
 const ShareModal = dynamic(() => import('@/components/ShareModal').then((m) => m.ShareModal), {
@@ -213,11 +213,10 @@ export default function HomePage() {
                     胜率 {topWinner.winRate}% ｜ 👑大赢家 {topWinner.bigWinnerCount} 次
                   </div>
                 </div>
-                <div className="shrink-0 flex items-center gap-0.5">
+                <div className="shrink-0">
                   <span className="text-xl xs:text-2xl md:text-3xl font-black tabular-nums text-rose-400">
                     {formatSignedAmount(topWinner.netAmount)}
                   </span>
-                  <ChevronRight size={16} className="text-slate-500" />
                 </div>
               </button>
             ) : (
@@ -252,7 +251,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* 成就条：单场最高与连胜场次的全群纪录保持者 */}
+          {/* 成就条：单场最高与最长连胜的全群纪录保持者 */}
           {achievements.length > 0 && (
             <AchievementsStrip achievements={achievements} getAvatarImage={getAvatarImage} />
           )}
@@ -261,9 +260,8 @@ export default function HomePage() {
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2 pb-6">
             <div className="flex items-center justify-between px-1 md:col-span-2">
               <h2 className="text-sm font-medium text-slate-500 tracking-wider">
-                玩家输赢排行榜 ({leaderboard.length})
+                玩家战绩排行榜 ({leaderboard.length})
               </h2>
-              <span className="text-xs text-slate-500">红赢 ｜ 绿输</span>
             </div>
 
             {leaderboard.length === 0 ? (
@@ -347,19 +345,15 @@ export default function HomePage() {
                       </div>
                     </div>
 
-                    {/* 输赢总金额 */}
-                    <div className="text-right shrink-0 pl-2">
-                      <div
-                        className={`text-base font-black tracking-tight tabular-nums ${getAmountColorClass(
+                    {/* 输赢总金额：单行放大、垂直居中占满整行高度 */}
+                    <div className="shrink-0 pl-2 flex items-center">
+                      <span
+                        className={`text-lg font-black tracking-tight tabular-nums ${getAmountColorClass(
                           player.netAmount,
                         )}`}
                       >
                         {formatSignedAmount(player.netAmount)}
-                      </div>
-                      <div className="text-xs text-slate-500 flex items-center justify-end gap-0.5">
-                        <span>详情</span>
-                        <ChevronRight size={12} />
-                      </div>
+                      </span>
                     </div>
                   </button>
                 );

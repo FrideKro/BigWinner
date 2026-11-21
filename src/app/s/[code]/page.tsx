@@ -386,7 +386,7 @@ export default function SharePage() {
           </div>
         </div>
 
-        {/* 成就条：单场最高与连胜场次的全群纪录保持者 */}
+        {/* 成就条：单场最高与最长连胜的全群纪录保持者 */}
         {data.achievements.length > 0 && (
           <AchievementsStrip
             achievements={data.achievements}
@@ -398,9 +398,8 @@ export default function SharePage() {
         <div className="space-y-2">
           <div className="flex items-center justify-between px-1">
             <h2 className="text-sm font-medium text-slate-500 tracking-wider">
-              玩家输赢排行榜 ({leaderboard.length})
+              玩家战绩排行榜 ({leaderboard.length})
             </h2>
-            <span className="text-xs text-slate-500">红赢 ｜ 绿输</span>
           </div>
 
           {leaderboard.length === 0 ? (

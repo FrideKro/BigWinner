@@ -60,7 +60,7 @@ export function mapLeaderboardRows(rows: LeaderboardSqlRow[]): LeaderboardItem[]
       winCount,
       drawCount,
       lossCount,
-      winRate: gamesPlayed > 0 ? Math.round((winCount / gamesPlayed) * 1000) / 10 : 0,
+      winRate: gamesPlayed > 0 ? Math.round((winCount / gamesPlayed) * 100) : 0,
       avgAmount: gamesPlayed > 0 ? Math.round(netAmount / gamesPlayed) : 0,
       bigWinnerCount,
       bigWinnerRate: gamesPlayed > 0 ? Math.round((bigWinnerCount / gamesPlayed) * 1000) / 10 : 0,
@@ -209,7 +209,7 @@ export type AchievementType = 'MAX_SINGLE_WIN' | 'LONGEST_WIN_STREAK';
 /** 成就展示元信息：名称与图标，UI 直接复用 */
 export const ACHIEVEMENT_META: Record<AchievementType, { name: string; icon: string }> = {
   MAX_SINGLE_WIN: { name: '单场最高', icon: '🎯' },
-  LONGEST_WIN_STREAK: { name: '连胜场次', icon: '🔥' },
+  LONGEST_WIN_STREAK: { name: '最长连胜', icon: '🔥' },
 };
 
 export interface AchievementHolder {

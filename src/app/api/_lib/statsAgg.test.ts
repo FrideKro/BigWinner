@@ -21,7 +21,7 @@ function leaderboardRow(overrides: Partial<LeaderboardSqlRow> = {}): Leaderboard
     role: 'PLAYER',
     games_played: '10',
     net_amount: '300',
-    win_count: '6',
+    win_count: '7',
     draw_count: '1',
     loss_count: '3',
     big_winner_count: '2',
@@ -41,10 +41,10 @@ describe('mapLeaderboardRows', () => {
       nickname: '玩家一',
       gamesPlayed: 10,
       netAmount: 300,
-      winCount: 6,
+      winCount: 7,
       drawCount: 1,
       lossCount: 3,
-      winRate: 60,
+      winRate: 70,
       avgAmount: 30,
       bigWinnerCount: 2,
       bigWinnerRate: 20,
@@ -274,7 +274,7 @@ describe('deriveAchievements', () => {
 
   it('成就元信息含名称与图标', () => {
     expect(ACHIEVEMENT_META.MAX_SINGLE_WIN.name).toBe('单场最高');
-    expect(ACHIEVEMENT_META.LONGEST_WIN_STREAK.name).toBe('连胜场次');
+    expect(ACHIEVEMENT_META.LONGEST_WIN_STREAK.name).toBe('最长连胜');
     expect(ACHIEVEMENT_META.MAX_SINGLE_WIN.icon).toBeTruthy();
     expect(ACHIEVEMENT_META.LONGEST_WIN_STREAK.icon).toBeTruthy();
   });
