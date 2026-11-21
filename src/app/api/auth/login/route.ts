@@ -107,8 +107,10 @@ export async function POST(req: NextRequest) {
 
     const user = userRes.rows[0];
     // 未设密码的账号（临时玩家免密建号，password_hash 为空串）无法密码登录：
-    // 任何输入都失败且不进 bcrypt，与「密码错误」共用同一文案防角色枚举
+    // 任何输入都失败，与「密码错误」共用同一文案防角色枚举；
+    // 比对假哈希抹平与正常路径的耗时差（同账号不存在路径口径），防免密账号枚举计时侧信道
     if (!user.password_hash) {
+      await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
       recordAllFailures();
       return NextResponse.json({ error: '账号或密码错误' }, { status: 401 });
     }

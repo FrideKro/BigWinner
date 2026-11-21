@@ -13,10 +13,11 @@ export interface PlayerListItem {
   avatarVersion?: number;
   // 以下字段仅管理员可见
   username?: string;
-  role?: UserRole;
   bindToken?: string | null;
   deviceCount?: number;
   createdAt?: string;
+  /** 全员可见（无敏感信息）：前端据此标注临时玩家「临」徽章 */
+  role?: UserRole;
 }
 
 export interface PublicUser {
@@ -52,8 +53,9 @@ export async function listPlayers(user: AuthUser): Promise<PlayerListItem[]> {
       avatar_color: string;
       avatar_version: number;
       is_active: boolean;
+      role: UserRole;
     }>(
-      `SELECT id, nickname, avatar_color, avatar_version, is_active
+      `SELECT id, nickname, avatar_color, avatar_version, is_active, role
        FROM users
        ORDER BY is_active DESC, id ASC`,
     );
@@ -63,6 +65,8 @@ export async function listPlayers(user: AuthUser): Promise<PlayerListItem[]> {
       avatarColor: u.avatar_color,
       avatarVersion: u.avatar_version,
       isActive: u.is_active,
+      // role 对所有人可见：仅区分临时玩家（选人条/记局弹窗标注「临」），不含敏感信息
+      role: u.role,
     }));
   }
 

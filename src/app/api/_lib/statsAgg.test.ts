@@ -272,6 +272,19 @@ describe('deriveAchievements', () => {
     expect(streak).toEqual([]);
   });
 
+  it('临时玩家的连胜不把全群纪录顶成虚位以待（streak 行不过滤，最大值以过滤后榜单为准）', () => {
+    // 路由实际传参口径：榜单已过滤临时玩家，streakRows 含临时玩家（queryWinStreaks 不分角色）
+    const leaderboard = mapLeaderboardRows([leaderboardRow({ user_id: 1, nickname: '普通玩家' })]);
+    const streak = holdersOf(
+      deriveAchievements(leaderboard, [
+        streakRow({ user_id: 1, longest_win_streak: '3' }),
+        streakRow({ user_id: 2, longest_win_streak: '5' }), // 临时玩家持有更高连胜
+      ]),
+      'LONGEST_WIN_STREAK',
+    );
+    expect(streak).toEqual([{ userId: 1, nickname: '普通玩家', avatarColor: 'red', value: 3 }]);
+  });
+
   it('成就元信息含名称与图标', () => {
     expect(ACHIEVEMENT_META.MAX_SINGLE_WIN.name).toBe('单场最高');
     expect(ACHIEVEMENT_META.LONGEST_WIN_STREAK.name).toBe('最长连胜');

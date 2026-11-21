@@ -63,7 +63,7 @@ export function mapLeaderboardRows(rows: LeaderboardSqlRow[]): LeaderboardItem[]
       winRate: gamesPlayed > 0 ? Math.round((winCount / gamesPlayed) * 100) : 0,
       avgAmount: gamesPlayed > 0 ? Math.round(netAmount / gamesPlayed) : 0,
       bigWinnerCount,
-      bigWinnerRate: gamesPlayed > 0 ? Math.round((bigWinnerCount / gamesPlayed) * 1000) / 10 : 0,
+      bigWinnerRate: gamesPlayed > 0 ? Math.round((bigWinnerCount / gamesPlayed) * 100) : 0,
       maxWin: parseInt(row.max_win, 10),
       maxLoss: parseInt(row.max_loss, 10),
     };
@@ -238,8 +238,10 @@ export function deriveAchievements(
     streakMap.set(row.user_id, parseInt(row.longest_win_streak, 10) || 0);
   }
 
+  // 连胜输入 streakRows 含临时玩家（queryWinStreaks 不分角色），最大值只能从过滤后的
+  // 榜单里取，否则临时玩家会把全群纪录顶成虚位以待（holders 从过滤后榜单找必然落空）
   const maxWin = Math.max(0, ...leaderboard.map((p) => p.maxWin));
-  const maxStreak = Math.max(0, ...streakMap.values());
+  const maxStreak = Math.max(0, ...leaderboard.map((p) => streakMap.get(p.userId) ?? 0));
 
   const toHolder = (p: LeaderboardItem, value: number): AchievementHolder => ({
     userId: p.userId,

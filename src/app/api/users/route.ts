@@ -22,7 +22,12 @@ export const POST = withAuth(
     // 初始密码：可选（所有角色均可免密码建号）；省略时 password_hash 落空串表示未设密码，
     // 未设密码账号无法密码登录，本人可事后免原密码设置，或由管理员重置
     const password = String(body.password || '');
-    const role = parseUserRole(body.role) ?? 'PLAYER';
+    // 角色三选一：ADMIN / PLAYER / TEMP_PLAYER，非法值一律 400（与 PATCH 口径一致，不静默回落）
+    const parsedRole = parseUserRole(body.role);
+    if (body.role !== undefined && !parsedRole) {
+      return NextResponse.json({ error: 'role 参数无效' }, { status: 400 });
+    }
+    const role = parsedRole ?? 'PLAYER';
     const avatarColor = String(body.avatarColor || 'red').trim();
     // isActive 仅接受布尔：Boolean("false") === true 的强转会让停用静默变成启用
     let isActive = true;

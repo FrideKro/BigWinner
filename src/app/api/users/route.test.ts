@@ -120,7 +120,18 @@ describe('POST /api/users', () => {
     expect(mocks.query).not.toHaveBeenCalled();
   });
 
-  it('role 传非法值时静默按普通玩家创建', async () => {
+  it('role 传非法值返回 400，不进入查重', async () => {
+    const res = await POST(
+      postReq({ username: 'p2', nickname: '玩家二', password: 'abc12345', role: 'GUEST' }),
+      { params: Promise.resolve({}) },
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'role 参数无效' });
+    expect(mocks.query).not.toHaveBeenCalled();
+  });
+
+  it('不传 role 时默认按普通玩家创建', async () => {
     mocks.query.mockImplementation((sql: string) => {
       if (sql.includes('LOWER(username)')) {
         return Promise.resolve({ rows: [], rowCount: 0 });
@@ -142,10 +153,9 @@ describe('POST /api/users', () => {
       });
     });
 
-    const res = await POST(
-      postReq({ username: 'p2', nickname: '玩家二', password: 'abc12345', role: 'GUEST' }),
-      { params: Promise.resolve({}) },
-    );
+    const res = await POST(postReq({ username: 'p2', nickname: '玩家二', password: 'abc12345' }), {
+      params: Promise.resolve({}),
+    });
 
     expect(res.status).toBe(201);
     expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO users'), [

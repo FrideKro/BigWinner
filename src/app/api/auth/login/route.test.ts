@@ -139,7 +139,7 @@ describe('POST /api/auth/login', () => {
     expect(mocks.createDeviceSession).not.toHaveBeenCalled();
   });
 
-  it('未设密码账号（免密建号）任何密码都 401，不进 bcrypt 防角色枚举', async () => {
+  it('未设密码账号（免密建号）任何密码都 401，比对假哈希抹平耗时差', async () => {
     mocks.query.mockResolvedValue(userRow({ role: 'PLAYER', password_hash: '' }));
     mocks.compare.mockClear();
 
@@ -147,7 +147,8 @@ describe('POST /api/auth/login', () => {
 
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: '账号或密码错误' });
-    expect(mocks.compare).not.toHaveBeenCalled();
+    // 不与真实密码哈希比对，但与账号不存在路径一样比对假哈希，防免密账号枚举计时侧信道
+    expect(mocks.compare).toHaveBeenCalledTimes(1);
     expect(mocks.createDeviceSession).not.toHaveBeenCalled();
   });
 
