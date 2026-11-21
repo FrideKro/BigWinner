@@ -1,5 +1,6 @@
 import { query } from '@/lib/db';
 import type { AuthUser } from '@/lib/auth';
+import type { UserRole } from '@/lib/roles';
 import type { PoolClient } from 'pg';
 import { ApiError } from './handler';
 
@@ -12,7 +13,7 @@ export interface PlayerListItem {
   avatarVersion?: number;
   // 以下字段仅管理员可见
   username?: string;
-  role?: 'ADMIN' | 'PLAYER';
+  role?: UserRole;
   bindToken?: string | null;
   deviceCount?: number;
   createdAt?: string;
@@ -22,7 +23,7 @@ export interface PublicUser {
   id: number;
   username: string;
   nickname: string;
-  role: 'ADMIN' | 'PLAYER';
+  role: UserRole;
   avatarColor: string;
   isActive: boolean;
 }
@@ -69,7 +70,7 @@ export async function listPlayers(user: AuthUser): Promise<PlayerListItem[]> {
     id: number;
     username: string;
     nickname: string;
-    role: 'ADMIN' | 'PLAYER';
+    role: UserRole;
     avatar_color: string;
     avatar_version: number;
     is_active: boolean;

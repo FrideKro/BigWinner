@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { query } from '@/lib/db';
 import { createDeviceSession, setDeviceCookie } from '@/lib/auth';
 import { MAX_PASSWORD_LENGTH, MAX_USERNAME_LENGTH } from '@/lib/profileValidation';
+import type { UserRole } from '@/lib/roles';
 import { clearFailures, getClientIp, getRateLimitState, recordFailure } from '@/lib/rateLimit';
 import { ApiError, parseJsonBody } from '../../_lib/handler';
 import { getPasswordLoginEnabled } from '../../_lib/shared';
@@ -86,7 +87,7 @@ export async function POST(req: NextRequest) {
       username: string;
       nickname: string;
       password_hash: string;
-      role: 'ADMIN' | 'PLAYER';
+      role: UserRole;
       avatar_color: string;
       is_active: boolean;
     }>(
@@ -105,6 +106,12 @@ export async function POST(req: NextRequest) {
     }
 
     const user = userRes.rows[0];
+    // 未设密码的账号（临时玩家免密建号，password_hash 为空串）无法密码登录：
+    // 任何输入都失败且不进 bcrypt，与「密码错误」共用同一文案防角色枚举
+    if (!user.password_hash) {
+      recordAllFailures();
+      return NextResponse.json({ error: '账号或密码错误' }, { status: 401 });
+    }
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
       recordAllFailures();

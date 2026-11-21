@@ -55,9 +55,6 @@ export const PATCH = withAuth(
 
     let newHash: string | null = null;
     if (newPassword) {
-      if (!currentPassword) {
-        return NextResponse.json({ error: '修改密码必须输入当前原密码' }, { status: 400 });
-      }
       const passwordError = validatePassword(newPassword, '新密码');
       if (passwordError) {
         return NextResponse.json({ error: passwordError }, { status: 400 });
@@ -66,9 +63,16 @@ export const PATCH = withAuth(
         `SELECT password_hash FROM users WHERE id = $1`,
         [user.id],
       );
-      const match = await bcrypt.compare(currentPassword, pwRes.rows[0]?.password_hash || '');
-      if (!match) {
-        return NextResponse.json({ error: '原密码不正确' }, { status: 400 });
+      const storedHash = pwRes.rows[0]?.password_hash || '';
+      // 未设密码的账号（临时玩家免密建号）首次设密无需原密码；已有密码则必须校验原密码
+      if (storedHash) {
+        if (!currentPassword) {
+          return NextResponse.json({ error: '修改密码必须输入当前原密码' }, { status: 400 });
+        }
+        const match = await bcrypt.compare(currentPassword, storedHash);
+        if (!match) {
+          return NextResponse.json({ error: '原密码不正确' }, { status: 400 });
+        }
       }
       newHash = await bcrypt.hash(newPassword, 10);
     }

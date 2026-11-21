@@ -12,6 +12,7 @@ import { PlayerAchievementBadges } from '@/components/AchievementBadges';
 import { formatSignedAmount, getAmountColorClass, formatDateTime } from '@/lib/format';
 import { apiGet, isAbortError } from '@/lib/apiClient';
 import { useRefreshOnVisible } from '@/lib/useRefreshOnVisible';
+import { TEMP_PLAYER_ROLE } from '@/lib/roles';
 import type { Achievement, LeaderboardItem, StreakSummary } from '@/app/api/_lib/statsAgg';
 import { Flame, Award, TrendingUp, TrendingDown, Coins, Calendar } from 'lucide-react';
 
@@ -137,6 +138,9 @@ function StatsContent() {
     () => players.filter((p) => p.isActive !== false || p.id === user?.id),
     [players, user],
   );
+
+  // 临时玩家在看板选人条标注「临」，仅本人视角出现（管理台可见全部）
+  const isTempPlayer = (role?: string) => role === TEMP_PLAYER_ROLE;
 
   // 初始选中玩家：URL 指定 > 本人
   useEffect(() => {
@@ -269,6 +273,14 @@ function StatsContent() {
                     src={getAvatarImage(p.id)}
                   />
                   <span className="text-sm font-medium">{p.nickname}</span>
+                  {isTempPlayer(p.role) && (
+                    <span
+                      title="临时玩家"
+                      className="shrink-0 px-1 py-0.5 rounded bg-slate-200 text-slate-500 text-xs"
+                    >
+                      临
+                    </span>
+                  )}
                 </button>
               );
             })}

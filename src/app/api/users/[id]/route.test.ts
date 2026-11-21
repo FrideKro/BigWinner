@@ -147,6 +147,45 @@ describe('PATCH /api/users/[id]', () => {
     expect(await res.json()).toEqual({ error: '系统中必须保留至少一位管理员，无法降级' });
   });
 
+  it('把最后一位管理员改为临时玩家同样被拒绝（TEMP_PLAYER 属降级）', async () => {
+    mockSql([
+      { match: /FOR UPDATE/, result: { rows: [], rowCount: 0 } },
+      {
+        match: /role = 'ADMIN' AND id != \$1/,
+        result: { rows: [{ count: '0' }], rowCount: 1 },
+      },
+    ]);
+
+    const res = await callPatch(1, { role: 'TEMP_PLAYER' });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: '系统中必须保留至少一位管理员，无法降级' });
+  });
+
+  it('role 传非法值返回 400，不进入事务', async () => {
+    const res = await callPatch(2, { role: 'GUEST' });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'role 参数无效' });
+    expect(mocks.query).not.toHaveBeenCalled();
+  });
+
+  it('改为临时玩家成功：守卫计数通过后照常入库', async () => {
+    mockSql([
+      { match: /FOR UPDATE/, result: { rows: [], rowCount: 0 } },
+      {
+        match: /role = 'ADMIN' AND id != \$1/,
+        result: { rows: [{ count: '1' }], rowCount: 1 },
+      },
+      { match: /SET username = COALESCE/, result: updatedUserRow({ role: 'TEMP_PLAYER' }) },
+    ]);
+
+    const res = await callPatch(2, { role: 'TEMP_PLAYER' });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ user: { role: 'TEMP_PLAYER' } });
+  });
+
   it('管理员重置自己的密码保留当前设备会话，避免自登出', async () => {
     mockSql([
       { match: /UPDATE users SET bind_token/, result: { rows: [], rowCount: 1 } },

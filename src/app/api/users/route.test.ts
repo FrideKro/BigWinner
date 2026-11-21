@@ -70,14 +70,44 @@ describe('POST /api/users', () => {
     expect(mocks.query).not.toHaveBeenCalled();
   });
 
-  it('未传初始密码返回 400，不进入查重（不再有弱默认密码）', async () => {
+  it('未传初始密码：免密码建号成功，哈希落空串且不调 bcrypt', async () => {
+    mocks.hash.mockClear();
+    mocks.query.mockImplementation((sql: string) => {
+      if (sql.includes('LOWER(username)')) {
+        return Promise.resolve({ rows: [], rowCount: 0 });
+      }
+      return Promise.resolve({
+        rows: [
+          {
+            id: 5,
+            username: 'p1',
+            nickname: '玩家一',
+            role: 'PLAYER',
+            avatar_color: 'red',
+            is_active: true,
+            bind_token: 'new-bind-token',
+            created_at: '2026-10-31T00:00:00Z',
+          },
+        ],
+        rowCount: 1,
+      });
+    });
+
     const res = await POST(postReq({ username: 'p1', nickname: '玩家一' }), {
       params: Promise.resolve({}),
     });
 
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: '请填写初始密码' });
-    expect(mocks.query).not.toHaveBeenCalled();
+    expect(res.status).toBe(201);
+    expect(mocks.hash).not.toHaveBeenCalled();
+    expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO users'), [
+      'p1',
+      '玩家一',
+      '',
+      'PLAYER',
+      'red',
+      true,
+      'new-bind-token',
+    ]);
   });
 
   it('初始密码过短返回 400，不进入查重', async () => {
@@ -88,6 +118,172 @@ describe('POST /api/users', () => {
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: '初始密码长度至少为 4 位' });
     expect(mocks.query).not.toHaveBeenCalled();
+  });
+
+  it('role 传非法值时静默按普通玩家创建', async () => {
+    mocks.query.mockImplementation((sql: string) => {
+      if (sql.includes('LOWER(username)')) {
+        return Promise.resolve({ rows: [], rowCount: 0 });
+      }
+      return Promise.resolve({
+        rows: [
+          {
+            id: 6,
+            username: 'p2',
+            nickname: '玩家二',
+            role: 'PLAYER',
+            avatar_color: 'red',
+            is_active: true,
+            bind_token: 'new-bind-token',
+            created_at: '2026-10-31T00:00:00Z',
+          },
+        ],
+        rowCount: 1,
+      });
+    });
+
+    const res = await POST(
+      postReq({ username: 'p2', nickname: '玩家二', password: 'abc12345', role: 'GUEST' }),
+      { params: Promise.resolve({}) },
+    );
+
+    expect(res.status).toBe(201);
+    expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO users'), [
+      'p2',
+      '玩家二',
+      '$2a$10$newhash',
+      'PLAYER',
+      'red',
+      true,
+      'new-bind-token',
+    ]);
+  });
+
+  it('创建临时玩家：role=TEMP_PLAYER 原样入库', async () => {
+    mocks.query.mockImplementation((sql: string) => {
+      if (sql.includes('LOWER(username)')) {
+        return Promise.resolve({ rows: [], rowCount: 0 });
+      }
+      return Promise.resolve({
+        rows: [
+          {
+            id: 7,
+            username: 'tmp1',
+            nickname: '临时玩家',
+            role: 'TEMP_PLAYER',
+            avatar_color: 'red',
+            is_active: true,
+            bind_token: 'new-bind-token',
+            created_at: '2026-10-31T00:00:00Z',
+          },
+        ],
+        rowCount: 1,
+      });
+    });
+
+    const res = await POST(
+      postReq({
+        username: 'tmp1',
+        nickname: '临时玩家',
+        password: 'abc12345',
+        role: 'TEMP_PLAYER',
+      }),
+      { params: Promise.resolve({}) },
+    );
+
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.user.role).toBe('TEMP_PLAYER');
+    expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO users'), [
+      'tmp1',
+      '临时玩家',
+      '$2a$10$newhash',
+      'TEMP_PLAYER',
+      'red',
+      true,
+      'new-bind-token',
+    ]);
+  });
+
+  it('临时玩家免密码建号：密码留空入库空串哈希，不调 bcrypt', async () => {
+    mocks.hash.mockClear();
+    mocks.query.mockImplementation((sql: string) => {
+      if (sql.includes('LOWER(username)')) {
+        return Promise.resolve({ rows: [], rowCount: 0 });
+      }
+      return Promise.resolve({
+        rows: [
+          {
+            id: 8,
+            username: 'tmp2',
+            nickname: '免密临时',
+            role: 'TEMP_PLAYER',
+            avatar_color: 'red',
+            is_active: true,
+            bind_token: 'new-bind-token',
+            created_at: '2026-10-31T00:00:00Z',
+          },
+        ],
+        rowCount: 1,
+      });
+    });
+
+    const res = await POST(
+      postReq({ username: 'tmp2', nickname: '免密临时', role: 'TEMP_PLAYER' }),
+      { params: Promise.resolve({}) },
+    );
+
+    expect(res.status).toBe(201);
+    expect(mocks.hash).not.toHaveBeenCalled();
+    expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO users'), [
+      'tmp2',
+      '免密临时',
+      '',
+      'TEMP_PLAYER',
+      'red',
+      true,
+      'new-bind-token',
+    ]);
+  });
+
+  it('任意角色免密码建号：密码留空入库空串哈希，不调 bcrypt', async () => {
+    mocks.hash.mockClear();
+    mocks.query.mockImplementation((sql: string) => {
+      if (sql.includes('LOWER(username)')) {
+        return Promise.resolve({ rows: [], rowCount: 0 });
+      }
+      return Promise.resolve({
+        rows: [
+          {
+            id: 8,
+            username: 'p4',
+            nickname: '免密玩家',
+            role: 'PLAYER',
+            avatar_color: 'red',
+            is_active: true,
+            bind_token: 'new-bind-token',
+            created_at: '2026-10-31T00:00:00Z',
+          },
+        ],
+        rowCount: 1,
+      });
+    });
+
+    const res = await POST(postReq({ username: 'p4', nickname: '免密玩家', role: 'PLAYER' }), {
+      params: Promise.resolve({}),
+    });
+
+    expect(res.status).toBe(201);
+    expect(mocks.hash).not.toHaveBeenCalled();
+    expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO users'), [
+      'p4',
+      '免密玩家',
+      '',
+      'PLAYER',
+      'red',
+      true,
+      'new-bind-token',
+    ]);
   });
 
   it('创建成功返回 201 与 bindToken，未传 isActive 时默认启用', async () => {

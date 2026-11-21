@@ -10,6 +10,7 @@ import {
 import {
   buildPersonalTrend,
   deriveAchievements,
+  excludeTempPlayers,
   mapLeaderboardRows,
   pickPlayerSummary,
 } from '../../_lib/statsAgg';
@@ -139,7 +140,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ code: s
       ]);
       // 已设置自定义头像的玩家（免登录页按 userId 解析，未设置的落字母主题色头像）
       const avatars = await queryShareAvatars(leaderboardRes.rows.map((r) => r.user_id));
-      const leaderboard = mapLeaderboardRows(leaderboardRes.rows);
+      const leaderboard = excludeTempPlayers(mapLeaderboardRows(leaderboardRes.rows));
       return NextResponse.json(
         {
           share: meta,
@@ -193,7 +194,8 @@ export async function GET(req: NextRequest, context: { params: Promise<{ code: s
       queryWinStreaks(clause, params),
     ]);
 
-    const leaderboard = mapLeaderboardRows(leaderboardRes.rows);
+    // 对外榜单过滤临时玩家；玩家切换条与头像查询同样只保留普通玩家与管理员
+    const leaderboard = excludeTempPlayers(mapLeaderboardRows(leaderboardRes.rows));
     const achievements = deriveAchievements(leaderboard, winStreaksRes.rows);
     const players = leaderboard
       .filter((p) => p.gamesPlayed > 0)

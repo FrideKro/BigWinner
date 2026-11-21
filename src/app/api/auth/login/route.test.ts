@@ -139,6 +139,18 @@ describe('POST /api/auth/login', () => {
     expect(mocks.createDeviceSession).not.toHaveBeenCalled();
   });
 
+  it('未设密码账号（免密建号）任何密码都 401，不进 bcrypt 防角色枚举', async () => {
+    mocks.query.mockResolvedValue(userRow({ role: 'PLAYER', password_hash: '' }));
+    mocks.compare.mockClear();
+
+    const res = await POST(loginReq('nopassuser', 'anypassword'));
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: '账号或密码错误' });
+    expect(mocks.compare).not.toHaveBeenCalled();
+    expect(mocks.createDeviceSession).not.toHaveBeenCalled();
+  });
+
   it('普通玩家密码登录关闭时返回 403 且不创建会话', async () => {
     mocks.query.mockResolvedValue(userRow({ role: 'PLAYER' }));
     mocks.compare.mockResolvedValue(true);

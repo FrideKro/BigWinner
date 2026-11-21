@@ -2,6 +2,7 @@ import { cookies, headers } from 'next/headers';
 import { createHash, randomBytes } from 'crypto';
 import { NextResponse } from 'next/server';
 import { query, generateToken } from './db';
+import type { UserRole } from './roles';
 
 export const DEVICE_COOKIE_NAME = 'bw_device_token';
 export const DEVICE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60; // 365天
@@ -35,7 +36,7 @@ export interface AuthUser {
   id: number;
   username: string;
   nickname: string;
-  role: 'ADMIN' | 'PLAYER';
+  role: UserRole;
   avatarColor: string;
   isActive: boolean;
   bindToken: string | null;
@@ -100,7 +101,7 @@ export async function verifyAndExtendDeviceToken(deviceToken: string): Promise<A
     id: number;
     username: string;
     nickname: string;
-    role: 'ADMIN' | 'PLAYER';
+    role: UserRole;
     avatar_color: string;
     is_active: boolean;
     bind_token: string | null;

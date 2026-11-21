@@ -13,6 +13,7 @@ import {
 import {
   buildPersonalTrend,
   deriveAchievements,
+  excludeTempPlayers,
   mapLeaderboardRows,
   pickPlayerSummary,
 } from '../_lib/statsAgg';
@@ -124,7 +125,9 @@ export const GET = withAuth(
       };
     });
 
-    const leaderboard = mapLeaderboardRows(leaderboardRes.rows);
+    // 全量榜单（含临时玩家）供个人面板取数；对外榜单与成就一律过滤临时玩家并重编 rank
+    const fullLeaderboard = mapLeaderboardRows(leaderboardRes.rows);
+    const leaderboard = excludeTempPlayers(fullLeaderboard);
     const achievements = deriveAchievements(leaderboard, winStreaksRes.rows);
 
     // 指定玩家的极值、连胜连败与累计盈亏曲线（仅 scope=full 有数据）
@@ -137,7 +140,8 @@ export const GET = withAuth(
       currentStreak,
     } = buildPersonalTrend(personalHistoryRes?.rows ?? []);
 
-    const targetPlayerSummary = pickPlayerSummary(leaderboard, targetUserId);
+    // 指定玩家可能是临时玩家（不对外上榜），个人面板从全量榜单取汇总
+    const targetPlayerSummary = pickPlayerSummary(fullLeaderboard, targetUserId);
 
     return NextResponse.json({
       summary: {

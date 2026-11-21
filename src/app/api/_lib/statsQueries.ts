@@ -5,13 +5,15 @@
 import { query } from '@/lib/db';
 import type { LeaderboardSqlRow, PersonalHistorySqlRow } from './statsAgg';
 
-/** 时间段内总榜；rank 由 mapLeaderboardRows 按返回行序生成（与 SQL ORDER BY 一一对应） */
+/** 时间段内总榜；rank 由 mapLeaderboardRows 按返回行序生成（与 SQL ORDER BY 一一对应）。
+ *  含临时玩家（TEMP_PLAYER）行，由消费端 excludeTempPlayers 过滤后再对外输出 */
 export function queryLeaderboard(clause: string, params: unknown[]) {
   return query<LeaderboardSqlRow>(
     `SELECT u.id AS user_id,
             u.nickname,
             u.avatar_color,
             u.is_active,
+            u.role,
             COUNT(gr.id)::text AS games_played,
             COALESCE(SUM(gr.amount), 0)::text AS net_amount,
             COUNT(gr.id) FILTER (WHERE gr.amount > 0)::text AS win_count,

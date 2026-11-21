@@ -10,6 +10,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { CopyFallbackModal } from '@/components/CopyFallbackModal';
 import { validatePassword } from '@/lib/profileValidation';
 import { apiMutate } from '@/lib/apiClient';
+import { ROLE_BADGE_LABELS, ROLE_LABELS, type UserRole } from '@/lib/roles';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import { useCopyText } from '@/lib/useCopyText';
 import { useFocusTrap } from '@/lib/useFocusTrap';
@@ -31,7 +32,7 @@ interface ManagedUser {
   id: number;
   username: string;
   nickname: string;
-  role: 'ADMIN' | 'PLAYER';
+  role: UserRole;
   avatarColor: string;
   isActive: boolean;
   bindToken?: string | null;
@@ -93,7 +94,7 @@ export default function ProfilePage() {
   const [newUsername, setNewUsername] = useState('');
   const [newNickname, setNewNickname] = useState('');
   const [newInitPassword, setNewInitPassword] = useState('');
-  const [newRole, setNewRole] = useState<'PLAYER' | 'ADMIN'>('PLAYER');
+  const [newRole, setNewRole] = useState<UserRole>('PLAYER');
   const [newColor, setNewColor] = useState('red');
   const [addSaving, setAddSaving] = useState(false);
   const [addErr, setAddErr] = useState('');
@@ -104,7 +105,7 @@ export default function ProfilePage() {
   const [editNickname, setEditNickname] = useState('');
   const [editColor, setEditColor] = useState('red');
   const [editAvatarImage, setEditAvatarImage] = useState<string | null | undefined>(undefined);
-  const [editRole, setEditRole] = useState<'PLAYER' | 'ADMIN'>('PLAYER');
+  const [editRole, setEditRole] = useState<UserRole>('PLAYER');
   const [editIsActive, setEditIsActive] = useState(true);
   const [editSaving, setEditSaving] = useState(false);
   const [editErr, setEditErr] = useState('');
@@ -136,7 +137,7 @@ export default function ProfilePage() {
         id: p.id,
         username: p.username as string,
         nickname: p.nickname,
-        role: p.role as 'ADMIN' | 'PLAYER',
+        role: p.role as UserRole,
         avatarColor: p.avatarColor,
         isActive: p.isActive,
         bindToken: p.bindToken ?? null,
@@ -385,11 +386,13 @@ export default function ProfilePage() {
       setAddErr('请填写用户名和昵称');
       return;
     }
-    // 与服务端同口径：初始密码必填（4~72 位），不再有弱默认值
-    const passwordError = validatePassword(newInitPassword, '初始密码');
-    if (passwordError) {
-      setAddErr(passwordError);
-      return;
+    // 与服务端同口径：初始密码可选（4~72 位），留空即创建未设密码账号（无法密码登录）
+    if (newInitPassword) {
+      const passwordError = validatePassword(newInitPassword, '初始密码');
+      if (passwordError) {
+        setAddErr(passwordError);
+        return;
+      }
     }
     setAddSaving(true);
     try {
@@ -428,7 +431,7 @@ export default function ProfilePage() {
             <div className="flex items-center gap-1.5 min-w-0">
               <h1 className="text-base font-medium text-slate-900 truncate">{user?.nickname}</h1>
               <span className="shrink-0 px-2 py-0.5 rounded-full bg-slate-900 text-amber-300 text-xs font-medium">
-                {isAdmin ? '管理员' : '玩家'}
+                {user ? ROLE_LABELS[user.role] : '玩家'}
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5 truncate">账号：{user?.username}</p>
@@ -686,9 +689,16 @@ export default function ProfilePage() {
                             <span className="text-sm font-medium text-slate-800 truncate">
                               {u.nickname}
                             </span>
-                            {u.role === 'ADMIN' && (
-                              <span className="shrink-0 px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-700 text-xs font-medium">
-                                官
+                            {u.role !== 'PLAYER' && ROLE_BADGE_LABELS[u.role] && (
+                              <span
+                                title={ROLE_LABELS[u.role]}
+                                className={`shrink-0 px-1.5 py-0.5 rounded text-xs font-medium ${
+                                  u.role === 'ADMIN'
+                                    ? 'bg-amber-500/20 text-amber-700'
+                                    : 'bg-slate-300/60 text-slate-600'
+                                }`}
+                              >
+                                {ROLE_BADGE_LABELS[u.role]}
                               </span>
                             )}
                             {!u.isActive && (
@@ -698,7 +708,8 @@ export default function ProfilePage() {
                             )}
                           </div>
                           <div className="text-xs text-slate-500 mt-0.5 truncate">
-                            ({u.username}) · 已绑设备 {u.deviceCount ?? 0} 台
+                            ({u.username}){u.role === 'TEMP_PLAYER' && ' · 临时玩家不进排行榜'} ·
+                            已绑设备 {u.deviceCount ?? 0} 台
                           </div>
                         </div>
                       </div>
@@ -839,32 +850,30 @@ export default function ProfilePage() {
 
               <div>
                 <span className="text-sm text-slate-500 mb-1 block">角色权限</span>
-                <div className="flex gap-2 text-sm">
-                  <button
-                    type="button"
-                    onClick={() => setEditRole('PLAYER')}
-                    aria-pressed={editRole === 'PLAYER'}
-                    className={`flex-1 min-h-10 py-1.5 rounded-xl border ${
-                      editRole === 'PLAYER'
-                        ? 'bg-slate-900 text-white font-medium'
-                        : 'bg-white text-slate-600'
-                    }`}
-                  >
-                    普通玩家
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditRole('ADMIN')}
-                    aria-pressed={editRole === 'ADMIN'}
-                    className={`flex-1 min-h-10 py-1.5 rounded-xl border ${
-                      editRole === 'ADMIN'
-                        ? 'bg-amber-500 text-slate-950 font-medium'
-                        : 'bg-white text-slate-600'
-                    }`}
-                  >
-                    管理员
-                  </button>
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  {(['PLAYER', 'TEMP_PLAYER', 'ADMIN'] as UserRole[]).map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setEditRole(r)}
+                      aria-pressed={editRole === r}
+                      className={`min-h-10 py-1.5 rounded-xl border ${
+                        editRole === r
+                          ? r === 'ADMIN'
+                            ? 'bg-amber-500 text-slate-950 font-medium'
+                            : 'bg-slate-900 text-white font-medium'
+                          : 'bg-white text-slate-600'
+                      }`}
+                    >
+                      {ROLE_LABELS[r]}
+                    </button>
+                  ))}
                 </div>
+                {editRole === 'TEMP_PLAYER' && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    临时玩家照常参与记账与流水，但不进总榜与成就
+                  </p>
+                )}
               </div>
 
               <div>
@@ -979,14 +988,14 @@ export default function ProfilePage() {
 
               <div>
                 <label htmlFor="add-password" className="text-sm text-slate-500 mb-1 block">
-                  初始密码（4 ~ 72 位）
+                  初始密码（可留空）
                 </label>
                 <PasswordInput
                   id="add-password"
                   value={newInitPassword}
                   onChange={setNewInitPassword}
                   autoComplete="new-password"
-                  placeholder="必填，用于密码登录或管理员重置"
+                  placeholder="留空则该账号不可用密码登录"
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-base bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
                 />
               </div>
@@ -998,32 +1007,30 @@ export default function ProfilePage() {
 
               <div>
                 <span className="text-sm text-slate-500 mb-1 block">角色权限</span>
-                <div className="flex gap-2 text-sm">
-                  <button
-                    type="button"
-                    onClick={() => setNewRole('PLAYER')}
-                    aria-pressed={newRole === 'PLAYER'}
-                    className={`flex-1 min-h-10 py-1.5 rounded-xl border ${
-                      newRole === 'PLAYER'
-                        ? 'bg-slate-900 text-white font-medium'
-                        : 'bg-white text-slate-600'
-                    }`}
-                  >
-                    普通玩家
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNewRole('ADMIN')}
-                    aria-pressed={newRole === 'ADMIN'}
-                    className={`flex-1 min-h-10 py-1.5 rounded-xl border ${
-                      newRole === 'ADMIN'
-                        ? 'bg-amber-500 text-slate-950 font-medium'
-                        : 'bg-white text-slate-600'
-                    }`}
-                  >
-                    管理员
-                  </button>
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  {(['PLAYER', 'TEMP_PLAYER', 'ADMIN'] as UserRole[]).map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setNewRole(r)}
+                      aria-pressed={newRole === r}
+                      className={`min-h-10 py-1.5 rounded-xl border ${
+                        newRole === r
+                          ? r === 'ADMIN'
+                            ? 'bg-amber-500 text-slate-950 font-medium'
+                            : 'bg-slate-900 text-white font-medium'
+                          : 'bg-white text-slate-600'
+                      }`}
+                    >
+                      {ROLE_LABELS[r]}
+                    </button>
+                  ))}
                 </div>
+                {newRole === 'TEMP_PLAYER' && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    临时玩家照常参与记账与流水，但不进总榜与成就
+                  </p>
+                )}
               </div>
 
               {addErr && (

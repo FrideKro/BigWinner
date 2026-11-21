@@ -3,6 +3,7 @@ import {
   ACHIEVEMENT_META,
   buildPersonalTrend,
   deriveAchievements,
+  excludeTempPlayers,
   mapLeaderboardRows,
   pickPlayerSummary,
   type LeaderboardSqlRow,
@@ -17,6 +18,7 @@ function leaderboardRow(overrides: Partial<LeaderboardSqlRow> = {}): Leaderboard
     nickname: '玩家一',
     avatar_color: 'red',
     is_active: true,
+    role: 'PLAYER',
     games_played: '10',
     net_amount: '300',
     win_count: '6',
@@ -79,6 +81,48 @@ describe('mapLeaderboardRows', () => {
       leaderboardRow({ user_id: 2, nickname: '玩家二' }),
     ]);
     expect(items.map((i) => i.rank)).toEqual([1, 2]);
+  });
+});
+
+describe('excludeTempPlayers', () => {
+  it('剔除临时玩家并对其余玩家重编 rank，保持相对次序', () => {
+    const items = mapLeaderboardRows([
+      leaderboardRow({ user_id: 1, nickname: '甲' }),
+      leaderboardRow({ user_id: 2, nickname: '临时甲', role: 'TEMP_PLAYER' }),
+      leaderboardRow({ user_id: 3, nickname: '乙' }),
+      leaderboardRow({ user_id: 4, nickname: '临时乙', role: 'TEMP_PLAYER' }),
+      leaderboardRow({ user_id: 5, nickname: '丙' }),
+    ]);
+    const filtered = excludeTempPlayers(items);
+    expect(filtered.map((p) => p.nickname)).toEqual(['甲', '乙', '丙']);
+    expect(filtered.map((p) => p.rank)).toEqual([1, 2, 3]);
+  });
+
+  it('无临时玩家时原样保留（rank 重编后不变）', () => {
+    const items = mapLeaderboardRows([
+      leaderboardRow({ user_id: 1 }),
+      leaderboardRow({ user_id: 2, nickname: '玩家二' }),
+    ]);
+    expect(excludeTempPlayers(items)).toEqual(items);
+  });
+
+  it('全为临时玩家时返回空数组', () => {
+    const items = mapLeaderboardRows([
+      leaderboardRow({ user_id: 1, role: 'TEMP_PLAYER' }),
+      leaderboardRow({ user_id: 2, nickname: '玩家二', role: 'TEMP_PLAYER' }),
+    ]);
+    expect(excludeTempPlayers(items)).toEqual([]);
+  });
+
+  it('过滤临时玩家后不再参与全群成就推导', () => {
+    const items = mapLeaderboardRows([
+      leaderboardRow({ user_id: 1, nickname: '普通玩家', max_win: '50' }),
+      leaderboardRow({ user_id: 2, nickname: '临时大佬', role: 'TEMP_PLAYER', max_win: '999' }),
+    ]);
+    const achievements = deriveAchievements(excludeTempPlayers(items), []);
+    const maxWinHolders = achievements.find((a) => a.type === 'MAX_SINGLE_WIN')?.holders ?? [];
+    expect(maxWinHolders.map((h) => h.nickname)).toEqual(['普通玩家']);
+    expect(maxWinHolders[0].value).toBe(50);
   });
 });
 

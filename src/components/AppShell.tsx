@@ -21,6 +21,7 @@ import {
   type PeriodFilterValue,
 } from './PeriodFilterBar';
 import { apiGet, invalidateApiCache, isAbortError } from '@/lib/apiClient';
+import type { UserRole } from '@/lib/roles';
 import {
   avatarMapFromCache,
   diffAvatarVersions,
@@ -37,7 +38,7 @@ export interface CurrentUser {
   id: number;
   username: string;
   nickname: string;
-  role: 'ADMIN' | 'PLAYER';
+  role: UserRole;
   avatarColor: string;
   isActive: boolean;
 }
@@ -51,7 +52,7 @@ export interface PlayerListItem {
   avatarVersion?: number;
   // 仅管理员返回
   username?: string;
-  role?: 'ADMIN' | 'PLAYER';
+  role?: UserRole;
   bindToken?: string | null;
   deviceCount?: number;
   createdAt?: string;

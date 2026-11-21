@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { query, generateToken } from '@/lib/db';
 import { validatePassword, validateProfileLengths } from '@/lib/profileValidation';
+import { parseUserRole, type UserRole } from '@/lib/roles';
 import { withAuth, parseJsonBody } from '../_lib/handler';
 import { listPlayers } from '../_lib/shared';
 
@@ -18,9 +19,10 @@ export const POST = withAuth(
     const body = await parseJsonBody(req);
     const username = String(body.username || '').trim();
     const nickname = String(body.nickname || '').trim();
-    // 初始密码必填：弱默认密码在「玩家密码登录」开启后可被轻易猜中
+    // 初始密码：可选（所有角色均可免密码建号）；省略时 password_hash 落空串表示未设密码，
+    // 未设密码账号无法密码登录，本人可事后免原密码设置，或由管理员重置
     const password = String(body.password || '');
-    const role = body.role === 'ADMIN' ? 'ADMIN' : 'PLAYER';
+    const role = parseUserRole(body.role) ?? 'PLAYER';
     const avatarColor = String(body.avatarColor || 'red').trim();
     // isActive 仅接受布尔：Boolean("false") === true 的强转会让停用静默变成启用
     let isActive = true;
@@ -40,13 +42,16 @@ export const POST = withAuth(
       return NextResponse.json({ error: lengthError }, { status: 400 });
     }
 
-    if (!password) {
-      return NextResponse.json({ error: '请填写初始密码' }, { status: 400 });
+    // 密码可选：留空即免密码建号（未设密码账号无法密码登录），填了则校验长度并哈希
+    let passwordHash = '';
+    if (password) {
+      const passwordError = validatePassword(password, '初始密码');
+      if (passwordError) {
+        return NextResponse.json({ error: passwordError }, { status: 400 });
+      }
+      passwordHash = await bcrypt.hash(password, 10);
     }
-    const passwordError = validatePassword(password, '初始密码');
-    if (passwordError) {
-      return NextResponse.json({ error: passwordError }, { status: 400 });
-    }
+    const bindToken = generateToken(24);
 
     const existing = await query(`SELECT id FROM users WHERE LOWER(username) = LOWER($1)`, [
       username,
@@ -55,16 +60,13 @@ export const POST = withAuth(
       return NextResponse.json({ error: `登录账号 "${username}" 已存在` }, { status: 409 });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
-    const bindToken = generateToken(24);
-
     let insertRes;
     try {
       insertRes = await query<{
         id: number;
         username: string;
         nickname: string;
-        role: 'ADMIN' | 'PLAYER';
+        role: UserRole;
         avatar_color: string;
         is_active: boolean;
         bind_token: string;

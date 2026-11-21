@@ -7,6 +7,7 @@ import {
   validateProfileLengths,
   validateAvatarImage,
 } from '@/lib/profileValidation';
+import { parseUserRole, type UserRole } from '@/lib/roles';
 import { withAuth, parseJsonBody, ApiError } from '../../_lib/handler';
 import { parsePositiveInt } from '../../_lib/params';
 
@@ -22,7 +23,15 @@ export const PATCH = withAuth<{ id: string }>(
 
     const nickname = body.nickname !== undefined ? String(body.nickname).trim() : undefined;
     const username = body.username !== undefined ? String(body.username).trim() : undefined;
-    const role = body.role !== undefined ? (body.role === 'ADMIN' ? 'ADMIN' : 'PLAYER') : undefined;
+    // 角色三选一：ADMIN / PLAYER / TEMP_PLAYER，非法值一律 400（不静默回落 PLAYER）
+    let role: UserRole | undefined;
+    if (body.role !== undefined) {
+      const parsedRole = parseUserRole(body.role);
+      if (!parsedRole) {
+        return NextResponse.json({ error: 'role 参数无效' }, { status: 400 });
+      }
+      role = parsedRole;
+    }
     const avatarColor =
       body.avatarColor !== undefined ? String(body.avatarColor).trim() : undefined;
     // 头像图片三态：undefined = 未提供（不动）；null = 清除；string = 设置（管理员可代设/清除不当图片）
@@ -90,12 +99,14 @@ export const PATCH = withAuth<{ id: string }>(
         }
       }
 
-      if (role === 'PLAYER' || isActive === false) {
+      // 降级为任意非管理员角色（普通玩家或临时玩家）或停用，都需要先数清剩余管理员
+      const demotingAdmin = role !== undefined && role !== 'ADMIN';
+      if (demotingAdmin || isActive === false) {
         // 先锁定现有管理员行再计数：并发降级/停用请求在此串行化，
         // 后到者能看到先到者已提交的结果，防止把仅有的两名管理员同时降级/停用
         await client.query(`SELECT id FROM users WHERE role = 'ADMIN' FOR UPDATE`);
 
-        if (role === 'PLAYER') {
+        if (demotingAdmin) {
           const adminCountRes = await client.query<{ count: string }>(
             `SELECT COUNT(*)::text AS count FROM users WHERE role = 'ADMIN' AND id != $1`,
             [targetId],
@@ -162,7 +173,7 @@ export const PATCH = withAuth<{ id: string }>(
         id: number;
         username: string;
         nickname: string;
-        role: 'ADMIN' | 'PLAYER';
+        role: UserRole;
         avatar_color: string;
         avatar_version: number;
         is_active: boolean;

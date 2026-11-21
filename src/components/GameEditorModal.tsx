@@ -30,6 +30,8 @@ export interface PlayerOption {
   nickname: string;
   avatarColor: string;
   isActive?: boolean;
+  /** 临时玩家：照常参与记账，但不进总榜与成就（AppShell.PlayerListItem 兼容传入） */
+  role?: string;
 }
 
 interface GameEditorModalProps {
@@ -399,11 +401,14 @@ export function GameEditorModal({
                   key={p.id}
                   onClick={() => togglePlayer(p.id)}
                   aria-pressed
-                  aria-label={`移除 ${p.nickname}`}
+                  aria-label={`移除 ${p.nickname}${p.role === 'TEMP_PLAYER' ? '（临时玩家）' : ''}`}
                   className="flex items-center gap-1 pl-1 pr-2 py-1 rounded-full bg-slate-900 text-white text-sm font-medium"
                 >
                   <PlayerAvatar nickname={p.nickname} color={p.avatarColor} size="sm" />
                   <span>{p.nickname}</span>
+                  {p.role === 'TEMP_PLAYER' && (
+                    <span className="px-1 rounded bg-white/20 text-xs leading-4">临</span>
+                  )}
                   <Trash2 size={12} className="text-slate-400" />
                 </button>
               ))}
@@ -412,11 +417,14 @@ export function GameEditorModal({
                   key={p.id}
                   onClick={() => togglePlayer(p.id)}
                   aria-pressed={false}
-                  aria-label={`加入 ${p.nickname}`}
+                  aria-label={`加入 ${p.nickname}${p.role === 'TEMP_PLAYER' ? '（临时玩家）' : ''}`}
                   className="flex items-center gap-1 pl-1 pr-2 py-1 rounded-full bg-slate-100 text-slate-600 text-sm font-medium border border-dashed border-slate-300"
                 >
                   <PlayerAvatar nickname={p.nickname} color={p.avatarColor} size="sm" />
                   <span>{p.nickname}</span>
+                  {p.role === 'TEMP_PLAYER' && (
+                    <span className="px-1 rounded bg-slate-200 text-xs leading-4">临</span>
+                  )}
                   <Plus size={12} />
                 </button>
               ))}

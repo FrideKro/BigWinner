@@ -23,7 +23,7 @@ describe('statsQueries 共享统计查询', () => {
     mocks.query.mockResolvedValue({ rows: [], rowCount: 0 });
   });
 
-  it('queryLeaderboard 透传 clause 与参数，SQL 含总榜排序口径', async () => {
+  it('queryLeaderboard 透传 clause 与参数，SQL 含总榜排序口径与角色列', async () => {
     await queryLeaderboard(CLAUSE, PARAMS);
 
     expect(mocks.query).toHaveBeenCalledTimes(1);
@@ -32,6 +32,8 @@ describe('statsQueries 共享统计查询', () => {
     expect(sql).toContain('WHERE 1=1 AND g.played_at >= $1');
     expect(sql).toContain('u.is_active = TRUE OR gr.id IS NOT NULL');
     expect(sql).toContain('ORDER BY (COUNT(gr.id) > 0) DESC');
+    // role 列供消费端 excludeTempPlayers 过滤临时玩家
+    expect(sql).toContain('u.role');
   });
 
   it('queryPeriodSummary 透传 clause 与参数', async () => {

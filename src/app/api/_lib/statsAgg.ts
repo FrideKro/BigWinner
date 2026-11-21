@@ -1,11 +1,13 @@
 // 统计聚合公共纯函数：/api/stats 与免登录分享接口 /api/s/[code] 共用，保证口径一致
 // 数值列一律以 ::text 传输（防 JS number 精度丢失），在此统一转回整数
+import { TEMP_PLAYER_ROLE, type UserRole } from '@/lib/roles';
 
 export interface LeaderboardSqlRow {
   user_id: number;
   nickname: string;
   avatar_color: string;
   is_active: boolean;
+  role: UserRole;
   games_played: string;
   net_amount: string;
   win_count: string;
@@ -22,6 +24,7 @@ export interface LeaderboardItem {
   nickname: string;
   avatarColor: string;
   isActive: boolean;
+  role: UserRole;
   gamesPlayed: number;
   netAmount: number;
   winCount: number;
@@ -51,6 +54,7 @@ export function mapLeaderboardRows(rows: LeaderboardSqlRow[]): LeaderboardItem[]
       nickname: row.nickname,
       avatarColor: row.avatar_color,
       isActive: row.is_active,
+      role: row.role,
       gamesPlayed,
       netAmount,
       winCount,
@@ -64,6 +68,17 @@ export function mapLeaderboardRows(rows: LeaderboardSqlRow[]): LeaderboardItem[]
       maxLoss: parseInt(row.max_loss, 10),
     };
   });
+}
+
+/**
+ * 过滤总榜中的临时玩家（不进排行榜）并重编 rank，保持其余相对次序不变。
+ * 临时玩家仍参与记账/流水/房费配平，仅榜单与成就推导不展示；
+ * 过滤必须发生在 deriveAchievements 之前，避免临时玩家霸占全群成就
+ */
+export function excludeTempPlayers(leaderboard: LeaderboardItem[]): LeaderboardItem[] {
+  return leaderboard
+    .filter((p) => p.role !== TEMP_PLAYER_ROLE)
+    .map((p, index) => ({ ...p, rank: index + 1 }));
 }
 
 export interface PersonalHistorySqlRow {
@@ -262,6 +277,7 @@ export function pickPlayerSummary(leaderboard: LeaderboardItem[], userId: number
       nickname: '未知玩家',
       avatarColor: 'red',
       isActive: true,
+      role: 'PLAYER',
       gamesPlayed: 0,
       netAmount: 0,
       winCount: 0,

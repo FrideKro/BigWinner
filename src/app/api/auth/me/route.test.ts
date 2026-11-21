@@ -232,6 +232,34 @@ describe('PATCH /api/auth/me', () => {
     expect(await res.json()).toEqual({ error: '修改密码必须输入当前原密码' });
   });
 
+  it('未设密码账号（免密建号）首次设密无需原密码', async () => {
+    mocks.query.mockImplementation((sql: string) => {
+      if (/SELECT password_hash FROM users/.test(sql)) {
+        return Promise.resolve({ rows: [{ password_hash: '' }], rowCount: 1 });
+      }
+      if (/bind_token = \$2/.test(sql)) {
+        return Promise.resolve({ rows: [], rowCount: 1 });
+      }
+      if (/device_token <> \$2/.test(sql)) {
+        return Promise.resolve({ rows: [], rowCount: 1 });
+      }
+      throw new Error(`未预期的 SQL: ${sql}`);
+    });
+    mocks.compare.mockClear();
+
+    const res = await callPatch({ newPassword: 'first-pass-123' });
+
+    expect(res.status).toBe(200);
+    // 无原密码可校验，不进 bcrypt.compare，直接落新哈希
+    expect(mocks.compare).not.toHaveBeenCalled();
+    expect(mocks.hash).toHaveBeenCalledWith('first-pass-123', 10);
+    expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining('bind_token = $2'), [
+      '$2a$10$newhash',
+      'rotated-bind-token',
+      7,
+    ]);
+  });
+
   it('新密码长度不足返回 400', async () => {
     const res = await callPatch({ currentPassword: 'old-pass', newPassword: '123' });
 

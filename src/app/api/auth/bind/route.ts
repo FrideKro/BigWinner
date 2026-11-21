@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { createDeviceSession, getCurrentUser, setDeviceCookie } from '@/lib/auth';
+import type { UserRole } from '@/lib/roles';
 import { clearFailures, getClientIp, getRateLimitState, recordFailure } from '@/lib/rateLimit';
 import { ApiError, parseJsonBody } from '../../_lib/handler';
 
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
       id: number;
       username: string;
       nickname: string;
-      role: 'ADMIN' | 'PLAYER';
+      role: UserRole;
       avatar_color: string;
       is_active: boolean;
     }>(
