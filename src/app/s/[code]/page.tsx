@@ -445,8 +445,19 @@ export default function SharePage() {
                       )}
                     </div>
                     <div className="text-xs text-slate-500 mt-0.5 truncate">
-                      {player.gamesPlayed}场 ｜ 胜率 {player.winRate}% ｜ 场均{' '}
-                      {formatSignedAmount(player.avgAmount)}
+                      {/* 数值定宽右对齐使各行固定文案纵向对齐；列宽按常见最大值设定，
+                          避免整行超出移动端可用宽度被 truncate 截断 */}
+                      <span className="inline-block min-w-5 text-right tabular-nums">
+                        {player.gamesPlayed}
+                      </span>
+                      场｜胜率
+                      <span className="inline-block min-w-7 text-right tabular-nums">
+                        {player.winRate}
+                      </span>
+                      %｜场均
+                      <span className="inline-block min-w-8 text-right tabular-nums">
+                        {formatSignedAmount(player.avgAmount)}
+                      </span>
                     </div>
                   </div>
                 </div>
