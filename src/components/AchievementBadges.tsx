@@ -12,7 +12,14 @@ function achievementValueText(type: AchievementType, value: number): string {
 }
 
 /** 双卡成就条：单场最高 / 连胜场次的全群纪录保持者（可并列），无纪录时虚位以待 */
-export function AchievementsStrip({ achievements }: { achievements: Achievement[] }) {
+export function AchievementsStrip({
+  achievements,
+  getAvatarImage,
+}: {
+  achievements: Achievement[];
+  /** userId → 自定义头像图片；不传或返回 null 时落字母主题色头像 */
+  getAvatarImage?: (userId: number) => string | null;
+}) {
   return (
     <div className="grid grid-cols-2 gap-2">
       {achievements.map((a) => {
@@ -32,7 +39,12 @@ export function AchievementsStrip({ achievements }: { achievements: Achievement[
               <div className="space-y-1.5">
                 {a.holders.map((h) => (
                   <div key={h.userId} className="flex items-center gap-2 min-w-0">
-                    <PlayerAvatar nickname={h.nickname} color={h.avatarColor} size="sm" />
+                    <PlayerAvatar
+                      nickname={h.nickname}
+                      color={h.avatarColor}
+                      size="sm"
+                      src={getAvatarImage?.(h.userId) ?? null}
+                    />
                     <span className="text-sm text-slate-700 truncate">{h.nickname}</span>
                     <span className="ml-auto shrink-0 text-sm font-black text-red-600 tabular-nums">
                       {achievementValueText(a.type, h.value)}

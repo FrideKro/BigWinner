@@ -387,7 +387,12 @@ export default function SharePage() {
         </div>
 
         {/* 成就条：单场最高与连胜场次的全群纪录保持者 */}
-        {data.achievements.length > 0 && <AchievementsStrip achievements={data.achievements} />}
+        {data.achievements.length > 0 && (
+          <AchievementsStrip
+            achievements={data.achievements}
+            getAvatarImage={(userId) => avatars[String(userId)] ?? null}
+          />
+        )}
 
         {/* 排行榜列表（只读） */}
         <div className="space-y-2">

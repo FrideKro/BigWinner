@@ -253,7 +253,9 @@ export default function HomePage() {
           </div>
 
           {/* 成就条：单场最高与连胜场次的全群纪录保持者 */}
-          {achievements.length > 0 && <AchievementsStrip achievements={achievements} />}
+          {achievements.length > 0 && (
+            <AchievementsStrip achievements={achievements} getAvatarImage={getAvatarImage} />
+          )}
 
           {/* 排行榜列表 */}
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2 pb-6">
