@@ -28,9 +28,9 @@ export function periodFilterQuery(value: PeriodFilterValue): string {
 // sessionStorage 键：AppShell 据此在会话内（含页面刷新）记忆筛选选择
 export const PERIOD_FILTER_STORAGE_KEY = 'bw_period_filter';
 
-/** 从 sessionStorage 原文解析记忆的筛选值；缺失 / 损坏 / 形状非法一律回退「全部」 */
+/** 从 sessionStorage 原文解析记忆的筛选值；缺失 / 损坏 / 形状非法一律回退「本年」 */
 export function parseStoredPeriodFilter(raw: string | null): PeriodFilterValue {
-  if (!raw) return { kind: 'all' };
+  if (!raw) return { kind: 'year' };
   try {
     const parsed = JSON.parse(raw) as PeriodFilterValue;
     if (parsed.kind === 'range') {
@@ -40,14 +40,14 @@ export function parseStoredPeriodFilter(raw: string | null): PeriodFilterValue {
       if (/^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to) && from <= to) {
         return { kind: 'range', from, to };
       }
-      return { kind: 'all' };
+      return { kind: 'year' };
     }
     if (parsed.kind === 'all' || parsed.kind === 'year' || parsed.kind === 'month') {
       return { kind: parsed.kind };
     }
-    return { kind: 'all' };
+    return { kind: 'year' };
   } catch {
-    return { kind: 'all' };
+    return { kind: 'year' };
   }
 }
 

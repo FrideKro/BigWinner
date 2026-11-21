@@ -38,12 +38,12 @@ describe('defaultCustomRange', () => {
 });
 
 describe('parseStoredPeriodFilter', () => {
-  it('缺失 / 损坏 JSON / 未知形状一律回退「全部」', () => {
-    expect(parseStoredPeriodFilter(null)).toEqual({ kind: 'all' });
-    expect(parseStoredPeriodFilter('')).toEqual({ kind: 'all' });
-    expect(parseStoredPeriodFilter('{not-json')).toEqual({ kind: 'all' });
-    expect(parseStoredPeriodFilter(JSON.stringify({ kind: 'abc' }))).toEqual({ kind: 'all' });
-    expect(parseStoredPeriodFilter(JSON.stringify({ foo: 1 }))).toEqual({ kind: 'all' });
+  it('缺失 / 损坏 JSON / 未知形状一律回退「本年」', () => {
+    expect(parseStoredPeriodFilter(null)).toEqual({ kind: 'year' });
+    expect(parseStoredPeriodFilter('')).toEqual({ kind: 'year' });
+    expect(parseStoredPeriodFilter('{not-json')).toEqual({ kind: 'year' });
+    expect(parseStoredPeriodFilter(JSON.stringify({ kind: 'abc' }))).toEqual({ kind: 'year' });
+    expect(parseStoredPeriodFilter(JSON.stringify({ foo: 1 }))).toEqual({ kind: 'year' });
   });
 
   it('合法固定周期原样恢复', () => {
@@ -59,14 +59,14 @@ describe('parseStoredPeriodFilter', () => {
     ).toEqual({ kind: 'range', from: '2025-03-01', to: '2025-03-10' });
   });
 
-  it('区间日期形状非法或 from 大于 to 回退「全部」', () => {
+  it('区间日期形状非法或 from 大于 to 回退「本年」', () => {
     for (const value of [
       { kind: 'range', from: '2025-3-1', to: '2025-03-10' },
       { kind: 'range', from: '', to: '2025-03-10' },
       { kind: 'range', from: 1, to: 2 },
       { kind: 'range', from: '2025-03-10', to: '2025-03-01' },
     ]) {
-      expect(parseStoredPeriodFilter(JSON.stringify(value))).toEqual({ kind: 'all' });
+      expect(parseStoredPeriodFilter(JSON.stringify(value))).toEqual({ kind: 'year' });
     }
   });
 });

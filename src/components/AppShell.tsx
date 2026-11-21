@@ -116,13 +116,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // 网络异常 / 服务端不可用标记：此时不清空登录态、不误跳登录页
   const [offline, setOffline] = useState(false);
 
-  // 时间周期筛选：总榜/流水/看板共享同一份，切换页面与刷新后保持（会话级 sessionStorage）
+  // 时间周期筛选：总榜/流水/看板共享同一份，切换页面与刷新后保持（会话级 sessionStorage），默认「本年」
   const [periodFilter, setPeriodFilterState] = useState<PeriodFilterValue>(() => {
     try {
-      if (typeof window === 'undefined') return { kind: 'all' };
+      if (typeof window === 'undefined') return { kind: 'year' };
       return parseStoredPeriodFilter(sessionStorage.getItem(PERIOD_FILTER_STORAGE_KEY));
     } catch {
-      return { kind: 'all' };
+      return { kind: 'year' };
     }
   });
 
