@@ -7,9 +7,19 @@ import {
   getRateLimitState,
   recordFailure,
 } from '@/lib/rateLimit';
-import { buildPersonalTrend, mapLeaderboardRows, pickPlayerSummary } from '../../_lib/statsAgg';
+import {
+  buildPersonalTrend,
+  deriveAchievements,
+  mapLeaderboardRows,
+  pickPlayerSummary,
+} from '../../_lib/statsAgg';
 import { parseNonNegativeInt, parsePositiveInt } from '../../_lib/params';
-import { queryLeaderboard, queryMonthlyFees, queryPersonalHistory } from '../../_lib/statsQueries';
+import {
+  queryLeaderboard,
+  queryMonthlyFees,
+  queryPersonalHistory,
+  queryWinStreaks,
+} from '../../_lib/statsQueries';
 import {
   fetchShareByCode,
   mapShareGameRows,
@@ -122,16 +132,23 @@ export async function GET(req: NextRequest, context: { params: Promise<{ code: s
     };
 
     if (rawTab === 'board') {
-      const [summary, leaderboardRes] = await Promise.all([
+      const [summary, leaderboardRes, winStreaksRes] = await Promise.all([
         queryShareSummary(clause, params),
         queryLeaderboard(clause, params),
+        queryWinStreaks(clause, params),
       ]);
       // 已设置自定义头像的玩家（免登录页按 userId 解析，未设置的落字母主题色头像）
       const avatars = await queryShareAvatars(leaderboardRes.rows.map((r) => r.user_id));
+      const leaderboard = mapLeaderboardRows(leaderboardRes.rows);
       return NextResponse.json(
         {
           share: meta,
-          data: { summary, leaderboard: mapLeaderboardRows(leaderboardRes.rows), avatars },
+          data: {
+            summary,
+            leaderboard,
+            achievements: deriveAchievements(leaderboard, winStreaksRes.rows),
+            avatars,
+          },
         },
         { headers: NO_STORE_HEADERS },
       );
@@ -169,13 +186,15 @@ export async function GET(req: NextRequest, context: { params: Promise<{ code: s
       requestedUserId = parsed;
     }
 
-    const [summary, leaderboardRes, monthlyRes] = await Promise.all([
+    const [summary, leaderboardRes, monthlyRes, winStreaksRes] = await Promise.all([
       queryShareSummary(clause, params),
       queryLeaderboard(clause, params),
       queryMonthlyFees(clause, params),
+      queryWinStreaks(clause, params),
     ]);
 
     const leaderboard = mapLeaderboardRows(leaderboardRes.rows);
+    const achievements = deriveAchievements(leaderboard, winStreaksRes.rows);
     const players = leaderboard
       .filter((p) => p.gamesPlayed > 0)
       .map((p) => ({ userId: p.userId, nickname: p.nickname, avatarColor: p.avatarColor }));
@@ -209,7 +228,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ code: s
     return NextResponse.json(
       {
         share: meta,
-        data: { summary, monthlyRoomFees, players, personalStats, avatars },
+        data: { summary, monthlyRoomFees, players, personalStats, achievements, avatars },
       },
       { headers: NO_STORE_HEADERS },
     );

@@ -8,6 +8,7 @@ import { PlayerAvatar } from '@/components/PlayerAvatar';
 import { LogoMark } from '@/components/LogoMark';
 import { ErrorState } from '@/components/ErrorState';
 import { InlineErrorBanner } from '@/components/InlineErrorBanner';
+import { AchievementsStrip } from '@/components/AchievementBadges';
 import {
   PeriodFilterBar,
   periodFilterQuery,
@@ -16,7 +17,7 @@ import {
 import { formatSignedAmount, getAmountColorClass } from '@/lib/format';
 import { apiGet, isAbortError } from '@/lib/apiClient';
 import { useRefreshOnVisible } from '@/lib/useRefreshOnVisible';
-import type { LeaderboardItem } from '@/app/api/_lib/statsAgg';
+import type { Achievement, LeaderboardItem } from '@/app/api/_lib/statsAgg';
 import { Share2, Sparkles, ChevronRight } from 'lucide-react';
 
 // 分享弹窗仅在点击后渲染，避免拖慢首屏
@@ -40,6 +41,7 @@ interface StatsSummary {
 interface StatsResponse {
   summary: StatsSummary;
   leaderboard: LeaderboardItem[];
+  achievements: Achievement[];
 }
 
 export default function HomePage() {
@@ -56,6 +58,7 @@ export default function HomePage() {
 
   const [summary, setSummary] = useState<StatsSummary | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([]);
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [shareModalOpen, setShareModalOpen] = useState(false);
@@ -90,6 +93,7 @@ export default function HomePage() {
         setSummary(data.summary);
         // 时间段内 0 记录的玩家不上榜（后端把它们排在有记录玩家之后，过滤不影响其余排名）
         setLeaderboard((data.leaderboard || []).filter((p) => p.gamesPlayed > 0));
+        setAchievements(data.achievements || []);
         hasDataRef.current = true;
         setError('');
       } catch (err) {
@@ -247,6 +251,9 @@ export default function HomePage() {
               </span>
             </div>
           </div>
+
+          {/* 成就条：单场最高与连胜场次的全群纪录保持者 */}
+          {achievements.length > 0 && <AchievementsStrip achievements={achievements} />}
 
           {/* 排行榜列表 */}
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2 pb-6">

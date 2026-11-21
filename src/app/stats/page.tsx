@@ -8,10 +8,11 @@ import { TrendChart, TrendPoint } from '@/components/TrendChart';
 import { ErrorState } from '@/components/ErrorState';
 import { InlineErrorBanner } from '@/components/InlineErrorBanner';
 import { PeriodFilterBar, periodFilterQuery } from '@/components/PeriodFilterBar';
+import { PlayerAchievementBadges } from '@/components/AchievementBadges';
 import { formatSignedAmount, getAmountColorClass, formatDateTime } from '@/lib/format';
 import { apiGet, isAbortError } from '@/lib/apiClient';
 import { useRefreshOnVisible } from '@/lib/useRefreshOnVisible';
-import type { LeaderboardItem, StreakSummary } from '@/app/api/_lib/statsAgg';
+import type { Achievement, LeaderboardItem, StreakSummary } from '@/app/api/_lib/statsAgg';
 import { Flame, Award, TrendingUp, TrendingDown, Coins, Calendar } from 'lucide-react';
 
 // 个人面板 = 总榜汇总字段（不含 rank/isActive）+ 明细计算字段，服务端 /api/stats 同此结构
@@ -58,6 +59,7 @@ interface StatsResponse {
   summary: StatsSummary;
   personalStats: PersonalStats;
   monthlyRoomFees: MonthlyRoomFeeItem[];
+  achievements: Achievement[];
 }
 
 function StatsSkeleton() {
@@ -122,6 +124,7 @@ function StatsContent() {
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [personalStats, setPersonalStats] = useState<PersonalStats | null>(null);
   const [monthlyRoomFees, setMonthlyRoomFees] = useState<MonthlyRoomFeeItem[]>([]);
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [summary, setSummary] = useState<StatsSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -169,6 +172,7 @@ function StatsContent() {
         if (abortRef.current !== controller) return;
         setPersonalStats(data.personalStats);
         setMonthlyRoomFees(data.monthlyRoomFees || []);
+        setAchievements(data.achievements || []);
         setSummary(data.summary);
         setError('');
       } catch (err) {
@@ -319,6 +323,12 @@ function StatsContent() {
                         </span>
                       </div>
                     </div>
+
+                    {/* 个人成就徽章：该玩家持有的全群纪录成就 */}
+                    <PlayerAchievementBadges
+                      achievements={achievements}
+                      userId={personalStats.userId}
+                    />
 
                     {/* 关键指标：窄屏 2×2，宽屏四宫格 */}
                     <div className="grid grid-cols-2 xs:grid-cols-4 gap-2 text-center">

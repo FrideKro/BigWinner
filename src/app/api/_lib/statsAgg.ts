@@ -183,6 +183,76 @@ export function buildPersonalTrend(rows: PersonalHistorySqlRow[]): PersonalTrend
   };
 }
 
+/** 指定玩家最长连胜 SQL 行（queryWinStreaks 返回；只含有胜局的用户） */
+export interface WinStreakSqlRow {
+  user_id: number;
+  longest_win_streak: string;
+}
+
+export type AchievementType = 'MAX_SINGLE_WIN' | 'LONGEST_WIN_STREAK';
+
+/** 成就展示元信息：名称与图标，UI 直接复用 */
+export const ACHIEVEMENT_META: Record<AchievementType, { name: string; icon: string }> = {
+  MAX_SINGLE_WIN: { name: '单场最高', icon: '🎯' },
+  LONGEST_WIN_STREAK: { name: '连胜场次', icon: '🔥' },
+};
+
+export interface AchievementHolder {
+  userId: number;
+  nickname: string;
+  avatarColor: string;
+  value: number;
+}
+
+export interface Achievement {
+  type: AchievementType;
+  holders: AchievementHolder[];
+}
+
+/**
+ * 全群成就推导：单场最高赢分与最长连胜的全群纪录保持者（随所选时间段实时变化）。
+ * 取全群最大值，并列者全部入列且保持榜单 rank 序；无可颁纪录（无胜局/连胜）时 holders 为空。
+ * 单场最高直接复用总榜已算的 maxWin，连胜取 queryWinStreaks 结果（不在榜用户按 0 兜底）
+ */
+export function deriveAchievements(
+  leaderboard: LeaderboardItem[],
+  streakRows: WinStreakSqlRow[],
+): Achievement[] {
+  const streakMap = new Map<number, number>();
+  for (const row of streakRows) {
+    streakMap.set(row.user_id, parseInt(row.longest_win_streak, 10) || 0);
+  }
+
+  const maxWin = Math.max(0, ...leaderboard.map((p) => p.maxWin));
+  const maxStreak = Math.max(0, ...streakMap.values());
+
+  const toHolder = (p: LeaderboardItem, value: number): AchievementHolder => ({
+    userId: p.userId,
+    nickname: p.nickname,
+    avatarColor: p.avatarColor,
+    value,
+  });
+
+  return [
+    {
+      type: 'MAX_SINGLE_WIN',
+      holders:
+        maxWin > 0
+          ? leaderboard.filter((p) => p.maxWin === maxWin).map((p) => toHolder(p, maxWin))
+          : [],
+    },
+    {
+      type: 'LONGEST_WIN_STREAK',
+      holders:
+        maxStreak > 0
+          ? leaderboard
+              .filter((p) => (streakMap.get(p.userId) ?? 0) === maxStreak)
+              .map((p) => toHolder(p, maxStreak))
+          : [],
+    },
+  ];
+}
+
 /** 从总榜中取指定玩家的汇总；不在榜（如停用玩家）时给安全默认值 */
 export function pickPlayerSummary(leaderboard: LeaderboardItem[], userId: number): LeaderboardItem {
   return (

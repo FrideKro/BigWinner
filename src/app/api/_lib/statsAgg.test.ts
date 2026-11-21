@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ACHIEVEMENT_META,
   buildPersonalTrend,
+  deriveAchievements,
   mapLeaderboardRows,
   pickPlayerSummary,
   type LeaderboardSqlRow,
   type PersonalHistorySqlRow,
+  type AchievementType,
+  type WinStreakSqlRow,
 } from './statsAgg';
 
 function leaderboardRow(overrides: Partial<LeaderboardSqlRow> = {}): LeaderboardSqlRow {
@@ -161,5 +165,75 @@ describe('pickPlayerSummary', () => {
       gamesPlayed: 0,
       netAmount: 0,
     });
+  });
+});
+
+describe('deriveAchievements', () => {
+  function streakRow(overrides: Partial<WinStreakSqlRow> = {}): WinStreakSqlRow {
+    return { user_id: 1, longest_win_streak: '2', ...overrides };
+  }
+
+  const holdersOf = (
+    achievements: ReturnType<typeof deriveAchievements>,
+    type: AchievementType,
+  ) => achievements.find((a) => a.type === type)?.holders ?? [];
+
+  it('唯一持有者拿到单场最高与连胜成就', () => {
+    const leaderboard = mapLeaderboardRows([
+      leaderboardRow({ user_id: 1, nickname: '玩家一', max_win: '150' }),
+      leaderboardRow({ user_id: 2, nickname: '玩家二', max_win: '80' }),
+    ]);
+    const achievements = deriveAchievements(leaderboard, [
+      streakRow({ user_id: 2, longest_win_streak: '3' }),
+      streakRow({ user_id: 1, longest_win_streak: '1' }),
+    ]);
+    expect(holdersOf(achievements, 'MAX_SINGLE_WIN')).toEqual([
+      { userId: 1, nickname: '玩家一', avatarColor: 'red', value: 150 },
+    ]);
+    expect(holdersOf(achievements, 'LONGEST_WIN_STREAK')).toEqual([
+      { userId: 2, nickname: '玩家二', avatarColor: 'red', value: 3 },
+    ]);
+  });
+
+  it('并列纪录者全部入列且保持榜单 rank 序', () => {
+    const leaderboard = mapLeaderboardRows([
+      leaderboardRow({ user_id: 2, nickname: '玩家二', max_win: '120' }),
+      leaderboardRow({ user_id: 1, nickname: '玩家一', max_win: '120' }),
+    ]);
+    const maxWin = holdersOf(
+      deriveAchievements(leaderboard, [streakRow({ user_id: 2 })]),
+      'MAX_SINGLE_WIN',
+    );
+    expect(maxWin.map((h) => h.userId)).toEqual([2, 1]);
+    expect(maxWin.every((h) => h.value === 120)).toBe(true);
+  });
+
+  it('无可颁纪录（无胜局、无连胜）时 holders 为空', () => {
+    const leaderboard = mapLeaderboardRows([
+      leaderboardRow({ user_id: 1, max_win: '0' }),
+      leaderboardRow({ user_id: 2, max_win: '0' }),
+    ]);
+    const achievements = deriveAchievements(leaderboard, []);
+    expect(holdersOf(achievements, 'MAX_SINGLE_WIN')).toEqual([]);
+    expect(holdersOf(achievements, 'LONGEST_WIN_STREAK')).toEqual([]);
+  });
+
+  it('连胜 SQL 行缺失的用户按 0 兜底，不误颁成就', () => {
+    const leaderboard = mapLeaderboardRows([
+      leaderboardRow({ user_id: 1, max_win: '50' }),
+      leaderboardRow({ user_id: 2, max_win: '30' }),
+    ]);
+    const streak = holdersOf(
+      deriveAchievements(leaderboard, [streakRow({ user_id: 1, longest_win_streak: '0' })]),
+      'LONGEST_WIN_STREAK',
+    );
+    expect(streak).toEqual([]);
+  });
+
+  it('成就元信息含名称与图标', () => {
+    expect(ACHIEVEMENT_META.MAX_SINGLE_WIN.name).toBe('单场最高');
+    expect(ACHIEVEMENT_META.LONGEST_WIN_STREAK.name).toBe('连胜场次');
+    expect(ACHIEVEMENT_META.MAX_SINGLE_WIN.icon).toBeTruthy();
+    expect(ACHIEVEMENT_META.LONGEST_WIN_STREAK.icon).toBeTruthy();
   });
 });

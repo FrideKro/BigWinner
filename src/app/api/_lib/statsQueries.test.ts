@@ -11,6 +11,7 @@ import {
   queryMonthlyFees,
   queryPersonalHistory,
   queryPeriodSummary,
+  queryWinStreaks,
 } from './statsQueries';
 
 const CLAUSE = 'AND g.played_at >= $1 AND g.played_at < $2';
@@ -66,5 +67,17 @@ describe('statsQueries 共享统计查询', () => {
     expect(params).toEqual([...PARAMS, 7]);
     expect(sql).toContain('WHERE gr.user_id = $3');
     expect(sql).toContain('ORDER BY g.played_at ASC, g.id ASC');
+  });
+
+  it('queryWinStreaks 透传 clause 与参数，SQL 按场次时间序分段连胜', async () => {
+    await queryWinStreaks(CLAUSE, PARAMS);
+
+    const [sql, params] = mocks.query.mock.calls[0];
+    expect(params).toBe(PARAMS);
+    expect(sql).toContain('WHERE 1=1 AND g.played_at >= $1');
+    // 连胜分段与 personal trend 同口径：按场次时间序，amount > 0 连续即连胜
+    expect(sql).toContain('PARTITION BY gr.user_id ORDER BY g.played_at ASC, g.id ASC');
+    expect(sql).toContain('PARTITION BY gr.user_id, gr.amount > 0');
+    expect(sql).toContain('MAX(streak_len)::text AS longest_win_streak');
   });
 });

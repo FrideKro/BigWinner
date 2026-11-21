@@ -6,6 +6,7 @@ import { PlayerAvatar } from '@/components/PlayerAvatar';
 import { LogoMark } from '@/components/LogoMark';
 import { TrendChart, TrendPoint } from '@/components/TrendChart';
 import { ErrorState } from '@/components/ErrorState';
+import { AchievementsStrip, PlayerAchievementBadges } from '@/components/AchievementBadges';
 import { ApiError, apiGet, isAbortError } from '@/lib/apiClient';
 import {
   formatDateTime,
@@ -13,7 +14,7 @@ import {
   formatShareExpiryDate,
   getAmountColorClass,
 } from '@/lib/format';
-import type { LeaderboardItem } from '@/app/api/_lib/statsAgg';
+import type { Achievement, LeaderboardItem } from '@/app/api/_lib/statsAgg';
 import { Sparkles, Trophy, ListOrdered, BarChart3 } from 'lucide-react';
 
 // 免登录分享页：凭 /s/{code} 查看指定时间段的实时数据，只读、无登录态依赖
@@ -41,6 +42,7 @@ interface ShareSummary {
 interface BoardData {
   summary: ShareSummary;
   leaderboard: LeaderboardItem[];
+  achievements: Achievement[];
   /** userId → 自定义头像图片（仅含已设置的玩家），未设置落字母主题色头像 */
   avatars: Record<string, string>;
 }
@@ -91,6 +93,7 @@ interface StatsData {
   monthlyRoomFees: MonthlyRoomFeeItem[];
   players: Array<{ userId: number; nickname: string; avatarColor: string }>;
   personalStats: PersonalStats | null;
+  achievements: Achievement[];
   avatars: Record<string, string>;
 }
 
@@ -383,6 +386,9 @@ export default function SharePage() {
           </div>
         </div>
 
+        {/* 成就条：单场最高与连胜场次的全群纪录保持者 */}
+        {data.achievements.length > 0 && <AchievementsStrip achievements={data.achievements} />}
+
         {/* 排行榜列表（只读） */}
         <div className="space-y-2">
           <div className="flex items-center justify-between px-1">
@@ -642,6 +648,12 @@ export default function SharePage() {
                 </span>
               </div>
             </div>
+
+            {/* 个人成就徽章：该玩家持有的全群纪录成就 */}
+            <PlayerAchievementBadges
+              achievements={data.achievements}
+              userId={personalStats.userId}
+            />
 
             {/* 关键指标 2×2 */}
             <div className="grid grid-cols-2 xs:grid-cols-4 gap-2 text-center">

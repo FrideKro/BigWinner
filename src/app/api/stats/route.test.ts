@@ -65,6 +65,10 @@ function mockAllQueries() {
       // 个人明细查询（queryPersonalHistory）
       return Promise.resolve({ rows: [], rowCount: 0 });
     }
+    if (/longest_win_streak/.test(sql)) {
+      // 连胜明细查询（queryWinStreaks）
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    }
     throw new Error(`未预期的 SQL: ${sql}`);
   });
 }
@@ -142,8 +146,13 @@ describe('GET /api/stats', () => {
     expect(body.personalStats).toBeDefined();
     expect(body.personalStats.userId).toBe(2);
     expect(body.personalStats.trend).toEqual([]);
+    expect(body.achievements).toEqual([
+      { type: 'MAX_SINGLE_WIN', holders: [] },
+      { type: 'LONGEST_WIN_STREAK', holders: [] },
+    ]);
     const sqls = mocks.query.mock.calls.map((c) => c[0] as string);
     expect(sqls.some((s) => /date_label/.test(s))).toBe(true);
+    expect(sqls.some((s) => /longest_win_streak/.test(s))).toBe(true);
   });
 
   it('非法 userId 返回 400', async () => {

@@ -87,3 +87,32 @@ export function queryPersonalHistory(clause: string, params: unknown[], userId: 
     queryParams,
   );
 }
+
+/** 各用户在时间段内的最长连胜（按场次时间序，amount > 0 连续即连胜，平局/输局打断，
+ *  与 buildPersonalTrend 口径一致）。gaps-and-islands：先按用户 + 场次序给胜局分连续段号，
+ *  再对 (user, 段号) 计数取每人最大段长。只返回有胜局的用户 */
+export function queryWinStreaks(clause: string, params: unknown[]) {
+  return query<{ user_id: number; longest_win_streak: string }>(
+    `WITH ranked AS (
+       SELECT gr.user_id,
+              CASE WHEN gr.amount > 0
+                   THEN ROW_NUMBER() OVER (PARTITION BY gr.user_id ORDER BY g.played_at ASC, g.id ASC)
+                        - ROW_NUMBER() OVER (PARTITION BY gr.user_id, gr.amount > 0
+                                             ORDER BY g.played_at ASC, g.id ASC)
+                   END AS grp
+       FROM game_records gr
+       JOIN games g ON g.id = gr.game_id
+       WHERE 1=1 ${clause}
+     ),
+     streaks AS (
+       SELECT user_id, grp, COUNT(*) AS streak_len
+       FROM ranked
+       WHERE grp IS NOT NULL
+       GROUP BY user_id, grp
+     )
+     SELECT user_id, MAX(streak_len)::text AS longest_win_streak
+     FROM streaks
+     GROUP BY user_id`,
+    params,
+  );
+}

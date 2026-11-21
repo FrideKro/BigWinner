@@ -8,8 +8,14 @@ import {
   queryMonthlyFees,
   queryPersonalHistory,
   queryPeriodSummary,
+  queryWinStreaks,
 } from '../_lib/statsQueries';
-import { buildPersonalTrend, mapLeaderboardRows, pickPlayerSummary } from '../_lib/statsAgg';
+import {
+  buildPersonalTrend,
+  deriveAchievements,
+  mapLeaderboardRows,
+  pickPlayerSummary,
+} from '../_lib/statsAgg';
 
 export const GET = withAuth(
   async (req, user) => {
@@ -48,35 +54,40 @@ export const GET = withAuth(
     // 查询相互独立，全部并行执行（统计 SQL 统一走 _lib/statsQueries 共享层，
     // 与分享链路 /api/s/[code] 保持同口径）；
     // period 为 all/year/month 时直接复用 globalRoomFeeRes 的聚合结果，省去第 1 项查询；
-    // scope=board 时不发个人明细查询（第 5 项）
-    const [periodSummaryRes, globalRoomFeeRes, monthlyFeeRes, leaderboardRes, personalHistoryRes] =
-      await Promise.all([
-        isBuiltinPeriod ? Promise.resolve(null) : queryPeriodSummary(clause, params),
-        query<{
-          all_time_games: string;
-          all_time_fee: string;
-          year_games: string;
-          year_fee: string;
-          month_games: string;
-          month_fee: string;
-        }>(
-          `SELECT
-             COUNT(*)::text AS all_time_games,
-             COALESCE(SUM(room_fee), 0)::text AS all_time_fee,
-             COUNT(*) FILTER (WHERE played_at >= $1 AND played_at < $2)::text AS year_games,
-             COALESCE(SUM(room_fee) FILTER (WHERE played_at >= $1 AND played_at < $2), 0)::text AS year_fee,
-             COUNT(*) FILTER (WHERE played_at >= $3 AND played_at < $4)::text AS month_games,
-             COALESCE(SUM(room_fee) FILTER (WHERE played_at >= $3 AND played_at < $4), 0)::text AS month_fee
-           FROM games`,
-          [...yearRange, ...monthRange],
-        ),
-        // 房费专项页固定展示全量近 36 个月（不受周期筛选影响，页内无筛选条）
-        queryMonthlyFees('', [], 36),
-        queryLeaderboard(clause, params),
-        scope === 'full'
-          ? queryPersonalHistory(clause, params, targetUserId)
-          : Promise.resolve(null),
-      ]);
+    // scope=board 时不发个人明细查询（第 5 项）；连胜明细供成就推导（第 6 项）
+    const [
+      periodSummaryRes,
+      globalRoomFeeRes,
+      monthlyFeeRes,
+      leaderboardRes,
+      personalHistoryRes,
+      winStreaksRes,
+    ] = await Promise.all([
+      isBuiltinPeriod ? Promise.resolve(null) : queryPeriodSummary(clause, params),
+      query<{
+        all_time_games: string;
+        all_time_fee: string;
+        year_games: string;
+        year_fee: string;
+        month_games: string;
+        month_fee: string;
+      }>(
+        `SELECT
+           COUNT(*)::text AS all_time_games,
+           COALESCE(SUM(room_fee), 0)::text AS all_time_fee,
+           COUNT(*) FILTER (WHERE played_at >= $1 AND played_at < $2)::text AS year_games,
+           COALESCE(SUM(room_fee) FILTER (WHERE played_at >= $1 AND played_at < $2), 0)::text AS year_fee,
+           COUNT(*) FILTER (WHERE played_at >= $3 AND played_at < $4)::text AS month_games,
+           COALESCE(SUM(room_fee) FILTER (WHERE played_at >= $3 AND played_at < $4), 0)::text AS month_fee
+         FROM games`,
+        [...yearRange, ...monthRange],
+      ),
+      // 房费专项页固定展示全量近 36 个月（不受周期筛选影响，页内无筛选条）
+      queryMonthlyFees('', [], 36),
+      queryLeaderboard(clause, params),
+      scope === 'full' ? queryPersonalHistory(clause, params, targetUserId) : Promise.resolve(null),
+      queryWinStreaks(clause, params),
+    ]);
 
     const gRow = globalRoomFeeRes.rows[0];
     const allTimeGames = parseInt(gRow?.all_time_games || '0', 10);
@@ -114,6 +125,7 @@ export const GET = withAuth(
     });
 
     const leaderboard = mapLeaderboardRows(leaderboardRes.rows);
+    const achievements = deriveAchievements(leaderboard, winStreaksRes.rows);
 
     // 指定玩家的极值、连胜连败与累计盈亏曲线（仅 scope=full 有数据）
     const {
@@ -142,6 +154,7 @@ export const GET = withAuth(
       },
       leaderboard,
       monthlyRoomFees,
+      achievements,
       personalStats: {
         ...targetPlayerSummary,
         maxWinRecord,
