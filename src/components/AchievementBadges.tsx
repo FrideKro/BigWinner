@@ -66,10 +66,7 @@ export function AchievementsStrip({
                   src={getAvatarImage?.(h.userId) ?? null}
                 />
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs font-medium text-amber-600 flex items-center gap-1">
-                    <span className="truncate">{meta.name}</span>
-                    <span className="leading-none shrink-0">{meta.icon}</span>
-                  </div>
+                  <div className="text-xs font-medium text-amber-600 truncate">{meta.name}</div>
                   <div className="text-base text-slate-900 mt-0.5 truncate">{h.nickname}</div>
                 </div>
                 <AchievementValue type={a.type} value={h.value} />
