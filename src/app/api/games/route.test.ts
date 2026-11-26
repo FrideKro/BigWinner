@@ -240,4 +240,58 @@ describe('GET /api/games', () => {
     expect(body.allTimeTotalGames).toBe(3);
     expect(body.allTimeTotalRoomFee).toBe(300);
   });
+
+  it('到达 offset 钳位上限 2000 后不再标记 hasMore（防重复页死循环）', async () => {
+    const sampleGame = {
+      id: 1,
+      played_at: '2026-10-30T14:00:00Z',
+      room_fee: 40,
+      note: '',
+      created_by: 1,
+      creator_nickname: '管理员',
+      created_at: '2026-10-30T14:00:00Z',
+      records: [],
+    };
+    mocks.query.mockImplementation((sql: string) => {
+      if (/page_games/.test(sql)) {
+        return Promise.resolve({
+          rows: Array.from({ length: 51 }, () => sampleGame),
+          rowCount: 51,
+        });
+      }
+      if (/total_room_fee/.test(sql)) {
+        return Promise.resolve({
+          rows: [{ total_games: '3000', total_room_fee: '30000' }],
+          rowCount: 1,
+        });
+      }
+      throw new Error(`未预期的 SQL: ${sql}`);
+    });
+
+    const res = await callGet('?limit=50&offset=2000');
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.games).toHaveLength(50);
+    expect(body.hasMore).toBe(false);
+  });
+
+  it('offset > 0 翻页加载更多时跳过全库场次与房费汇总查询', async () => {
+    mocks.query.mockImplementation((sql: string) => {
+      if (/page_games/.test(sql)) {
+        return Promise.resolve({ rows: [], rowCount: 0 });
+      }
+      if (/total_room_fee/.test(sql)) {
+        throw new Error('翻页不应重复统计全表场次与房费');
+      }
+      throw new Error(`未预期的 SQL: ${sql}`);
+    });
+
+    const res = await callGet('?limit=50&offset=50');
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.allTimeTotalGames).toBeUndefined();
+    expect(body.allTimeTotalRoomFee).toBeUndefined();
+  });
 });

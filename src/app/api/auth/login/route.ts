@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     const clearAllFailures = () => {
       clearFailures(ipKey);
       clearFailures(userKey);
-      if (ipOnlyKey) clearFailures(ipOnlyKey);
+      // 不清除 ipOnlyKey：防止攻击者利用任一合法账号登录一次即重置同 IP 多账号喷洒计数
     };
 
     // 超长账号或密码不进数据库与 bcrypt，直接计入失败并返回 401，防超大字符串 CPU DoS
@@ -147,7 +147,8 @@ export async function POST(req: NextRequest) {
         avatarColor: user.avatar_color,
         isActive: user.is_active,
       },
-      deviceToken,
+      // 管理员会话仅走 HttpOnly Cookie，禁止下发明文 deviceToken 进 localStorage
+      ...(user.role !== 'ADMIN' ? { deviceToken } : {}),
     });
 
     setDeviceCookie(res, deviceToken);

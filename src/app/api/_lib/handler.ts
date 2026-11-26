@@ -28,26 +28,62 @@ interface WithAuthOptions {
 // 防伪造超大 body 造成内存/CPU 压力
 const MAX_BODY_BYTES = 1024 * 1024;
 
-// 解析 JSON 请求体；非法 JSON 统一 400、超大 body 统一 413，而不是落入外层 500
+// 流式读取请求体并在累计字节超出上限时立即 cancel() 截断，防 chunked 超大包耗尽内存
+async function readRequestTextLimited(req: NextRequest): Promise<string> {
+  if (req.body && typeof req.body.getReader === 'function') {
+    const reader = req.body.getReader();
+    const decoder = new TextDecoder();
+    let totalBytes = 0;
+    let text = '';
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          totalBytes += value.byteLength;
+          if (totalBytes > MAX_BODY_BYTES) {
+            await reader.cancel().catch(() => undefined);
+            throw new ApiError(413, '请求体过大');
+          }
+          text += decoder.decode(value, { stream: true });
+        }
+      }
+      text += decoder.decode();
+      return text;
+    } finally {
+      reader.releaseLock();
+    }
+  }
+
+  // 测试环境或非流式 Request mock 的回退路径
+  const text = await req.text();
+  if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) {
+    throw new ApiError(413, '请求体过大');
+  }
+  return text;
+}
+
+// 解析 JSON 请求体；非法 JSON 或非纯对象统一 400、超大 body 统一 413，而不是落入外层 500
 export async function parseJsonBody(req: NextRequest): Promise<Record<string, unknown>> {
   // Content-Length 头预检：超大请求在读取前即拒绝
   const contentLength = parseInt(req.headers.get('content-length') || '', 10);
   if (Number.isInteger(contentLength) && contentLength > MAX_BODY_BYTES) {
     throw new ApiError(413, '请求体过大');
   }
-  // 读出后按实际字节长度二次校验：chunked 传输（无 Content-Length）也能强制上限
-  const text = await req.text();
-  if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) {
-    throw new ApiError(413, '请求体过大');
-  }
+  const text = await readRequestTextLimited(req);
+  let parsed: unknown;
   try {
-    return JSON.parse(text) as Record<string, unknown>;
+    parsed = JSON.parse(text);
   } catch {
     throw new ApiError(400, '请求体格式无效');
   }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new ApiError(400, '请求体格式无效');
+  }
+  return parsed as Record<string, unknown>;
 }
 
-// 统一路由样板：登录校验 → 管理员校验 → 业务执行 → ApiError / 异常转换。
+// 统一路由样板：登录校验 → 管理员校验 → 业务执行 → 注入默认禁缓存头 → ApiError / 异常转换。
 // 500 文案兼任错误日志前缀，使各路由的日志与响应保持一致可区分
 export function withAuth<P extends Record<string, string> = Record<string, never>>(
   handler: AuthedHandler<P>,
@@ -64,7 +100,11 @@ export function withAuth<P extends Record<string, string> = Record<string, never
         return NextResponse.json({ error: options.admin }, { status: 403 });
       }
       const params = (context?.params ?? Promise.resolve({})) as Promise<P>;
-      return await handler(req, user, { params });
+      const res = await handler(req, user, { params });
+      if (!res.headers.has('Cache-Control')) {
+        res.headers.set('Cache-Control', 'private, no-store');
+      }
+      return res;
     } catch (error) {
       if (error instanceof ApiError) {
         return NextResponse.json({ error: error.message }, { status: error.status });

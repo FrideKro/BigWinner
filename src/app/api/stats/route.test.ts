@@ -131,11 +131,48 @@ describe('GET /api/stats', () => {
     );
   });
 
-  it('scope=board 不发个人明细查询', async () => {
+  it('scope=board 跳过月度房费与个人明细查询；自定义区间跳过全局三合一查询', async () => {
     await callGet('?period=all&scope=board');
 
     const sqls = mocks.query.mock.calls.map((c) => c[0] as string);
     expect(sqls.some((s) => /date_label/.test(s))).toBe(false);
+    expect(sqls.some((s) => /games_count/.test(s))).toBe(false);
+
+    mocks.query.mockClear();
+    await callGet('?from=2025-03-01&to=2025-03-10&scope=board');
+    const customSqls = mocks.query.mock.calls.map((c) => c[0] as string);
+    expect(customSqls.some((s) => /all_time_games/.test(s))).toBe(false);
+    expect(customSqls.some((s) => /total_games/.test(s))).toBe(true);
+  });
+
+  it('scope=personal&onlyPersonal=1 仅查询目标玩家汇总与明细，跳过总榜/连胜/月度房费', async () => {
+    const res = await callGet('?period=all&scope=personal&onlyPersonal=1&userId=2');
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.personalStats.userId).toBe(2);
+    expect(body.achievements).toBeUndefined();
+    const sqls = mocks.query.mock.calls.map((c) => c[0] as string);
+    expect(sqls.some((s) => /date_label/.test(s))).toBe(true);
+    expect(sqls.some((s) => /WHERE u\.id = \$1/.test(s))).toBe(true);
+    expect(sqls.some((s) => /longest_win_streak/.test(s))).toBe(false);
+    expect(sqls.some((s) => /games_count/.test(s))).toBe(false);
+    expect(sqls.some((s) => /all_time_games/.test(s))).toBe(false);
+  });
+
+  it('scope=roomFee 仅查询全站房费三卡汇总与月度房费', async () => {
+    const res = await callGet('?period=all&scope=roomFee');
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.summary.allTimeGames).toBe(7);
+    expect(body.monthlyRoomFees).toEqual([]);
+    const sqls = mocks.query.mock.calls.map((c) => c[0] as string);
+    expect(sqls.some((s) => /all_time_games/.test(s))).toBe(true);
+    expect(sqls.some((s) => /games_count/.test(s))).toBe(true);
+    expect(sqls.some((s) => /games_played/.test(s))).toBe(false);
+    expect(sqls.some((s) => /date_label/.test(s))).toBe(false);
+    expect(sqls.some((s) => /longest_win_streak/.test(s))).toBe(false);
   });
 
   it('scope=full 返回指定玩家的个人统计', async () => {

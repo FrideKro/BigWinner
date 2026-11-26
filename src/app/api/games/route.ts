@@ -102,19 +102,23 @@ export const GET = withAuth(
          ORDER BY g.played_at DESC, g.id DESC`,
         queryParams,
       ),
-      query<{
-        total_games: string;
-        total_room_fee: string;
-      }>(
-        `SELECT COUNT(*)::text AS total_games,
-                COALESCE(SUM(room_fee), 0)::text AS total_room_fee
-         FROM games`,
-      ),
+      // 仅首页（offset === 0）查询全库场次与房费总计，翻页加载更多时跳过全表统计
+      offset === 0
+        ? query<{
+            total_games: string;
+            total_room_fee: string;
+          }>(
+            `SELECT COUNT(*)::text AS total_games,
+                    COALESCE(SUM(room_fee), 0)::text AS total_room_fee
+             FROM games`,
+          )
+        : Promise.resolve(null),
     ]);
 
-    // 多取一条用于判断是否还有下一页
-    const hasMore = gamesRes.rows.length > limit;
-    const pageRows = hasMore ? gamesRes.rows.slice(0, limit) : gamesRes.rows;
+    // 多取一条用于判断是否还有下一页；到达 offset 钳位上限后不再标记，防重复页死循环
+    const hasMoreRaw = gamesRes.rows.length > limit;
+    const pageRows = hasMoreRaw ? gamesRes.rows.slice(0, limit) : gamesRes.rows;
+    const hasMore = hasMoreRaw && offset + limit <= 2000;
 
     return NextResponse.json({
       games: pageRows.map((g) => ({
@@ -128,8 +132,12 @@ export const GET = withAuth(
         records: g.records,
       })),
       hasMore,
-      allTimeTotalGames: parseInt(totalRoomFeeRes.rows[0]?.total_games || '0', 10),
-      allTimeTotalRoomFee: parseInt(totalRoomFeeRes.rows[0]?.total_room_fee || '0', 10),
+      ...(totalRoomFeeRes
+        ? {
+            allTimeTotalGames: parseInt(totalRoomFeeRes.rows[0]?.total_games || '0', 10),
+            allTimeTotalRoomFee: parseInt(totalRoomFeeRes.rows[0]?.total_room_fee || '0', 10),
+          }
+        : {}),
     });
   },
   { error: '获取战绩流水失败' },

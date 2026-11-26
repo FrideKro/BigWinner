@@ -61,6 +61,9 @@ export function diffAvatarVersions(
   for (const p of players) {
     const version = p.avatarVersion ?? 0;
     const entry = cache[String(p.id)];
+    // version === 0 表示从未设置过自定义头像（新设备直接视为无头像，零请求）；
+    // 若本地缓存意外存有旧非零版本，仍拉取以纠正
+    if (version === 0 && (!entry || entry.v === 0)) continue;
     if (!entry || entry.v !== version) {
       need.push({ id: p.id, version });
     }

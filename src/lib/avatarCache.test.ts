@@ -46,15 +46,26 @@ describe('loadAvatarCache', () => {
 describe('diffAvatarVersions', () => {
   beforeEach(() => localStorage.clear());
 
-  it('缓存缺失与版本不一致的玩家进入待拉取列表', () => {
+  it('缓存缺失与版本不一致的玩家进入待拉取列表，跳过 avatarVersion=0 的无头像玩家', () => {
     const cache: AvatarCache = {
       '1': { v: 2, src: 'data:image/jpeg;base64,QQ==' },
       '3': { v: 4, src: null },
     };
 
-    expect(diffAvatarVersions(players, cache)).toEqual([
-      { id: 2, version: 0 },
+    expect(diffAvatarVersions(players, cache)).toEqual([{ id: 3, version: 5 }]);
+  });
+
+  it('新设备冷启动仅拉取 avatarVersion > 0 的玩家，完全跳过未设置过头像者', () => {
+    expect(diffAvatarVersions(players, {})).toEqual([
+      { id: 1, version: 2 },
       { id: 3, version: 5 },
+    ]);
+  });
+
+  it('本地存在旧非零版本而服务端回退为 0 时仍同步清理', () => {
+    const cache: AvatarCache = { '2': { v: 1, src: 'data:image/jpeg;base64,QQ==' } };
+    expect(diffAvatarVersions([{ id: 2, avatarVersion: 0 }], cache)).toEqual([
+      { id: 2, version: 0 },
     ]);
   });
 

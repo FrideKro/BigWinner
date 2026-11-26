@@ -29,9 +29,9 @@
 - **大赢家 👑**：单场得分最高且 > 0 者自动获得称号，允许多人并列
 - **临时玩家**：管理员可为临时参局的朋友创建「临时玩家」角色账号，照常参与记账、流水与房费配平，但不进总榜排行榜、不参与全群成就（单场最高 / 连胜纪录）推导，看板中仍可查看其个人战绩走势
 - **免密码建号**：新增玩家账号时初始密码可选（所有角色通用），留空即创建未设密码账号——该账号无法密码登录，只能通过免登链接绑定访问，本人可事后在「我的」页免原密码设置新密码，或由管理员重置
-- **微信免密登录**：设备 Token 存于 Cookie + LocalStorage 双通道，每次访问滑动续期 365 天；数据库只存 Token 的 SHA-256 哈希，明文不落库
-- **自定义头像图片**：「我的」页从手机相册选图（想用微信头像可先长按保存到相册），前端压缩为 128×128 JPEG（几 KB 量级）以 base64 data URL 存库，不做文件上传服务；全站与免登录分享页按 userId 显示，未设置时落昵称主题色字母头像；管理员可为玩家设置或清除头像。登录态下 players 只下发 `avatar_version`（写头像时 +1），data URL 缓存在 localStorage、版本不一致才按需拉 `GET /api/users/[id]/avatar`，记一局弹窗不展示头像；免登录分享页仍随响应内联下发头像
-- **激活链接**：管理员一键复制好友专属「免登激活链接」，好友在微信里点开一次即绑定本机，之后点群里任何战报链接都自动登录
+- **微信免密登录**：设备 Token 存于 `HttpOnly` Cookie（普通玩家另在 LocalStorage 留存一份用于微信 WebView 清理 Cookie 后容灾自愈；管理员会话强制仅走 `HttpOnly` Cookie，不落 LocalStorage），按需滑动续期 365 天；数据库只存 Token 的 SHA-256 哈希，明文不落库
+- **自定义头像图片**：「我的」页从手机相册选图（想用微信头像可先长按保存到相册），前端压缩为 128×128 JPEG（几 KB 量级）以 base64 data URL 存库，不做文件上传服务；全站与免登录分享页按 userId 显示，未设置时落昵称主题色字母头像；管理员可为玩家设置或清除头像。登录态下 players 只下发 `avatar_version`（写头像时 +1），`avatar_version = 0`（从未设置头像）新设备零请求，其余版本不一致时通过 `GET /api/users/avatars` 批量拉取并缓存在 localStorage；免登录分享页随响应按需内联下发头像
+- **激活链接**：管理员可为普通玩家 / 临时玩家一键复制专属「免登激活链接」（`/bind#token=...`，Hash 传参不落代理日志并自动从地址栏抹除），好友在微信里点开一次即绑定本机，之后点群里任何战报链接都自动登录；管理员账号禁用免登链接，始终通过账号密码登录
 - **密码登录开关**：管理员控制台可开关「玩家密码登录」（默认关闭）；关闭后普通玩家只能通过免登激活链接访问，管理员始终可用账号密码登录
 - **群战报分享**：单场战绩一键复制带 Emoji 的微信群文案
 - **免登录分享短链**：管理员在总榜页「分享战报」生成 `/s/短链`，可勾选内容模块（总榜 / 流水 / 看板，默认总榜 + 流水）、选择时间段（全部 / 本年 / 自定义起止日期，默认前天至今天）与有效期（今天 / 自定义某日 / 永久，按自然日计至当天 24:00）；弹窗内列出全部有效（未过期）分享供复制与管理；好友点开即看该时间段实时数据，无需登录；过期或删除即时失效，无效分享码按 IP 限流
@@ -144,10 +144,31 @@ docker compose up -d --build
 
 ### 生产环境建议
 
-- **启用 HTTPS**：通过 Nginx / Caddy 等反向代理提供 HTTPS，微信内的剪贴板 API 与 PWA 安装都要求安全上下文；启用后把 `COOKIE_SECURE` 设为 `true`
-- **透传客户端 IP**：反向代理需设置 `X-Forwarded-For` 请求头（取最后一个非空段作为客户端 IP，适配单层反代的追加转发模式），登录限流才能按「账号 + IP」生效
+- **启用 HTTPS**：通过 Nginx / Caddy 等反向代理提供 HTTPS 与 HSTS（`Strict-Transport-Security`），微信内的剪贴板 API 与 PWA 安装都要求安全上下文；启用后把 `COOKIE_SECURE` 设为 `true`
+- **开启代理 IP 信任与透传客户端 IP**：应用默认不信任客户端上报的 `X-Forwarded-For`；经单层 Nginx/Caddy 反向代理部署时，在 `.env` 中设置 `TRUST_PROXY=true`，并在 Nginx 中显式设置 `proxy_set_header X-Forwarded-For $remote_addr;`（同时避免 3000 端口绕过反代对外暴露），登录/分享限流才能按真实客户端 IP 准确生效
 - **修改默认密码**：未设置 `ADMIN_PASSWORD` 时管理员密码为 `admin@123456`（启动日志会给出警告），请务必修改
 - **固定镜像版本**：在 `.env` 中设置 `IMAGE_TAG=1.0.0` 之类的固定版本，避免重建容器时意外升级
+
+Nginx 反向代理示例（SSL 终结 + HSTS + 单层 IP 覆写，搭配 `.env` 中 `TRUST_PROXY=true` 与 `COOKIE_SECURE=true`）：
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name bigwinner.example.com;
+
+    ssl_certificate     /path/to/fullchain.pem;
+    ssl_certificate_key /path/to/privkey.pem;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
 
 Caddy 示例（自动申请证书）：
 
@@ -161,23 +182,24 @@ bigwinner.example.com {
 
 所有配置通过环境变量传入，完整注释见 [`.env.example`](.env.example)。
 
-| 变量               | 默认值                 | 说明                                                                             |
-| ------------------ | ---------------------- | -------------------------------------------------------------------------------- |
-| `DB_HOST`          | `127.0.0.1`            | 数据库地址（`docker compose` 默认为 `db`）                                       |
-| `DB_PORT`          | `5432`                 | 数据库端口                                                                       |
-| `DB_NAME`          | `big_winner`           | 数据库名                                                                         |
-| `DB_USER`          | `big_winner`           | 数据库用户                                                                       |
-| `DB_PASSWORD`      | 空                     | 数据库密码（`docker compose` 默认为 `big_winner`，生产环境建议修改）             |
-| `DB_SSLMODE`       | `disable`              | `disable` / `require` / `verify-full`                                            |
-| `DATABASE_URL`     | 空                     | 设置后优先使用此连接串，忽略上面的 `DB_*`                                        |
-| `ADMIN_USERNAME`   | `admin`                | 初始管理员账号（仅首次初始化生效）                                               |
-| `ADMIN_NICKNAME`   | `管理员`               | 初始管理员昵称（仅首次初始化生效）                                               |
-| `ADMIN_PASSWORD`   | `admin@123456`         | 初始管理员密码（仅首次初始化生效）                                               |
-| `DEFAULT_ROOM_FEE` | `100`                  | 单场默认房费（仅首次初始化生效，之后在应用内修改）                               |
-| `COOKIE_SECURE`    | `false`                | Cookie 是否带 `Secure` 标记，HTTPS 部署设为 `true`                               |
-| `APP_PORT`         | `3000`                 | 宿主机映射端口（仅 docker compose 使用）                                         |
-| `IMAGE_NAME`       | `localhost/big-winner` | 仓库自带 compose 与部署脚本使用的镜像名，官方镜像填 `ghcr.io/fridekro/bigwinner` |
-| `IMAGE_TAG`        | `latest`               | 镜像版本（仅 docker compose 与部署脚本使用）                                     |
+| 变量               | 默认值                 | 说明                                                                               |
+| ------------------ | ---------------------- | ---------------------------------------------------------------------------------- |
+| `DB_HOST`          | `127.0.0.1`            | 数据库地址（`docker compose` 默认为 `db`）                                         |
+| `DB_PORT`          | `5432`                 | 数据库端口                                                                         |
+| `DB_NAME`          | `big_winner`           | 数据库名                                                                           |
+| `DB_USER`          | `big_winner`           | 数据库用户                                                                         |
+| `DB_PASSWORD`      | 空                     | 数据库密码（`docker compose` 默认为 `big_winner`，生产环境建议修改）               |
+| `DB_SSLMODE`       | `disable`              | `disable` / `require` / `verify-ca` / `verify-full`                                |
+| `DATABASE_URL`     | 空                     | 设置后优先使用此连接串，忽略上面的 `DB_*`                                          |
+| `ADMIN_USERNAME`   | `admin`                | 初始管理员账号（仅首次初始化生效）                                                 |
+| `ADMIN_NICKNAME`   | `管理员`               | 初始管理员昵称（仅首次初始化生效）                                                 |
+| `ADMIN_PASSWORD`   | `admin@123456`         | 初始管理员密码（仅首次初始化生效）                                                 |
+| `DEFAULT_ROOM_FEE` | `100`                  | 单场默认房费（仅首次初始化生效，之后在应用内修改）                                 |
+| `COOKIE_SECURE`    | `false`                | Cookie 是否带 `Secure` 标记，HTTPS 部署设为 `true`                                 |
+| `TRUST_PROXY`      | `false`                | 是否信任 `X-Forwarded-For`（单层可信 Nginx/Caddy 反代设为 `true`，直连保持 false） |
+| `APP_PORT`         | `3000`                 | 宿主机映射端口（仅 docker compose 使用）                                           |
+| `IMAGE_NAME`       | `localhost/big-winner` | 仓库自带 compose 与部署脚本使用的镜像名，官方镜像填 `ghcr.io/fridekro/bigwinner`   |
+| `IMAGE_TAG`        | `latest`               | 镜像版本（仅 docker compose 与部署脚本使用）                                       |
 
 ## 本地开发
 

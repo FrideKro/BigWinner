@@ -253,10 +253,10 @@ export default function ProfilePage() {
     }
   }
 
-  // 复制微信专属免登链接
+  // 复制微信专属免登链接（使用 URL Hash 传递，避免凭证进入反代访问日志与 Referer）
   async function handleCopyBindUrl(u: ManagedUser) {
     if (!u.bindToken || typeof window === 'undefined') return;
-    const url = `${window.location.origin}/bind?token=${u.bindToken}`;
+    const url = `${window.location.origin}/bind#token=${u.bindToken}`;
     const ok = await copy(url);
     if (ok) {
       setCopiedTokenId(u.id);
@@ -714,28 +714,36 @@ export default function ProfilePage() {
                         </div>
                       </div>
 
-                      <button
-                        onClick={() => handleCopyBindUrl(u)}
-                        title="复制微信专属免登激活链接"
-                        aria-label={`复制 ${u.nickname} 的微信免登链接`}
-                        className="flex shrink-0 items-center gap-1 min-h-10 px-2.5 rounded-lg bg-[#07C160] text-white font-medium text-xs shadow-sm active:scale-95 transition"
-                      >
-                        {isCopied ? (
-                          <>
-                            <Check size={12} />
-                            <span>已复制</span>
-                          </>
-                        ) : (
-                          <>
-                            <Link size={12} />
-                            <span>微信免登链</span>
-                          </>
-                        )}
-                      </button>
+                      {u.role !== 'ADMIN' ? (
+                        <button
+                          onClick={() => handleCopyBindUrl(u)}
+                          title="复制微信专属免登激活链接"
+                          aria-label={`复制 ${u.nickname} 的微信免登链接`}
+                          className="flex shrink-0 items-center gap-1 min-h-10 px-2.5 rounded-lg bg-[#07C160] text-white font-medium text-xs shadow-sm active:scale-95 transition"
+                        >
+                          {isCopied ? (
+                            <>
+                              <Check size={12} />
+                              <span>已复制</span>
+                            </>
+                          ) : (
+                            <>
+                              <Link size={12} />
+                              <span>微信免登链</span>
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        <span className="shrink-0 px-2 py-1 rounded-lg bg-slate-200/70 text-slate-500 text-xs">
+                          仅密码登录
+                        </span>
+                      )}
                     </div>
 
-                    {/* 操作区：44px 高，窄屏两列 */}
-                    <div className="grid grid-cols-2 xs:grid-cols-4 gap-1.5 pt-2 border-t border-slate-200/60">
+                    {/* 操作区：44px 高，窄屏两列；管理员不提供免登链轮换 */}
+                    <div
+                      className={`grid grid-cols-2 ${u.role !== 'ADMIN' ? 'xs:grid-cols-4' : 'xs:grid-cols-3'} gap-1.5 pt-2 border-t border-slate-200/60`}
+                    >
                       <button
                         onClick={() => handleStartEdit(u)}
                         className="flex min-h-11 items-center justify-center gap-1 rounded-xl bg-white border border-slate-200 text-xs font-medium text-slate-600 active:scale-[0.98] transition"
@@ -750,13 +758,15 @@ export default function ProfilePage() {
                         <KeyRound size={13} />
                         重置密码
                       </button>
-                      <button
-                        onClick={() => handleRegenerateToken(u)}
-                        className="flex min-h-11 items-center justify-center gap-1 rounded-xl bg-white border border-slate-200 text-xs font-medium text-slate-600 active:scale-[0.98] transition"
-                      >
-                        <RefreshCw size={13} />
-                        换新链接
-                      </button>
+                      {u.role !== 'ADMIN' && (
+                        <button
+                          onClick={() => handleRegenerateToken(u)}
+                          className="flex min-h-11 items-center justify-center gap-1 rounded-xl bg-white border border-slate-200 text-xs font-medium text-slate-600 active:scale-[0.98] transition"
+                        >
+                          <RefreshCw size={13} />
+                          换新链接
+                        </button>
+                      )}
                       <button
                         onClick={() => handleToggleActive(u)}
                         className={`flex min-h-11 items-center justify-center gap-1 rounded-xl border text-xs font-medium active:scale-[0.98] transition ${

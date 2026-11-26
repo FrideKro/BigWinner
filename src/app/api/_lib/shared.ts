@@ -106,26 +106,67 @@ export async function listPlayers(user: AuthUser): Promise<PlayerListItem[]> {
     avatarColor: u.avatar_color,
     avatarVersion: u.avatar_version,
     isActive: u.is_active,
-    bindToken: u.bind_token,
+    // 管理员不开放免登链接，列表接口也不下发其 bind_token
+    bindToken: u.role === 'ADMIN' ? null : u.bind_token,
     deviceCount: parseInt(u.device_count || '0', 10),
     createdAt: u.created_at,
   }));
 }
 
-export async function getDefaultRoomFee(): Promise<number> {
+export interface SystemSettings {
+  defaultRoomFee: number;
+  passwordLoginEnabled: boolean;
+}
+
+const SETTINGS_CACHE_TTL_MS = 60_000;
+
+declare global {
+  var __bigWinnerSettingsCache: { value: SystemSettings; expiresAt: number } | undefined;
+}
+
+export function invalidateSystemSettingsCache(): void {
+  globalThis.__bigWinnerSettingsCache = undefined;
+}
+
+/** 单条 SQL 读取系统设置并缓存 60s；PUT /api/settings 写库后主动失效 */
+export async function getSystemSettings(): Promise<SystemSettings> {
+  const cached = globalThis.__bigWinnerSettingsCache;
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
+  }
+
   const res = await query<{ key: string; value: string }>(
-    `SELECT key, value FROM system_settings WHERE key = 'default_room_fee'`,
+    `SELECT key, value
+     FROM system_settings
+     WHERE key IN ('default_room_fee', 'password_login_enabled')`,
   );
-  const value = parseInt(res.rows[0]?.value || '100', 10);
-  return Number.isNaN(value) ? 100 : value;
+
+  let defaultRoomFee = 100;
+  let passwordLoginEnabled = false;
+  for (const row of res.rows) {
+    if (row.key === 'default_room_fee') {
+      const parsed = parseInt(row.value || '100', 10);
+      defaultRoomFee = Number.isNaN(parsed) ? 100 : parsed;
+    } else if (row.key === 'password_login_enabled') {
+      passwordLoginEnabled = row.value === 'true';
+    }
+  }
+
+  const value = { defaultRoomFee, passwordLoginEnabled };
+  globalThis.__bigWinnerSettingsCache = {
+    value,
+    expiresAt: Date.now() + SETTINGS_CACHE_TTL_MS,
+  };
+  return value;
+}
+
+export async function getDefaultRoomFee(): Promise<number> {
+  return (await getSystemSettings()).defaultRoomFee;
 }
 
 // 玩家密码登录开关：默认关闭，普通玩家只能通过免登链接绑定后访问
 export async function getPasswordLoginEnabled(): Promise<boolean> {
-  const res = await query<{ value: string }>(
-    `SELECT value FROM system_settings WHERE key = 'password_login_enabled'`,
-  );
-  return res.rows[0]?.value === 'true';
+  return (await getSystemSettings()).passwordLoginEnabled;
 }
 
 // 校验本场全部玩家存在，避免命中外键约束后返回不友好的 500。

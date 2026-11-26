@@ -73,7 +73,13 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
-      if (data.deviceToken) {
+      if (data.user?.role === 'ADMIN') {
+        try {
+          localStorage.removeItem('bw_device_token');
+        } catch {
+          /* ignore */
+        }
+      } else if (data.deviceToken) {
         try {
           localStorage.setItem('bw_device_token', data.deviceToken);
         } catch {

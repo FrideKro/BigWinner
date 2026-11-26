@@ -20,7 +20,7 @@ import {
 const PLAIN_TOKEN = 'f'.repeat(64);
 const TOKEN_HASH = hashToken(PLAIN_TOKEN);
 
-function activeUserRow() {
+function activeUserRow(needsExtend = true) {
   return {
     rows: [
       {
@@ -32,6 +32,7 @@ function activeUserRow() {
         is_active: true,
         bind_token: 'bind-token',
         device_token: TOKEN_HASH,
+        needs_extend: needsExtend,
       },
     ],
     rowCount: 1,
@@ -81,9 +82,9 @@ describe('verifyAndExtendDeviceToken', () => {
     mocks.query.mockReset();
   });
 
-  it('按哈希查询凭据，命中后返回明文 Token 与用户信息', async () => {
+  it('needs_extend=true 时按哈希查询并执行滑动续期 UPDATE', async () => {
     mocks.query
-      .mockResolvedValueOnce(activeUserRow())
+      .mockResolvedValueOnce(activeUserRow(true))
       .mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
     const user = await verifyAndExtendDeviceToken(PLAIN_TOKEN);
@@ -91,10 +92,22 @@ describe('verifyAndExtendDeviceToken', () => {
     expect(user).not.toBeNull();
     expect(user!.deviceToken).toBe(PLAIN_TOKEN);
     expect(user!.nickname).toBe('花非花');
+    expect(user!.needsExtend).toBe(true);
     // 认证查询与滑动续期 UPDATE 均以哈希作为查询参数
+    expect(mocks.query).toHaveBeenCalledTimes(2);
     expect(mocks.query.mock.calls[0][1]).toEqual([TOKEN_HASH]);
     expect(mocks.query.mock.calls[1][0]).toContain('UPDATE user_devices');
     expect(mocks.query.mock.calls[1][1]).toEqual([TOKEN_HASH]);
+  });
+
+  it('needs_extend=false 时跳过 UPDATE，认证仅 1 次 DB 往返', async () => {
+    mocks.query.mockResolvedValueOnce(activeUserRow(false));
+
+    const user = await verifyAndExtendDeviceToken(PLAIN_TOKEN);
+
+    expect(user).not.toBeNull();
+    expect(user!.needsExtend).toBe(false);
+    expect(mocks.query).toHaveBeenCalledTimes(1);
   });
 
   it('停用玩家（is_active 过滤后无行）返回 null，且不触发续期写入', async () => {

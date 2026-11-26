@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 
 const mocks = vi.hoisted(() => ({
@@ -51,7 +51,10 @@ function userRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe('POST /api/auth/login', () => {
+  const prevTrustProxy = process.env.TRUST_PROXY;
+
   beforeEach(() => {
+    process.env.TRUST_PROXY = 'true';
     mocks.query.mockReset();
     mocks.compare.mockReset();
     mocks.createDeviceSession.mockReset();
@@ -66,6 +69,15 @@ describe('POST /api/auth/login', () => {
     clearFailures('login:ip:player1:');
     clearFailures('login:user:player1');
     clearFailures('login:ipmap:203.0.113.9');
+    clearFailures('login:ipmap:203.0.113.11');
+  });
+
+  afterEach(() => {
+    if (prevTrustProxy === undefined) {
+      delete process.env.TRUST_PROXY;
+    } else {
+      process.env.TRUST_PROXY = prevTrustProxy;
+    }
   });
 
   it('缺账号或密码返回 400', async () => {
@@ -113,7 +125,7 @@ describe('POST /api/auth/login', () => {
     expect(mocks.compare).not.toHaveBeenCalled();
   });
 
-  it('成功登录：创建设备会话、设置 Cookie 并返回用户（不含 bindToken）与明文 Token', async () => {
+  it('管理员登录成功：仅写 HttpOnly Cookie，不在响应体返回 deviceToken', async () => {
     mocks.query.mockResolvedValue(userRow());
     mocks.compare.mockResolvedValue(true);
 
@@ -121,10 +133,23 @@ describe('POST /api/auth/login', () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.deviceToken).toBe('d'.repeat(64));
+    expect(body.deviceToken).toBeUndefined();
     expect(body.user.nickname).toBe('花非花');
     expect(body.user.bindToken).toBeUndefined();
     expect(mocks.createDeviceSession).toHaveBeenCalledWith(1, '');
+    expect(mocks.setDeviceCookie).toHaveBeenCalledTimes(1);
+  });
+
+  it('普通玩家登录成功：设置 Cookie 并返回明文 Token 供微信容灾恢复', async () => {
+    mocks.query.mockResolvedValue(userRow({ role: 'PLAYER' }));
+    mocks.compare.mockResolvedValue(true);
+
+    const res = await POST(loginReq('player1', 'correct'));
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.deviceToken).toBe('d'.repeat(64));
+    expect(body.user.bindToken).toBeUndefined();
     expect(mocks.setDeviceCookie).toHaveBeenCalledTimes(1);
   });
 
@@ -223,6 +248,30 @@ describe('POST /api/auth/login', () => {
     expect(res.status).toBe(429);
     const body = await res.json();
     expect(body.error).toContain('尝试次数过多');
+  });
+
+  it('同一 IP 上使用合法账号登录成功，不会清零纯 IP 喷洒计数', async () => {
+    const reqWithIp = (username: string, password: string) =>
+      new NextRequest('http://localhost/api/auth/login', {
+        method: 'POST',
+        headers: { 'x-forwarded-for': '203.0.113.11' },
+        body: JSON.stringify({ username, password }),
+      });
+
+    mocks.query.mockResolvedValue({ rows: [], rowCount: 0 });
+    for (let i = 0; i < 29; i += 1) {
+      expect((await POST(reqWithIp(`spray-keep-${i}`, 'wrong'))).status).toBe(401);
+    }
+
+    // 中途用合法账号登录成功一次
+    mocks.query.mockResolvedValueOnce(userRow());
+    mocks.compare.mockResolvedValueOnce(true);
+    expect((await POST(reqWithIp('fride', 'correct'))).status).toBe(200);
+
+    // 第 30 次失败仍按累计触发纯 IP 锁定，不能被清零
+    mocks.query.mockResolvedValue({ rows: [], rowCount: 0 });
+    expect((await POST(reqWithIp('spray-keep-last', 'wrong'))).status).toBe(401);
+    expect((await POST(reqWithIp('spray-keep-blocked', 'wrong'))).status).toBe(429);
   });
 });
 

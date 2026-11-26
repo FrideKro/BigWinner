@@ -98,6 +98,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ code: s
       .filter((s) => s === 'board' || s === 'games' || s === 'stats');
 
     const { searchParams } = new URL(req.url);
+    const includeAvatars = searchParams.get('includeAvatars') !== '0';
     const rawTab = searchParams.get('tab') || contentScope[0];
     if (rawTab !== 'board' && rawTab !== 'games' && rawTab !== 'stats') {
       return jsonError(400, '无效的内容类型');
@@ -138,9 +139,11 @@ export async function GET(req: NextRequest, context: { params: Promise<{ code: s
         queryLeaderboard(clause, params),
         queryWinStreaks(clause, params),
       ]);
-      // 已设置自定义头像的玩家（免登录页按 userId 解析，未设置的落字母主题色头像）
-      const avatars = await queryShareAvatars(leaderboardRes.rows.map((r) => r.user_id));
+      // 先过滤临时玩家，再按可见榜单查询头像，避免泄露临时玩家 ID 与头像
       const leaderboard = excludeTempPlayers(mapLeaderboardRows(leaderboardRes.rows));
+      const avatars = includeAvatars
+        ? await queryShareAvatars(leaderboard.map((p) => p.userId))
+        : {};
       return NextResponse.json(
         {
           share: meta,
@@ -166,7 +169,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ code: s
       const pageRows = hasMoreRaw ? gamesRes.rows.slice(0, GAMES_PAGE_SIZE) : gamesRes.rows;
       const hasMore = hasMoreRaw && offset + GAMES_PAGE_SIZE <= GAMES_MAX_OFFSET;
       const userIds = [...new Set(pageRows.flatMap((g) => g.records.map((r) => r.userId)))];
-      const avatars = await queryShareAvatars(userIds);
+      const avatars = includeAvatars ? await queryShareAvatars(userIds) : {};
       return NextResponse.json(
         {
           share: meta,
@@ -200,13 +203,19 @@ export async function GET(req: NextRequest, context: { params: Promise<{ code: s
     const players = leaderboard
       .filter((p) => p.gamesPlayed > 0)
       .map((p) => ({ userId: p.userId, nickname: p.nickname, avatarColor: p.avatarColor }));
+    // 校验 userId 必须属于对外可见榜单，阻止遍历拉取临时玩家或未参与对局玩家的逐场明细
+    if (requestedUserId !== null && !players.some((p) => p.userId === requestedUserId)) {
+      return jsonError(404, '该玩家不存在或未参与本时段对局');
+    }
     const targetUserId = requestedUserId ?? players[0]?.userId ?? null;
 
     const [personalStatsResult, avatars] = await Promise.all([
       targetUserId !== null
         ? queryPersonalHistory(clause, params, targetUserId)
         : Promise.resolve(null),
-      queryShareAvatars(leaderboard.map((p) => p.userId)),
+      includeAvatars
+        ? queryShareAvatars(leaderboard.map((p) => p.userId))
+        : Promise.resolve<Record<string, string>>({}),
     ]);
     let personalStats: SharePersonalStats | null = null;
     if (targetUserId !== null && personalStatsResult) {

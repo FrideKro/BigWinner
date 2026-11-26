@@ -71,6 +71,12 @@ export async function POST(req: NextRequest) {
     }
 
     const user = userRes.rows[0];
+    if (user.role === 'ADMIN') {
+      return NextResponse.json(
+        { error: '管理员账号不支持免登链接登录，请使用账号密码登录' },
+        { status: 403 },
+      );
+    }
     if (!user.is_active) {
       if (ipKey) recordFailure(ipKey, 10);
       return NextResponse.json(

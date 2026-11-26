@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   query: vi.fn(),
   getDefaultRoomFee: vi.fn(),
   getPasswordLoginEnabled: vi.fn(),
+  getSystemSettings: vi.fn(),
+  invalidateSystemSettingsCache: vi.fn(),
 }));
 
 vi.mock('@/lib/auth', () => ({ getCurrentUser: mocks.getCurrentUser }));
@@ -18,6 +20,8 @@ vi.mock('@/lib/db', () => ({
 vi.mock('../_lib/shared', () => ({
   getDefaultRoomFee: mocks.getDefaultRoomFee,
   getPasswordLoginEnabled: mocks.getPasswordLoginEnabled,
+  getSystemSettings: mocks.getSystemSettings,
+  invalidateSystemSettingsCache: mocks.invalidateSystemSettingsCache,
 }));
 
 import { GET, PUT } from './route';
@@ -55,10 +59,16 @@ describe('/api/settings', () => {
     mocks.query.mockReset();
     mocks.getDefaultRoomFee.mockReset();
     mocks.getPasswordLoginEnabled.mockReset();
+    mocks.getSystemSettings.mockReset();
+    mocks.invalidateSystemSettingsCache.mockReset();
     mocks.getCurrentUser.mockResolvedValue(adminUser);
     mocks.query.mockResolvedValue({ rows: [], rowCount: 0 });
     mocks.getDefaultRoomFee.mockResolvedValue(100);
     mocks.getPasswordLoginEnabled.mockResolvedValue(false);
+    mocks.getSystemSettings.mockResolvedValue({
+      defaultRoomFee: 100,
+      passwordLoginEnabled: false,
+    });
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
   });
 
@@ -69,11 +79,12 @@ describe('/api/settings', () => {
     expect(await res.json()).toEqual({ defaultRoomFee: 100, passwordLoginEnabled: false });
   });
 
-  it('PUT 仅更新密码登录开关', async () => {
+  it('PUT 仅更新密码登录开关并使系统设置缓存失效', async () => {
     const res = await callPut({ passwordLoginEnabled: true });
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ defaultRoomFee: 100, passwordLoginEnabled: true });
+    expect(mocks.invalidateSystemSettingsCache).toHaveBeenCalledTimes(1);
     expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining('password_login_enabled'), [
       'true',
     ]);

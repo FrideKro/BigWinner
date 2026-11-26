@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { formatSignedAmount } from '@/lib/format';
 
 export interface TrendPoint {
@@ -19,6 +19,15 @@ interface TrendChartProps {
   data: TrendPoint[];
 }
 
+const CHART_WIDTH = 340;
+const CHART_HEIGHT = 170;
+const PAD_LEFT = 40;
+const PAD_RIGHT = 16;
+const PAD_TOP = 22;
+const PAD_BOTTOM = 26;
+const PLOT_W = CHART_WIDTH - PAD_LEFT - PAD_RIGHT;
+const PLOT_H = CHART_HEIGHT - PAD_TOP - PAD_BOTTOM;
+
 export function TrendChart({ data }: TrendChartProps) {
   const [selectedIdx, setSelectedIdx] = useState<number | null>(
     data.length > 0 ? data.length - 1 : null,
@@ -30,7 +39,70 @@ export function TrendChart({ data }: TrendChartProps) {
     setSelectedIdx(data.length > 0 ? data.length - 1 : null);
   }, [data]);
 
-  if (data.length === 0) {
+  const chartGeometry = useMemo(() => {
+    if (data.length === 0) return null;
+
+    const pointsWithZero = [
+      {
+        index: 0,
+        gameId: 0,
+        playedAt: '',
+        dateLabel: '起点',
+        amount: 0,
+        cumulativeAmount: 0,
+        isBigWinner: false,
+        roomFee: 0,
+        note: '',
+      },
+      ...data,
+    ];
+
+    const values = pointsWithZero.map((p) => p.cumulativeAmount);
+    const rawMin = Math.min(0, ...values);
+    const rawMax = Math.max(0, ...values);
+    const span = Math.max(rawMax - rawMin, 100);
+    const minVal = rawMin - span * 0.1;
+    const maxVal = rawMax + span * 0.1;
+
+    const getX = (i: number) =>
+      PAD_LEFT +
+      (pointsWithZero.length <= 1 ? PLOT_W / 2 : (i / (pointsWithZero.length - 1)) * PLOT_W);
+    const getY = (val: number) => PAD_TOP + ((maxVal - val) / (maxVal - minVal || 1)) * PLOT_H;
+
+    const zeroY = getY(0);
+    const pathD = pointsWithZero
+      .map(
+        (pt, i) =>
+          `${i === 0 ? 'M' : 'L'} ${getX(i).toFixed(1)} ${getY(pt.cumulativeAmount).toFixed(1)}`,
+      )
+      .join(' ');
+    const areaD = `${pathD} L ${getX(pointsWithZero.length - 1).toFixed(1)} ${zeroY.toFixed(1)} L ${getX(0).toFixed(1)} ${zeroY.toFixed(1)} Z`;
+
+    const lastValue = data[data.length - 1]?.cumulativeAmount ?? 0;
+    const isPositive = lastValue >= 0;
+
+    return {
+      pointsWithZero,
+      rawMin,
+      rawMax,
+      maxY: getY(rawMax),
+      minY: getY(rawMin),
+      zeroY,
+      pathD,
+      areaD,
+      isPositive,
+      strokeColor: isPositive ? '#dc2626' : '#059669',
+      dense: data.length > 120,
+      coords: data.map((pt, idx) => ({
+        cx: getX(idx + 1),
+        cy: getY(pt.cumulativeAmount),
+      })),
+      firstX: getX(1),
+      lastX: getX(pointsWithZero.length - 1),
+    };
+  }, [data]);
+
+  if (!chartGeometry) {
     return (
       <div className="h-44 flex items-center justify-center text-sm text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200">
         当前周期暂无参赛记录
@@ -38,71 +110,38 @@ export function TrendChart({ data }: TrendChartProps) {
     );
   }
 
-  const width = 340;
-  const height = 170;
-  const padLeft = 40;
-  const padRight = 16;
-  const padTop = 22;
-  const padBottom = 26;
-
-  // 包含起点 0
-  const pointsWithZero = [
-    {
-      index: 0,
-      gameId: 0,
-      playedAt: '',
-      dateLabel: '起点',
-      amount: 0,
-      cumulativeAmount: 0,
-      isBigWinner: false,
-      roomFee: 0,
-      note: '',
-    },
-    ...data,
-  ];
-
-  const values = pointsWithZero.map((p) => p.cumulativeAmount);
-  const rawMin = Math.min(0, ...values);
-  const rawMax = Math.max(0, ...values);
-  const span = Math.max(rawMax - rawMin, 100);
-  const minVal = rawMin - span * 0.1;
-  const maxVal = rawMax + span * 0.1;
-
-  const plotW = width - padLeft - padRight;
-  const plotH = height - padTop - padBottom;
-
-  const getX = (i: number) =>
-    padLeft + (pointsWithZero.length <= 1 ? plotW / 2 : (i / (pointsWithZero.length - 1)) * plotW);
-
-  const getY = (val: number) => padTop + ((maxVal - val) / (maxVal - minVal || 1)) * plotH;
-
-  const zeroY = getY(0);
-
-  const pathD = pointsWithZero
-    .map(
-      (pt, i) =>
-        `${i === 0 ? 'M' : 'L'} ${getX(i).toFixed(1)} ${getY(pt.cumulativeAmount).toFixed(1)}`,
-    )
-    .join(' ');
-
-  const areaD = `${pathD} L ${getX(pointsWithZero.length - 1).toFixed(1)} ${zeroY.toFixed(1)} L ${getX(0).toFixed(1)} ${zeroY.toFixed(1)} Z`;
-
-  const lastValue = data[data.length - 1]?.cumulativeAmount ?? 0;
-  const isPositive = lastValue >= 0;
-  const strokeColor = isPositive ? '#dc2626' : '#059669';
-  const dense = data.length > 120;
+  const width = CHART_WIDTH;
+  const height = CHART_HEIGHT;
+  const padLeft = PAD_LEFT;
+  const padRight = PAD_RIGHT;
+  const plotW = PLOT_W;
+  const {
+    rawMin,
+    rawMax,
+    maxY,
+    minY,
+    zeroY,
+    pathD,
+    areaD,
+    isPositive,
+    strokeColor,
+    dense,
+    coords,
+    firstX,
+    lastX,
+  } = chartGeometry;
 
   const activePoint =
     selectedIdx !== null && data[selectedIdx] ? data[selectedIdx] : data[data.length - 1];
 
-  // 在折线上按横坐标就近选中，支持手指横向拖动查看每一场
+  // 在折线上按横坐标就近选中，支持手指横向拖动查看每一场；索引未变时不触发重渲染
   function selectNearest(clientX: number) {
     const rect = svgRef.current?.getBoundingClientRect();
     if (!rect || rect.width === 0) return;
     const x = ((clientX - rect.left) / rect.width) * width;
     const ratio = (x - padLeft) / plotW;
     const idx = Math.max(0, Math.min(data.length - 1, Math.round(ratio * data.length) - 1));
-    setSelectedIdx(idx);
+    setSelectedIdx((prev) => (prev === idx ? prev : idx));
   }
 
   return (
@@ -177,16 +216,16 @@ export function TrendChart({ data }: TrendChartProps) {
           {/* 最高/最低参考线 */}
           <line
             x1={padLeft}
-            y1={getY(rawMax)}
+            y1={maxY}
             x2={width - padRight}
-            y2={getY(rawMax)}
+            y2={maxY}
             stroke="#e2e8f0"
             strokeDasharray="2 2"
             strokeWidth="1"
           />
           <text
             x={padLeft - 5}
-            y={getY(rawMax) + 3}
+            y={maxY + 3}
             textAnchor="end"
             className="fill-slate-500 text-[11px]"
           >
@@ -197,16 +236,16 @@ export function TrendChart({ data }: TrendChartProps) {
             <>
               <line
                 x1={padLeft}
-                y1={getY(rawMin)}
+                y1={minY}
                 x2={width - padRight}
-                y2={getY(rawMin)}
+                y2={minY}
                 stroke="#e2e8f0"
                 strokeDasharray="2 2"
                 strokeWidth="1"
               />
               <text
                 x={padLeft - 5}
-                y={getY(rawMin) + 3}
+                y={minY + 3}
                 textAnchor="end"
                 className="fill-slate-500 text-[11px]"
               >
@@ -249,8 +288,7 @@ export function TrendChart({ data }: TrendChartProps) {
 
           {/* 数据点：长序列只保留大赢家与当前选中点，避免 DOM 过密 */}
           {data.map((pt, idx) => {
-            const cx = getX(idx + 1);
-            const cy = getY(pt.cumulativeAmount);
+            const { cx, cy } = coords[idx];
             const isSelected = (selectedIdx ?? data.length - 1) === idx;
             if (dense && !pt.isBigWinner && !isSelected) return null;
             return (
@@ -271,21 +309,11 @@ export function TrendChart({ data }: TrendChartProps) {
           })}
 
           {/* 首尾日期标签 */}
-          <text
-            x={getX(1)}
-            y={height - 6}
-            textAnchor="start"
-            className="fill-slate-500 text-[11px]"
-          >
+          <text x={firstX} y={height - 6} textAnchor="start" className="fill-slate-500 text-[11px]">
             {data[0]?.dateLabel}
           </text>
           {data.length > 1 && (
-            <text
-              x={getX(pointsWithZero.length - 1)}
-              y={height - 6}
-              textAnchor="end"
-              className="fill-slate-500 text-[11px]"
-            >
+            <text x={lastX} y={height - 6} textAnchor="end" className="fill-slate-500 text-[11px]">
               {data[data.length - 1]?.dateLabel}
             </text>
           )}

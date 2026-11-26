@@ -15,6 +15,7 @@ function createPool(): Pool {
       max: 15,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 8000,
+      statement_timeout: 10000,
     });
   }
 
@@ -22,7 +23,7 @@ function createPool(): Pool {
   const ssl =
     sslMode === 'disable' || sslMode === 'false'
       ? false
-      : { rejectUnauthorized: sslMode === 'verify-full' };
+      : { rejectUnauthorized: sslMode === 'verify-full' || sslMode === 'verify-ca' };
 
   return new Pool({
     host: process.env.DB_HOST || '127.0.0.1',
@@ -34,6 +35,7 @@ function createPool(): Pool {
     max: 15,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 8000,
+    statement_timeout: 10000,
   });
 }
 
@@ -190,12 +192,17 @@ async function runInitialization(): Promise<void> {
     );
 
     // 用户名大小写不敏感唯一：应用层查重与登录均按 LOWER(username) 口径，
-    // 数据库层补幂等唯一索引兜底并发插入；历史数据存在同名冲突时仅告警不阻断启动
+    // 数据库层补幂等唯一索引兜底并发插入；历史数据存在同名冲突时用 SAVEPOINT 回滚该语句，
+    // 防止单条 DDL 失败导致整个启动事务进入 25P02 中止态而全站 500
+    await client.query(`SAVEPOINT sp_username_lower_idx`);
     try {
       await client.query(
         `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_lower ON users (LOWER(username))`,
       );
+      await client.query(`RELEASE SAVEPOINT sp_username_lower_idx`);
     } catch (indexErr: unknown) {
+      await client.query(`ROLLBACK TO SAVEPOINT sp_username_lower_idx`);
+      await client.query(`RELEASE SAVEPOINT sp_username_lower_idx`);
       console.warn(
         '⚠️ 用户名大小写唯一索引创建失败（可能存在仅大小写不同的历史账号），请人工核对：',
         indexErr instanceof Error ? indexErr.message : indexErr,
@@ -276,6 +283,14 @@ async function runInitialization(): Promise<void> {
     await client.query(
       `DELETE FROM share_links WHERE expires_at IS NOT NULL AND expires_at <= NOW()`,
     );
+
+    // 个人战绩与总榜查询覆盖索引（PG 11+ 支持 INCLUDE）：覆盖 user_id + game_id 并携带 amount / is_big_winner，
+    // 消除回表并替代旧的单列 idx_game_records_user_id
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_game_records_user_game_cover
+        ON game_records(user_id, game_id) INCLUDE (amount, is_big_winner);
+      DROP INDEX IF EXISTS idx_game_records_user_id;
+    `);
 
     // 开发调试管理员（仅非生产环境生效）：.env 配置 DEV_ADMIN_USERNAME / DEV_ADMIN_PASSWORD 时，
     // 确保对应管理员账号存在且密码同步，便于本地开发调试；生产环境（NODE_ENV=production）一律忽略。

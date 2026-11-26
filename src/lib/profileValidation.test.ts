@@ -53,9 +53,24 @@ describe('validateAvatarImage', () => {
   });
 
   it('jpeg / png / webp data URL 通过校验', () => {
-    expect(validateAvatarImage('data:image/jpeg;base64,QQ==')).toBeNull();
-    expect(validateAvatarImage('data:image/png;base64,QQ==')).toBeNull();
-    expect(validateAvatarImage('data:image/webp;base64,UklGRg==')).toBeNull();
+    expect(validateAvatarImage('data:image/jpeg;base64,/9j/4AAQ')).toBeNull();
+    expect(validateAvatarImage('data:image/png;base64,iVBORw0KGgo=')).toBeNull();
+    expect(validateAvatarImage('data:image/webp;base64,UklGRgAAAABXRUJQ')).toBeNull();
+  });
+
+  it('伪造文件头魔数或非法 base64 报错', () => {
+    expect(validateAvatarImage('data:image/jpeg;base64,PHNjcmlwdD4=')).toBe(
+      '头像图片无效或过大，请重新选择',
+    );
+    expect(validateAvatarImage('data:image/png;base64,/9j/4AAQ')).toBe(
+      '头像图片无效或过大，请重新选择',
+    );
+    expect(validateAvatarImage('data:image/webp;base64,UklGRg==')).toBe(
+      '头像图片无效或过大，请重新选择',
+    );
+    expect(validateAvatarImage('data:image/jpeg;base64,not*valid!')).toBe(
+      '头像图片无效或过大，请重新选择',
+    );
   });
 
   it('非法前缀或非字符串报错', () => {

@@ -25,6 +25,7 @@ vi.mock('@/lib/db', () => ({
 }));
 vi.mock('bcryptjs', () => ({ default: { compare: mocks.compare, hash: mocks.hash } }));
 
+import { clearFailures } from '@/lib/rateLimit';
 import { GET, PATCH } from './route';
 
 const me = {
@@ -57,7 +58,7 @@ describe('GET /api/auth/me', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
   });
 
-  it('返回当前用户与明文设备 Token，并顺延 Cookie', async () => {
+  it('返回当前用户（不含 deviceToken 与 bindToken），并顺延 Cookie', async () => {
     const res = await GET(new NextRequest('http://localhost/api/auth/me'), {
       params: Promise.resolve({}),
     });
@@ -66,7 +67,7 @@ describe('GET /api/auth/me', () => {
     const body = await res.json();
     expect(body.user.nickname).toBe('花非花');
     expect(body.user.bindToken).toBeUndefined();
-    expect(body.deviceToken).toBe(me.deviceToken);
+    expect(body.deviceToken).toBeUndefined();
     expect(mocks.setDeviceCookie).toHaveBeenCalledTimes(1);
   });
 
@@ -81,9 +82,27 @@ describe('GET /api/auth/me', () => {
   });
 });
 
+function updatedMeRow(overrides: Record<string, unknown> = {}) {
+  return {
+    rows: [
+      {
+        id: 7,
+        username: 'fride',
+        nickname: '花非花',
+        role: 'PLAYER',
+        avatar_color: 'blue',
+        is_active: true,
+        ...overrides,
+      },
+    ],
+    rowCount: 1,
+  };
+}
+
 describe('PATCH /api/auth/me', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearFailures('pwchange:user:7');
     mocks.getCurrentUser.mockResolvedValue(me);
     mocks.generateToken.mockReturnValue('rotated-bind-token');
     mocks.hashToken.mockReturnValue('hashed-current-device');
@@ -91,14 +110,13 @@ describe('PATCH /api/auth/me', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
   });
 
-  it('修改昵称成功', async () => {
+  it('修改昵称成功（单条 UPDATE RETURNING，不再末尾二次查 getCurrentUser）', async () => {
     mocks.query.mockImplementation((sql: string) => {
-      if (/SET nickname = COALESCE/.test(sql)) {
-        return Promise.resolve({ rows: [], rowCount: 1 });
+      if (/UPDATE users[\s\S]*RETURNING/.test(sql)) {
+        return Promise.resolve(updatedMeRow({ nickname: '新昵称' }));
       }
       throw new Error(`未预期的 SQL: ${sql}`);
     });
-    mocks.getCurrentUser.mockResolvedValue({ ...me, nickname: '新昵称' });
 
     const res = await callPatch({ nickname: '新昵称' });
 
@@ -112,48 +130,50 @@ describe('PATCH /api/auth/me', () => {
       avatarColor: 'blue',
       isActive: true,
     });
-    expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining('SET nickname = COALESCE'), [
+    expect(mocks.getCurrentUser).toHaveBeenCalledTimes(1);
+    expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining('UPDATE users'), [
+      null,
+      null,
       '新昵称',
+      null,
+      false,
       null,
       7,
     ]);
   });
 
-  it('设置头像图片：显式 SET avatar_image（非 COALESCE）', async () => {
+  it('设置头像图片：通过 CASE 分支写 avatar_image 并递增版本号', async () => {
     mocks.query.mockImplementation((sql: string) => {
-      if (/SET avatar_image = \$1/.test(sql)) {
-        return Promise.resolve({ rows: [], rowCount: 1 });
+      if (/UPDATE users[\s\S]*RETURNING/.test(sql)) {
+        return Promise.resolve(updatedMeRow());
       }
       throw new Error(`未预期的 SQL: ${sql}`);
     });
-    const dataUrl = 'data:image/jpeg;base64,QQ==';
-    mocks.getCurrentUser.mockResolvedValue(me);
+    const dataUrl = 'data:image/jpeg;base64,/9j/4AAQ';
 
     const res = await callPatch({ avatarImage: dataUrl });
 
     expect(res.status).toBe(200);
     expect(mocks.query).toHaveBeenCalledWith(
-      expect.stringContaining('SET avatar_image = $1, avatar_version = avatar_version + 1'),
-      [dataUrl, 7],
+      expect.stringContaining('avatar_version = CASE WHEN $5::boolean THEN avatar_version + 1'),
+      [null, null, null, null, true, dataUrl, 7],
     );
   });
 
   it('avatarImage 传 null 清除头像图片', async () => {
     mocks.query.mockImplementation((sql: string) => {
-      if (/SET avatar_image = \$1/.test(sql)) {
-        return Promise.resolve({ rows: [], rowCount: 1 });
+      if (/UPDATE users[\s\S]*RETURNING/.test(sql)) {
+        return Promise.resolve(updatedMeRow());
       }
       throw new Error(`未预期的 SQL: ${sql}`);
     });
-    mocks.getCurrentUser.mockResolvedValue(me);
 
     const res = await callPatch({ avatarImage: null });
 
     expect(res.status).toBe(200);
-    // 清除同样递增版本号，客户端本地缓存据此失效
     expect(mocks.query).toHaveBeenCalledWith(
-      expect.stringContaining('SET avatar_image = $1, avatar_version = avatar_version + 1'),
-      [null, 7],
+      expect.stringContaining('avatar_version = CASE WHEN $5::boolean THEN avatar_version + 1'),
+      [null, null, null, null, true, null, 7],
     );
   });
 
@@ -180,8 +200,8 @@ describe('PATCH /api/auth/me', () => {
       if (/SELECT password_hash FROM users/.test(sql)) {
         return Promise.resolve({ rows: [{ password_hash: '$2a$10$oldhash' }], rowCount: 1 });
       }
-      if (/bind_token = \$2/.test(sql)) {
-        return Promise.resolve({ rows: [], rowCount: 1 });
+      if (/UPDATE users[\s\S]*RETURNING/.test(sql)) {
+        return Promise.resolve(updatedMeRow());
       }
       if (/device_token <> \$2/.test(sql)) {
         return Promise.resolve({ rows: [], rowCount: 1 });
@@ -189,7 +209,6 @@ describe('PATCH /api/auth/me', () => {
       throw new Error(`未预期的 SQL: ${sql}`);
     });
     mocks.compare.mockResolvedValue(true);
-    mocks.getCurrentUser.mockResolvedValue(me);
 
     const res = await callPatch({ currentPassword: 'old-pass', newPassword: 'new-pass-123' });
 
@@ -197,9 +216,13 @@ describe('PATCH /api/auth/me', () => {
     // 原密码校验
     expect(mocks.compare).toHaveBeenCalledWith('old-pass', '$2a$10$oldhash');
     // bind_token 轮换
-    expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining('bind_token = $2'), [
+    expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining('bind_token = COALESCE($2'), [
       '$2a$10$newhash',
       'rotated-bind-token',
+      null,
+      null,
+      false,
+      null,
       7,
     ]);
     // 保留当前设备：仅删除 device_token 不同的其他设备
@@ -225,6 +248,27 @@ describe('PATCH /api/auth/me', () => {
     expect(mocks.hash).not.toHaveBeenCalled();
   });
 
+  it('原密码连续错误 5 次触发 429 锁定，且不再触发 bcrypt.compare', async () => {
+    mocks.query.mockImplementation((sql: string) => {
+      if (/SELECT password_hash FROM users/.test(sql)) {
+        return Promise.resolve({ rows: [{ password_hash: '$2a$10$oldhash' }], rowCount: 1 });
+      }
+      throw new Error(`未预期的 SQL: ${sql}`);
+    });
+    mocks.compare.mockResolvedValue(false);
+
+    for (let i = 0; i < 5; i += 1) {
+      const res = await callPatch({ currentPassword: 'wrong', newPassword: 'new-pass-123' });
+      expect(res.status).toBe(400);
+    }
+
+    mocks.compare.mockClear();
+    const lockedRes = await callPatch({ currentPassword: 'wrong', newPassword: 'new-pass-123' });
+    expect(lockedRes.status).toBe(429);
+    expect((await lockedRes.json()).error).toContain('原密码验证失败次数过多');
+    expect(mocks.compare).not.toHaveBeenCalled();
+  });
+
   it('修改密码必须提供原密码', async () => {
     const res = await callPatch({ newPassword: 'new-pass-123' });
 
@@ -237,8 +281,8 @@ describe('PATCH /api/auth/me', () => {
       if (/SELECT password_hash FROM users/.test(sql)) {
         return Promise.resolve({ rows: [{ password_hash: '' }], rowCount: 1 });
       }
-      if (/bind_token = \$2/.test(sql)) {
-        return Promise.resolve({ rows: [], rowCount: 1 });
+      if (/UPDATE users[\s\S]*RETURNING/.test(sql)) {
+        return Promise.resolve(updatedMeRow());
       }
       if (/device_token <> \$2/.test(sql)) {
         return Promise.resolve({ rows: [], rowCount: 1 });
@@ -253,9 +297,13 @@ describe('PATCH /api/auth/me', () => {
     // 无原密码可校验，不进 bcrypt.compare，直接落新哈希
     expect(mocks.compare).not.toHaveBeenCalled();
     expect(mocks.hash).toHaveBeenCalledWith('first-pass-123', 10);
-    expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining('bind_token = $2'), [
+    expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining('bind_token = COALESCE($2'), [
       '$2a$10$newhash',
       'rotated-bind-token',
+      null,
+      null,
+      false,
+      null,
       7,
     ]);
   });

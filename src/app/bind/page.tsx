@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useApp } from '@/components/AppShell';
 import { invalidateApiCache } from '@/lib/apiClient';
@@ -12,6 +12,8 @@ function BindContent() {
   const { refreshUser } = useApp();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('正在为您绑定微信免密访问…');
+  // 缓存首次解析出的绑定凭证，防止抹除地址栏后 React StrictMode 二次挂载读不到 token
+  const tokenRef = useRef<string | null>(null);
 
   useEffect(() => {
     // cancelled 守卫 + 定时器清理：组件卸载（含 StrictMode 开发态双挂载）后
@@ -19,7 +21,19 @@ function BindContent() {
     let cancelled = false;
     let redirectTimer: ReturnType<typeof setTimeout> | undefined;
 
-    const token = searchParams.get('token');
+    if (!tokenRef.current) {
+      const hashToken =
+        typeof window !== 'undefined'
+          ? new URLSearchParams(window.location.hash.replace(/^#/, '')).get('token')
+          : null;
+      tokenRef.current = hashToken || searchParams.get('token');
+    }
+    const token = tokenRef.current;
+    // 读取后立即从地址栏抹除凭证，避免留在浏览历史或泄露给第三方脚本
+    if (typeof window !== 'undefined' && (window.location.hash || window.location.search)) {
+      window.history.replaceState(null, '', '/bind');
+    }
+
     if (!token) {
       setStatus('error');
       setMessage('缺少绑定凭证，请联系管理员重新获取专属链接');
@@ -41,7 +55,7 @@ function BindContent() {
           return;
         }
 
-        if (data.deviceToken) {
+        if (data.deviceToken && data.user?.role !== 'ADMIN') {
           try {
             localStorage.setItem('bw_device_token', data.deviceToken);
           } catch {

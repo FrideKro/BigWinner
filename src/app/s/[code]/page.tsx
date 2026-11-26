@@ -139,6 +139,8 @@ export default function SharePage() {
 
   const abortRef = useRef<AbortController | null>(null);
   const gamesOffsetRef = useRef(0);
+  // 首屏已拉取总榜/看板全量可见玩家头像后，同页切 Tab 或切玩家跳过重复头像传输
+  const fullAvatarsLoadedRef = useRef(false);
 
   // 404/410/403 属于链接失效或越权访问，展示不可恢复的失效态
   const handleFetchError = useCallback((err: unknown) => {
@@ -166,21 +168,29 @@ export default function SharePage() {
       abortRef.current = controller;
 
       const offset = options.append ? gamesOffsetRef.current : 0;
-      let url = `/api/s/${code}`;
-      if (targetTab) url += `?tab=${targetTab}`;
-      if (targetTab === 'games') url += `&offset=${offset}`;
-      if (targetTab === 'stats' && options.userId) url += `&userId=${options.userId}`;
+      const params = new URLSearchParams();
+      if (targetTab) params.set('tab', targetTab);
+      if (targetTab === 'games') params.set('offset', String(offset));
+      if (targetTab === 'stats' && options.userId) params.set('userId', String(options.userId));
+      if (fullAvatarsLoadedRef.current && (targetTab === 'board' || targetTab === 'stats')) {
+        params.set('includeAvatars', '0');
+      }
+      const queryStr = params.toString();
+      const url = `/api/s/${code}${queryStr ? `?${queryStr}` : ''}`;
 
       if (!options.append) setLoading(true);
       try {
-        const res = await apiGet<ShareViewResponse>(url, { force: true });
+        const res = await apiGet<ShareViewResponse>(url, { signal: controller.signal });
         if (abortRef.current !== controller) return;
         setMeta(res.share);
         const nextAvatars = res.data.avatars ?? {};
-        setAvatars((prev) => (options.append ? { ...prev, ...nextAvatars } : nextAvatars));
         // 未指定 tab 时服务端返回第一个已分享模块的数据，需同步 tab 状态，
         // 否则首个模块非「总榜」的分享会因渲染条件不命中而白屏
         const actualTab = targetTab || res.share.contentScope[0] || 'board';
+        if (actualTab === 'board' || actualTab === 'stats') {
+          fullAvatarsLoadedRef.current = true;
+        }
+        setAvatars((prev) => ({ ...prev, ...nextAvatars }));
         setTab(actualTab);
         if (actualTab === 'board' && isBoardData(res.data)) {
           setBoardData(res.data);

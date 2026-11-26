@@ -57,10 +57,10 @@ interface StatsSummary {
 }
 
 interface StatsResponse {
-  summary: StatsSummary;
-  personalStats: PersonalStats;
-  monthlyRoomFees: MonthlyRoomFeeItem[];
-  achievements: Achievement[];
+  summary?: StatsSummary;
+  personalStats?: PersonalStats;
+  monthlyRoomFees?: MonthlyRoomFeeItem[];
+  achievements?: Achievement[];
 }
 
 function StatsSkeleton() {
@@ -132,6 +132,9 @@ function StatsContent() {
 
   const abortRef = useRef<AbortController | null>(null);
   const lastVersionRef = useRef(gameSavedVersion);
+  // 记录已拉取过全群成就的周期键：同周期切换玩家时传 onlyPersonal=1 省去全库榜单与连胜查询
+  const loadedAchievementsQueryRef = useRef<string>('');
+  const roomFeeLoadedRef = useRef(false);
 
   // 隐藏玩家不出现在看板选择条，但保留本人查看自己战绩的入口
   const visiblePlayers = useMemo(
@@ -152,7 +155,7 @@ function StatsContent() {
     }
   }, [searchParams, user]);
 
-  const fetchStats = useCallback(
+  const fetchPersonalStats = useCallback(
     async (force = false, showSkeleton = true) => {
       if (!selectedUserId) return;
 
@@ -168,16 +171,20 @@ function StatsContent() {
         setError('');
       }
 
+      const periodQuery = periodFilterQuery(filter);
+      const canReuseAchievements = !force && loadedAchievementsQueryRef.current === periodQuery;
+      const url = `/api/stats?${periodQuery}&userId=${selectedUserId}&scope=personal${
+        canReuseAchievements ? '&onlyPersonal=1' : ''
+      }`;
+
       try {
-        const data = await apiGet<StatsResponse>(
-          `/api/stats?${periodFilterQuery(filter)}&userId=${selectedUserId}`,
-          { force, signal: controller.signal },
-        );
+        const data = await apiGet<StatsResponse>(url, { force, signal: controller.signal });
         if (abortRef.current !== controller) return;
-        setPersonalStats(data.personalStats);
-        setMonthlyRoomFees(data.monthlyRoomFees || []);
-        setAchievements(data.achievements || []);
-        setSummary(data.summary);
+        if (data.personalStats) setPersonalStats(data.personalStats);
+        if (data.achievements) {
+          setAchievements(data.achievements);
+          loadedAchievementsQueryRef.current = periodQuery;
+        }
         setError('');
       } catch (err) {
         if (abortRef.current !== controller || isAbortError(err)) return;
@@ -189,19 +196,63 @@ function StatsContent() {
     [filter, selectedUserId],
   );
 
-  useEffect(() => {
-    void fetchStats(false, true);
-  }, [fetchStats]);
+  const fetchRoomFeeStats = useCallback(async (force = false, showSkeleton = true) => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
-  // 记账成功后强制刷新，保留当前面板避免闪烁
+    if (showSkeleton) {
+      setLoading(true);
+      setError('');
+    }
+
+    try {
+      const data = await apiGet<StatsResponse>('/api/stats?period=all&scope=roomFee', {
+        force,
+        signal: controller.signal,
+      });
+      if (abortRef.current !== controller) return;
+      if (data.summary) setSummary(data.summary);
+      if (data.monthlyRoomFees) setMonthlyRoomFees(data.monthlyRoomFees);
+      roomFeeLoadedRef.current = true;
+      setError('');
+    } catch (err) {
+      if (abortRef.current !== controller || isAbortError(err)) return;
+      setError(err instanceof Error ? err.message : '加载失败，请稍后重试');
+    } finally {
+      if (abortRef.current === controller) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'personal') {
+      void fetchPersonalStats(false, true);
+    } else if (!roomFeeLoadedRef.current) {
+      void fetchRoomFeeStats(false, true);
+    }
+  }, [activeTab, fetchPersonalStats, fetchRoomFeeStats]);
+
+  // 记账成功后强制刷新，保留当前面板避免闪烁，并标记另一 Tab 待刷新
   useEffect(() => {
     if (lastVersionRef.current === gameSavedVersion) return;
     lastVersionRef.current = gameSavedVersion;
-    void fetchStats(true, false);
-  }, [gameSavedVersion, fetchStats]);
+    loadedAchievementsQueryRef.current = '';
+    roomFeeLoadedRef.current = false;
+    if (activeTab === 'personal') {
+      void fetchPersonalStats(true, false);
+    } else {
+      void fetchRoomFeeStats(true, false);
+    }
+  }, [gameSavedVersion, activeTab, fetchPersonalStats, fetchRoomFeeStats]);
 
   useRefreshOnVisible(() => {
-    void fetchStats(true, false);
+    loadedAchievementsQueryRef.current = '';
+    roomFeeLoadedRef.current = false;
+    if (activeTab === 'personal') {
+      void fetchPersonalStats(true, false);
+    } else {
+      void fetchRoomFeeStats(true, false);
+    }
   });
 
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -290,12 +341,12 @@ function StatsContent() {
           <PeriodFilterBar value={filter} onChange={setFilter} />
 
           {error && !personalStats ? (
-            <ErrorState message={error} onRetry={() => fetchStats(true, true)} />
+            <ErrorState message={error} onRetry={() => fetchPersonalStats(true, true)} />
           ) : showPersonalSkeleton ? (
             <StatsSkeleton />
           ) : (
             <>
-              {error && <InlineErrorBanner onRetry={() => fetchStats(true, false)} />}
+              {error && <InlineErrorBanner onRetry={() => fetchPersonalStats(true, false)} />}
 
               {/* 宽屏下面板与走势图并排，窄屏纵向堆叠 */}
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:items-start">
@@ -456,7 +507,7 @@ function StatsContent() {
 
       {activeTab === 'roomFee' &&
         (error && !summary ? (
-          <ErrorState message={error} onRetry={() => fetchStats(true, true)} />
+          <ErrorState message={error} onRetry={() => fetchRoomFeeStats(true, true)} />
         ) : loading && !summary ? (
           <RoomFeeSkeleton />
         ) : summary ? (

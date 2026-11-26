@@ -40,6 +40,37 @@ export function queryLeaderboard(clause: string, params: unknown[]) {
   );
 }
 
+/** 单个用户在时间段内的汇总行（供看板切换玩家时按需查询，避免拉取全表榜单） */
+export function queryPlayerLeaderboardRow(clause: string, params: unknown[], userId: number) {
+  const queryParams = [...params, userId];
+  return query<LeaderboardSqlRow>(
+    `SELECT u.id AS user_id,
+            u.nickname,
+            u.avatar_color,
+            u.is_active,
+            u.role,
+            COUNT(gr.id)::text AS games_played,
+            COALESCE(SUM(gr.amount), 0)::text AS net_amount,
+            COUNT(gr.id) FILTER (WHERE gr.amount > 0)::text AS win_count,
+            COUNT(gr.id) FILTER (WHERE gr.amount = 0)::text AS draw_count,
+            COUNT(gr.id) FILTER (WHERE gr.amount < 0)::text AS loss_count,
+            COUNT(gr.id) FILTER (WHERE gr.is_big_winner = TRUE)::text AS big_winner_count,
+            COALESCE(MAX(gr.amount) FILTER (WHERE gr.amount > 0), 0)::text AS max_win,
+            COALESCE(MIN(gr.amount) FILTER (WHERE gr.amount < 0), 0)::text AS max_loss
+     FROM users u
+     LEFT JOIN (
+       SELECT gr_inner.*
+       FROM game_records gr_inner
+       JOIN games g ON g.id = gr_inner.game_id
+       WHERE gr_inner.user_id = $${queryParams.length}
+         ${clause}
+     ) gr ON gr.user_id = u.id
+     WHERE u.id = $${queryParams.length}
+     GROUP BY u.id`,
+    queryParams,
+  );
+}
+
 /** 时间段内场次与房费汇总 */
 export function queryPeriodSummary(clause: string, params: unknown[]) {
   return query<{ total_games: string; total_room_fee: string }>(
@@ -91,8 +122,7 @@ export function queryPersonalHistory(clause: string, params: unknown[], userId: 
 }
 
 /** 各用户在时间段内的最长连胜（按场次时间序，amount > 0 连续即连胜，平局/输局打断，
- *  与 buildPersonalTrend 口径一致）。gaps-and-islands：先按用户 + 场次序给胜局分连续段号，
- *  再对 (user, 段号) 计数取每人最大段长。只返回有胜局的用户 */
+ *  与 buildPersonalTrend 口径一致）。窗口函数前先过滤临时玩家，避免对其排序计分 */
 export function queryWinStreaks(clause: string, params: unknown[]) {
   return query<{ user_id: number; longest_win_streak: string }>(
     `WITH ranked AS (
@@ -104,7 +134,9 @@ export function queryWinStreaks(clause: string, params: unknown[]) {
                    END AS grp
        FROM game_records gr
        JOIN games g ON g.id = gr.game_id
+       JOIN users u ON u.id = gr.user_id
        WHERE 1=1 ${clause}
+         AND u.role <> 'TEMP_PLAYER'
      ),
      streaks AS (
        SELECT user_id, grp, COUNT(*) AS streak_len

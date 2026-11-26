@@ -136,7 +136,7 @@ describe('PATCH /api/users/[id]', () => {
     mockSql([
       { match: /FOR UPDATE/, result: { rows: [], rowCount: 0 } },
       {
-        match: /role = 'ADMIN' AND id != \$1/,
+        match: /role = 'ADMIN' AND is_active = TRUE AND id != \$1/,
         result: { rows: [{ count: '0' }], rowCount: 1 },
       },
     ]);
@@ -144,14 +144,32 @@ describe('PATCH /api/users/[id]', () => {
     const res = await callPatch(1, { role: 'PLAYER' });
 
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: '系统中必须保留至少一位管理员，无法降级' });
+    expect(await res.json()).toEqual({ error: '系统中必须保留至少一位启用中的管理员，无法降级' });
+  });
+
+  it('另一管理员已停用时，降级当前唯一启用管理员返回 400', async () => {
+    mockSql([
+      { match: /FOR UPDATE/, result: { rows: [], rowCount: 0 } },
+      {
+        match: /role = 'ADMIN' AND is_active = TRUE AND id != \$1/,
+        result: { rows: [{ count: '0' }], rowCount: 1 },
+      },
+    ]);
+
+    const res = await callPatch(1, { role: 'PLAYER' });
+
+    expect(res.status).toBe(400);
+    expect(mocks.query).toHaveBeenCalledWith(
+      expect.stringContaining("role = 'ADMIN' AND is_active = TRUE AND id != $1"),
+      [1],
+    );
   });
 
   it('把最后一位管理员改为临时玩家同样被拒绝（TEMP_PLAYER 属降级）', async () => {
     mockSql([
       { match: /FOR UPDATE/, result: { rows: [], rowCount: 0 } },
       {
-        match: /role = 'ADMIN' AND id != \$1/,
+        match: /role = 'ADMIN' AND is_active = TRUE AND id != \$1/,
         result: { rows: [{ count: '0' }], rowCount: 1 },
       },
     ]);
@@ -159,7 +177,7 @@ describe('PATCH /api/users/[id]', () => {
     const res = await callPatch(1, { role: 'TEMP_PLAYER' });
 
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: '系统中必须保留至少一位管理员，无法降级' });
+    expect(await res.json()).toEqual({ error: '系统中必须保留至少一位启用中的管理员，无法降级' });
   });
 
   it('role 传非法值返回 400，不进入事务', async () => {
@@ -174,7 +192,7 @@ describe('PATCH /api/users/[id]', () => {
     mockSql([
       { match: /FOR UPDATE/, result: { rows: [], rowCount: 0 } },
       {
-        match: /role = 'ADMIN' AND id != \$1/,
+        match: /role = 'ADMIN' AND is_active = TRUE AND id != \$1/,
         result: { rows: [{ count: '1' }], rowCount: 1 },
       },
       { match: /SET username = COALESCE/, result: updatedUserRow({ role: 'TEMP_PLAYER' }) },
@@ -273,7 +291,7 @@ describe('PATCH /api/users/[id]', () => {
   });
 
   it('管理员为玩家设置头像图片：显式 SET avatar_image 并递增版本号', async () => {
-    const dataUrl = 'data:image/jpeg;base64,QQ==';
+    const dataUrl = 'data:image/jpeg;base64,/9j/4AAQ';
     mockSql([
       { match: /SET avatar_image = \$1/, result: { rows: [], rowCount: 1 } },
       {

@@ -1,5 +1,5 @@
 import { cookies, headers } from 'next/headers';
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomInt } from 'crypto';
 import { NextResponse } from 'next/server';
 import { query, generateToken } from './db';
 import type { UserRole } from './roles';
@@ -24,10 +24,9 @@ export function hashToken(token: string): string {
 // 管理员重置密码时由服务端生成，仅在响应中返回一次，不落日志
 const PASSWORD_ALPHABET = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export function generateRandomPassword(length = 12): string {
-  const bytes = randomBytes(length);
   let password = '';
   for (let i = 0; i < length; i++) {
-    password += PASSWORD_ALPHABET[bytes[i] % PASSWORD_ALPHABET.length];
+    password += PASSWORD_ALPHABET[randomInt(0, PASSWORD_ALPHABET.length)];
   }
   return password;
 }
@@ -41,6 +40,7 @@ export interface AuthUser {
   isActive: boolean;
   bindToken: string | null;
   deviceToken: string;
+  needsExtend?: boolean;
 }
 
 export function setDeviceCookie(res: NextResponse, deviceToken: string): void {
@@ -106,8 +106,10 @@ export async function verifyAndExtendDeviceToken(deviceToken: string): Promise<A
     is_active: boolean;
     bind_token: string | null;
     device_token: string;
+    needs_extend: boolean;
   }>(
-    `SELECT u.id, u.username, u.nickname, u.role, u.avatar_color, u.is_active, u.bind_token, ud.device_token
+    `SELECT u.id, u.username, u.nickname, u.role, u.avatar_color, u.is_active, u.bind_token, ud.device_token,
+            (ud.expires_at < NOW() + INTERVAL '335 days' OR ud.last_seen_at < NOW() - INTERVAL '1 hour') AS needs_extend
      FROM user_devices AS ud
      JOIN users AS u ON u.id = ud.user_id
      WHERE ud.device_token = $1
@@ -120,18 +122,22 @@ export async function verifyAndExtendDeviceToken(deviceToken: string): Promise<A
     return null;
   }
 
-  // 滑动续期节流：仅当距过期不足 30 天或 last_seen_at 距今超过 1 小时才写库顺延，
-  // 365 天滑动语义不变，写频率从每请求一次降到每设备至多每小时一次
-  await query(
-    `UPDATE user_devices
-     SET last_seen_at = NOW(),
-         expires_at = NOW() + INTERVAL '365 days'
-     WHERE device_token = $1
-       AND (expires_at < NOW() + INTERVAL '335 days' OR last_seen_at < NOW() - INTERVAL '1 hour')`,
-    [tokenHash],
-  );
-
   const row = result.rows[0];
+  const needsExtend = Boolean(row.needs_extend);
+
+  // 滑动续期节流：仅当距过期不足 30 天或 last_seen_at 距今超过 1 小时才写库顺延，
+  // 99%+ 常态请求由 2 次 DB 往返降为 1 次
+  if (needsExtend) {
+    await query(
+      `UPDATE user_devices
+       SET last_seen_at = NOW(),
+           expires_at = NOW() + INTERVAL '365 days'
+       WHERE device_token = $1
+         AND (expires_at < NOW() + INTERVAL '335 days' OR last_seen_at < NOW() - INTERVAL '1 hour')`,
+      [tokenHash],
+    );
+  }
+
   return {
     id: row.id,
     username: row.username,
@@ -141,5 +147,6 @@ export async function verifyAndExtendDeviceToken(deviceToken: string): Promise<A
     isActive: row.is_active,
     bindToken: row.bind_token,
     deviceToken,
+    needsExtend,
   };
 }

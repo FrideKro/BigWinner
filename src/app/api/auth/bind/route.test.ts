@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 
 const mocks = vi.hoisted(() => ({
@@ -45,7 +45,10 @@ const activeUserRow = {
 };
 
 describe('POST /api/auth/bind', () => {
+  const prevTrustProxy = process.env.TRUST_PROXY;
+
   beforeEach(() => {
+    process.env.TRUST_PROXY = 'true';
     vi.clearAllMocks();
     clearFailures(IP_KEY);
     clearFailures('bind:ip:203.0.113.8');
@@ -53,6 +56,14 @@ describe('POST /api/auth/bind', () => {
     mocks.getCurrentUser.mockResolvedValue(null);
     mocks.createDeviceSession.mockResolvedValue('d'.repeat(64));
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    if (prevTrustProxy === undefined) {
+      delete process.env.TRUST_PROXY;
+    } else {
+      process.env.TRUST_PROXY = prevTrustProxy;
+    }
   });
 
   it('缺少绑定凭证返回 400', async () => {
@@ -91,6 +102,22 @@ describe('POST /api/auth/bind', () => {
       expect(res.status).toBe(401);
       expect((await res.json()).error).toContain('绑定链接已失效');
     }
+  });
+
+  it('管理员账号禁止通过免登链接绑定，返回 403 且不创建会话', async () => {
+    mocks.query.mockResolvedValue({
+      ...activeUserRow,
+      rows: [{ ...activeUserRow.rows[0], role: 'ADMIN' }],
+    });
+
+    const res = await POST(bindReq({ bindToken: 'admin-bind-token' }, XFF));
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: '管理员账号不支持免登链接登录，请使用账号密码登录',
+    });
+    expect(mocks.createDeviceSession).not.toHaveBeenCalled();
+    expect(mocks.setDeviceCookie).not.toHaveBeenCalled();
   });
 
   it('已停用账号的 bind_token 返回 401', async () => {

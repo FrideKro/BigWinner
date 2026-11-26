@@ -11,7 +11,14 @@ const MAX_FAILURES = 5; // 窗口内允许的最大失败次数
 const LOCK_MS = 15 * 60 * 1000; // 触发限流后的锁定时长
 const MAX_ENTRIES = 500; // 记录条数上限，超出时清理过期项防内存膨胀
 
-const attempts = new Map<string, AttemptRecord>();
+declare global {
+  var __bigWinnerAttempts: Map<string, AttemptRecord> | undefined;
+  var __bigWinnerRateBuckets: Map<string, RateRecord> | undefined;
+}
+
+const attempts =
+  globalThis.__bigWinnerAttempts ??
+  (globalThis.__bigWinnerAttempts = new Map<string, AttemptRecord>());
 
 function cleanupExpired(now: number): void {
   for (const [key, rec] of attempts) {
@@ -52,10 +59,20 @@ export interface RateLimitState {
   retryAfterSeconds: number;
 }
 
+// 代理头可信开关：仅当 TRUST_PROXY=true/1/yes 时解析 x-forwarded-for 末段；
+// 直连部署不轻信代理头，避免客户端伪造 x-forwarded-for 轮换绕过限流或污染限流桶
+function isTrustProxyEnabled(): boolean {
+  const value = String(process.env.TRUST_PROXY || '')
+    .trim()
+    .toLowerCase();
+  return value === 'true' || value === '1' || value === 'yes';
+}
+
 // 取 x-forwarded-for 最后一个非空段：单层可信反向代理以「追加」模式转发时，
 // 末段才是代理写入的真实客户端 IP（首段可被客户端伪造轮换）；
-// 直连部署无该头时返回空串，由调用方决定跳过计数或按账号兜底
+// 直连部署或未开启 TRUST_PROXY 时返回空串，由调用方决定跳过计数或按账号兜底
 export function getClientIp(headers: Headers): string {
+  if (!isTrustProxyEnabled()) return '';
   const forwarded = headers.get('x-forwarded-for');
   if (!forwarded) return '';
   const parts = forwarded
@@ -117,7 +134,9 @@ interface RateRecord {
   lockedUntil: number;
 }
 
-const rateBuckets = new Map<string, RateRecord>();
+const rateBuckets =
+  globalThis.__bigWinnerRateBuckets ??
+  (globalThis.__bigWinnerRateBuckets = new Map<string, RateRecord>());
 
 export interface RateCheckResult {
   allowed: boolean;
@@ -143,12 +162,13 @@ export function checkRateLimit(
   }
 
   const rec = rateBuckets.get(key);
+  // 先校验锁定状态再判断窗口滑过：防止窗口末尾触发锁定后，越过原 windowStart + windowMs 被提前重置
+  if (rec && rec.lockedUntil > now) {
+    return { allowed: false, retryAfterSeconds: Math.ceil((rec.lockedUntil - now) / 1000) };
+  }
   if (!rec || now - rec.windowStart > windowMs) {
     rateBuckets.set(key, { count: 1, windowStart: now, lockedUntil: 0 });
     return { allowed: true, retryAfterSeconds: 0 };
-  }
-  if (rec.lockedUntil > now) {
-    return { allowed: false, retryAfterSeconds: Math.ceil((rec.lockedUntil - now) / 1000) };
   }
 
   rec.count += 1;

@@ -336,4 +336,36 @@ describe('POST /api/users', () => {
       'new-bind-token',
     ]);
   });
+
+  it('创建管理员账号时响应中不返回 bindToken（置为 null）', async () => {
+    mocks.query.mockImplementation((sql: string) => {
+      if (sql.includes('LOWER(username)')) {
+        return Promise.resolve({ rows: [], rowCount: 0 });
+      }
+      return Promise.resolve({
+        rows: [
+          {
+            id: 9,
+            username: 'admin2',
+            nickname: '副管理员',
+            role: 'ADMIN',
+            avatar_color: 'amber',
+            is_active: true,
+            bind_token: 'new-bind-token',
+            created_at: '2026-10-31T00:00:00Z',
+          },
+        ],
+        rowCount: 1,
+      });
+    });
+
+    const res = await POST(
+      postReq({ username: 'admin2', nickname: '副管理员', password: 'abc12345', role: 'ADMIN' }),
+      { params: Promise.resolve({}) },
+    );
+
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.user.bindToken).toBeNull();
+  });
 });

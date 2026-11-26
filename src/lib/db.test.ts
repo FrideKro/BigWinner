@@ -79,4 +79,25 @@ describe('数据库初始化', () => {
     getPool();
     expect(mocks.on).toHaveBeenCalledWith('error', expect.any(Function));
   });
+
+  it('用户名唯一索引创建失败时通过 SAVEPOINT 回滚并继续完成后续初始化', async () => {
+    const client = healthyClient();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    client.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('idx_users_username_lower')) {
+        throw new Error('could not create unique index');
+      }
+      if (sql.includes('information_schema.tables')) return { rows: [{ exists: true }] };
+      if (sql.includes("role = 'ADMIN'")) return { rows: [{ id: 1 }], rowCount: 1 };
+      return { rows: [], rowCount: 0 };
+    });
+    mocks.connect.mockResolvedValueOnce(client);
+
+    await expect(ensureDbInitialized()).resolves.toBeUndefined();
+    const executedSql = client.query.mock.calls.map((c) => c[0] as string);
+    expect(executedSql).toContain('SAVEPOINT sp_username_lower_idx');
+    expect(executedSql).toContain('ROLLBACK TO SAVEPOINT sp_username_lower_idx');
+    expect(executedSql).toContain('COMMIT');
+    expect(warnSpy).toHaveBeenCalled();
+  });
 });

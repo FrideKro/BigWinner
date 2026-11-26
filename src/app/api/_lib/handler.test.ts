@@ -112,6 +112,18 @@ describe('withAuth', () => {
     const res = await wrapped(jsonReq(), { params: Promise.resolve({ id: '42' }) });
 
     expect(await res.json()).toEqual({ id: '42' });
+    expect(res.headers.get('Cache-Control')).toBe('private, no-store');
+  });
+
+  it('handler 已显式设置 Cache-Control 时保留原值', async () => {
+    mocks.getCurrentUser.mockResolvedValue(adminUser);
+    const wrapped = withAuth(async () =>
+      NextResponse.json({ ok: true }, { headers: { 'Cache-Control': 'private, max-age=3600' } }),
+    );
+
+    const res = await wrapped(jsonReq(), { params: Promise.resolve({}) });
+
+    expect(res.headers.get('Cache-Control')).toBe('private, max-age=3600');
   });
 });
 
@@ -165,6 +177,47 @@ describe('parseJsonBody', () => {
     });
     expect(parse).not.toHaveBeenCalled();
     parse.mockRestore();
+  });
+
+  it('JSON 为 null / 数组 / 原始值时拒绝并返回 400', async () => {
+    for (const raw of ['null', '[1,2]', '"hello"', '123']) {
+      await expect(parseJsonBody(jsonReq(raw))).rejects.toMatchObject({
+        status: 400,
+        message: '请求体格式无效',
+      });
+    }
+  });
+
+  it('流式读取超出 1MB 时立即 cancel 并抛出 413', async () => {
+    const cancel = vi.fn().mockResolvedValue(undefined);
+    const releaseLock = vi.fn();
+    let reads = 0;
+    const req = {
+      headers: new Headers(),
+      body: {
+        getReader: () => ({
+          read: vi.fn(async () => {
+            reads += 1;
+            if (reads === 1) {
+              return { done: false, value: new Uint8Array(600 * 1024) };
+            }
+            if (reads === 2) {
+              return { done: false, value: new Uint8Array(600 * 1024) };
+            }
+            return { done: true, value: undefined };
+          }),
+          cancel,
+          releaseLock,
+        }),
+      },
+    } as unknown as NextRequest;
+
+    await expect(parseJsonBody(req)).rejects.toMatchObject({
+      status: 413,
+      message: '请求体过大',
+    });
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(releaseLock).toHaveBeenCalledTimes(1);
   });
 });
 

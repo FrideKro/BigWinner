@@ -1,20 +1,21 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { query, withTransaction, generateToken } from '@/lib/db';
-import { setDeviceCookie, getCurrentUser, hashToken } from '@/lib/auth';
+import { setDeviceCookie, hashToken } from '@/lib/auth';
+import type { UserRole } from '@/lib/roles';
 import {
   validatePassword,
   validateProfileLengths,
   validateAvatarImage,
 } from '@/lib/profileValidation';
+import { clearFailures, getRateLimitState, recordFailure } from '@/lib/rateLimit';
 import { withAuth, parseJsonBody } from '../../_lib/handler';
-import { toPublicUser } from '../../_lib/shared';
+import { toPublicUser, type PublicUser } from '../../_lib/shared';
 
 export const GET = withAuth(
   async (_req, user) => {
     const res = NextResponse.json({
       user: toPublicUser(user),
-      deviceToken: user.deviceToken,
     });
 
     // 每次访问自动顺延 Cookie 有效期 365 天
@@ -66,58 +67,87 @@ export const PATCH = withAuth(
       const storedHash = pwRes.rows[0]?.password_hash || '';
       // 未设密码的账号（临时玩家免密建号）首次设密无需原密码；已有密码则必须校验原密码
       if (storedHash) {
+        const pwKey = `pwchange:user:${user.id}`;
+        const limitState = getRateLimitState(pwKey);
+        if (limitState.locked) {
+          const minutes = Math.max(1, Math.ceil(limitState.retryAfterSeconds / 60));
+          return NextResponse.json(
+            { error: `原密码验证失败次数过多，请约 ${minutes} 分钟后再试` },
+            { status: 429 },
+          );
+        }
         if (!currentPassword) {
           return NextResponse.json({ error: '修改密码必须输入当前原密码' }, { status: 400 });
         }
         const match = await bcrypt.compare(currentPassword, storedHash);
         if (!match) {
+          recordFailure(pwKey, 5);
           return NextResponse.json({ error: '原密码不正确' }, { status: 400 });
         }
+        clearFailures(pwKey);
       }
       newHash = await bcrypt.hash(newPassword, 10);
     }
 
+    let updatedUser: PublicUser = toPublicUser(user);
     if (
       newHash ||
       nickname !== undefined ||
       avatarColor !== undefined ||
       avatarImage !== undefined
     ) {
-      // 密码与资料同一事务提交；改密码后轮换 bind_token 并下线其他设备，保留当前设备避免把自己登出
-      await withTransaction(async (client) => {
-        if (newHash) {
-          await client.query(`UPDATE users SET password_hash = $1, bind_token = $2 WHERE id = $3`, [
+      // 密码与资料合并为单条 UPDATE ... RETURNING，省去结尾再查一次 getCurrentUser()
+      const newBindToken = newHash ? generateToken(24) : null;
+      const updatedRow = await withTransaction(async (client) => {
+        const res = await client.query<{
+          id: number;
+          username: string;
+          nickname: string;
+          role: UserRole;
+          avatar_color: string;
+          is_active: boolean;
+        }>(
+          `UPDATE users
+           SET password_hash = COALESCE($1, password_hash),
+               bind_token = COALESCE($2, bind_token),
+               nickname = COALESCE($3, nickname),
+               avatar_color = COALESCE($4, avatar_color),
+               avatar_image = CASE WHEN $5::boolean THEN $6 ELSE avatar_image END,
+               avatar_version = CASE WHEN $5::boolean THEN avatar_version + 1 ELSE avatar_version END
+           WHERE id = $7
+           RETURNING id, username, nickname, role, avatar_color, is_active`,
+          [
             newHash,
-            generateToken(24),
+            newBindToken,
+            nickname ?? null,
+            avatarColor ?? null,
+            avatarImage !== undefined,
+            avatarImage ?? null,
             user.id,
-          ]);
+          ],
+        );
+        if (newHash) {
           // 库中存的是 Token 哈希，保留当前设备的比对需用同样哈希
           await client.query(`DELETE FROM user_devices WHERE user_id = $1 AND device_token <> $2`, [
             user.id,
             hashToken(user.deviceToken),
           ]);
         }
-        if (nickname !== undefined || avatarColor !== undefined) {
-          await client.query(
-            `UPDATE users
-           SET nickname = COALESCE($1, nickname),
-               avatar_color = COALESCE($2, avatar_color)
-           WHERE id = $3`,
-            [nickname ?? null, avatarColor ?? null, user.id],
-          );
-        }
-        // 头像图片需支持置 NULL 清除，不能走 COALESCE 部分更新；同语句递增版本号供客户端本地缓存失效判断
-        if (avatarImage !== undefined) {
-          await client.query(
-            `UPDATE users SET avatar_image = $1, avatar_version = avatar_version + 1 WHERE id = $2`,
-            [avatarImage, user.id],
-          );
-        }
+        return res.rows[0];
       });
+      if (updatedRow) {
+        updatedUser = {
+          id: updatedRow.id,
+          username: updatedRow.username,
+          nickname: updatedRow.nickname,
+          role: updatedRow.role,
+          avatarColor: updatedRow.avatar_color,
+          isActive: updatedRow.is_active,
+        };
+      }
     }
 
-    const updated = await getCurrentUser();
-    return NextResponse.json({ user: updated ? toPublicUser(updated) : null });
+    return NextResponse.json({ user: updatedUser });
   },
   { error: '更新个人资料失败' },
 );

@@ -108,12 +108,13 @@ export const PATCH = withAuth<{ id: string }>(
 
         if (demotingAdmin) {
           const adminCountRes = await client.query<{ count: string }>(
-            `SELECT COUNT(*)::text AS count FROM users WHERE role = 'ADMIN' AND id != $1`,
+            `SELECT COUNT(*)::text AS count
+             FROM users WHERE role = 'ADMIN' AND is_active = TRUE AND id != $1`,
             [targetId],
           );
           const remainingAdmins = parseInt(adminCountRes.rows[0]?.count || '0', 10);
           if (remainingAdmins === 0) {
-            throw new ApiError(400, '系统中必须保留至少一位管理员，无法降级');
+            throw new ApiError(400, '系统中必须保留至少一位启用中的管理员，无法降级');
           }
         }
 
@@ -219,7 +220,7 @@ export const PATCH = withAuth<{ id: string }>(
         avatarColor: u.avatar_color,
         avatarVersion: u.avatar_version,
         isActive: u.is_active,
-        bindToken: u.bind_token,
+        bindToken: u.role === 'ADMIN' ? null : u.bind_token,
         createdAt: u.created_at,
       },
       // 随机密码仅在此响应中出现一次，管理端需立即复制转告

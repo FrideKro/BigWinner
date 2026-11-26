@@ -224,6 +224,36 @@ describe('/api/s/[code]', () => {
     expect(body.data.avatars).toEqual({ '1': 'data:image/jpeg;base64,QQ==' });
   });
 
+  it('board 过滤临时玩家后才查询头像，不泄露临时玩家 ID 与头像', async () => {
+    const tempRow = { ...lbRow, user_id: 99, nickname: '临时路人', role: 'TEMP_PLAYER' };
+    const avatarIdsQueried: unknown[] = [];
+    mocks.query.mockImplementation((sql: string, params?: unknown[]) => {
+      if (sql.includes('FROM share_links')) {
+        return Promise.resolve({ rows: [shareRow], rowCount: 1 });
+      }
+      if (sql.includes('FROM users u')) {
+        return Promise.resolve({ rows: [{ ...lbRow, role: 'PLAYER' }, tempRow], rowCount: 2 });
+      }
+      if (sql.includes('avatar_image IS NOT NULL')) {
+        avatarIdsQueried.push(params?.[0]);
+        return Promise.resolve({
+          rows: [{ id: 1, avatar_image: 'data:image/jpeg;base64,QQ==' }],
+          rowCount: 1,
+        });
+      }
+      return Promise.resolve({ rows: [{ total_games: '2', total_room_fee: '50' }], rowCount: 1 });
+    });
+
+    const res = await callGet('?tab=board');
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { leaderboard: Array<{ userId: number }>; avatars: Record<string, string> };
+    };
+    expect(body.data.leaderboard.map((p) => p.userId)).toEqual([1]);
+    expect(avatarIdsQueried).toEqual([[1]]);
+  });
+
   it('分享未包含的内容类型返回 403', async () => {
     mockShareQueries({ ...shareRow, content_scope: 'board' });
 
@@ -317,11 +347,71 @@ describe('/api/s/[code]', () => {
   });
 
   it('stats 指定玩家按 userId 查询明细', async () => {
+    mocks.query.mockImplementation((sql: string) => {
+      if (sql.includes('FROM share_links')) {
+        return Promise.resolve({ rows: [shareRow], rowCount: 1 });
+      }
+      if (sql.includes('FROM users u')) {
+        return Promise.resolve({
+          rows: [
+            { ...lbRow, role: 'PLAYER' },
+            { ...lbRow, user_id: 5, nickname: '玩家五', role: 'PLAYER' },
+          ],
+          rowCount: 2,
+        });
+      }
+      if (sql.includes('avatar_image IS NOT NULL')) {
+        return Promise.resolve({ rows: [], rowCount: 0 });
+      }
+      if (sql.includes('gr.user_id =')) {
+        return Promise.resolve({ rows: [historyRow], rowCount: 1 });
+      }
+      if (sql.includes('TO_CHAR')) {
+        return Promise.resolve({ rows: [monthlyRow], rowCount: 1 });
+      }
+      return Promise.resolve({ rows: [{ total_games: '2', total_room_fee: '50' }], rowCount: 1 });
+    });
+
     const res = await callGet('?tab=stats&userId=5');
 
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { personalStats: { userId: number } } };
     expect(body.data.personalStats.userId).toBe(5);
+  });
+
+  it('stats 查询临时玩家或不在可见榜单的 userId 返回 404，不拉取个人明细', async () => {
+    const tempRow = { ...lbRow, user_id: 99, nickname: '临时路人', role: 'TEMP_PLAYER' };
+    mocks.query.mockImplementation((sql: string) => {
+      if (sql.includes('FROM share_links')) {
+        return Promise.resolve({ rows: [shareRow], rowCount: 1 });
+      }
+      if (sql.includes('FROM users u')) {
+        return Promise.resolve({ rows: [{ ...lbRow, role: 'PLAYER' }, tempRow], rowCount: 2 });
+      }
+      if (sql.includes('gr.user_id =')) {
+        throw new Error('不应查询非可见榜单玩家的个人明细');
+      }
+      if (sql.includes('TO_CHAR')) {
+        return Promise.resolve({ rows: [monthlyRow], rowCount: 1 });
+      }
+      return Promise.resolve({ rows: [{ total_games: '2', total_room_fee: '50' }], rowCount: 1 });
+    });
+
+    const resTemp = await callGet('?tab=stats&userId=99');
+    expect(resTemp.status).toBe(404);
+
+    const resOther = await callGet('?tab=stats&userId=888');
+    expect(resOther.status).toBe(404);
+  });
+
+  it('includeAvatars=0 时跳过头像查询并返回空头像表', async () => {
+    const res = await callGet('?tab=board&includeAvatars=0');
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { avatars: Record<string, string> } };
+    expect(body.data.avatars).toEqual({});
+    const sqls = mocks.query.mock.calls.map((c) => c[0] as string);
+    expect(sqls.some((s) => s.includes('avatar_image IS NOT NULL'))).toBe(false);
   });
 
   it('自定义区间分享按日期边界过滤', async () => {

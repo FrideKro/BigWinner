@@ -13,6 +13,7 @@ import { useFocusTrap } from '@/lib/useFocusTrap';
 import { useCopyText } from '@/lib/useCopyText';
 import { useTimeout } from '@/lib/useTimeout';
 import { formatDateTime, shareExpiryEndDay } from '@/lib/format';
+import { currentShanghaiDate } from '@/lib/gameLogic';
 
 const SCOPE_OPTIONS = [
   { key: 'board', label: '总榜', icon: Trophy },
@@ -47,14 +48,9 @@ interface ShareModalProps {
   onClose: () => void;
 }
 
-// 上海时区当天 YYYY-MM-DD（date 控件与分享区间同用自然日语义）
-function shanghaiTodayDate(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
-}
-
 // 上海「今天」+ N 天的日历日（Date.UTC 自动进位）
 function shanghaiDateAfterDays(days: number): string {
-  const [year, month, day] = shanghaiTodayDate().split('-').map(Number);
+  const [year, month, day] = currentShanghaiDate().split('-').map(Number);
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 }
 
@@ -68,7 +64,7 @@ function expiryText(item: ShareListItem): string {
   if (new Date(item.expiresAt).getTime() <= Date.now()) return '已过期';
   const endDay = shareExpiryEndDay(item.expiresAt);
   const days = Math.round(
-    (Date.parse(`${endDay}T00:00:00Z`) - Date.parse(`${shanghaiTodayDate()}T00:00:00Z`)) /
+    (Date.parse(`${endDay}T00:00:00Z`) - Date.parse(`${currentShanghaiDate()}T00:00:00Z`)) /
       (24 * 60 * 60 * 1000),
   );
   if (days <= 0) return '今天到期';
@@ -203,14 +199,14 @@ export function ShareModal({ open, onClose }: ShareModalProps) {
       setError('请选择有效期日期');
       return;
     }
-    if (expiryKind === 'custom' && expiryDate < shanghaiTodayDate()) {
+    if (expiryKind === 'custom' && expiryDate < currentShanghaiDate()) {
       setError('有效期不能早于今天');
       return;
     }
 
     // 有效期：今天 → 上海今天；自定义 → 所选日；永久 → null（均含当天，至当天 24:00）
     const expiresOn =
-      expiryKind === 'today' ? shanghaiTodayDate() : expiryKind === 'custom' ? expiryDate : null;
+      expiryKind === 'today' ? currentShanghaiDate() : expiryKind === 'custom' ? expiryDate : null;
 
     setSaving(true);
     try {
@@ -447,7 +443,7 @@ export function ShareModal({ open, onClose }: ShareModalProps) {
               <input
                 type="date"
                 value={expiryDate}
-                min={shanghaiTodayDate()}
+                min={currentShanghaiDate()}
                 max={shanghaiDateAfterDays(MAX_EXPIRY_DAYS)}
                 onChange={(e) => {
                   setDirty(true);

@@ -50,6 +50,14 @@ export async function POST(req: NextRequest) {
 
     if (ipKey) clearFailures(ipKey);
 
+    // 管理员会话强制仅存 HttpOnly Cookie，拒绝通过 localStorage 备份恢复
+    if (user.role === 'ADMIN') {
+      return NextResponse.json(
+        { error: '管理员不支持通过本地凭证恢复，请使用账号密码登录' },
+        { status: 403 },
+      );
+    }
+
     const res = NextResponse.json({
       user: {
         id: user.id,

@@ -100,7 +100,7 @@ export const POST = withAuth(
           role: u.role,
           avatarColor: u.avatar_color,
           isActive: u.is_active,
-          bindToken: u.bind_token,
+          bindToken: u.role === 'ADMIN' ? null : u.bind_token,
           deviceCount: 0,
           createdAt: u.created_at,
         },

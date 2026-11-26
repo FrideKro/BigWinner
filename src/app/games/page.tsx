@@ -53,8 +53,8 @@ interface GameItem {
 interface GamesResponse {
   games: GameItem[];
   hasMore: boolean;
-  allTimeTotalGames: number;
-  allTimeTotalRoomFee: number;
+  allTimeTotalGames?: number;
+  allTimeTotalRoomFee?: number;
 }
 
 export default function GamesPage() {
@@ -125,8 +125,12 @@ export default function GamesPage() {
         setGames((prev) => (reset ? data.games : [...prev, ...data.games]));
         offsetRef.current = offset + data.games.length;
         setHasMore(Boolean(data.hasMore));
-        setAllTimeTotalGames(data.allTimeTotalGames || 0);
-        setAllTimeRoomFee(data.allTimeTotalRoomFee || 0);
+        if (typeof data.allTimeTotalGames === 'number') {
+          setAllTimeTotalGames(data.allTimeTotalGames);
+        }
+        if (typeof data.allTimeTotalRoomFee === 'number') {
+          setAllTimeRoomFee(data.allTimeTotalRoomFee);
+        }
         setError('');
       } catch (err) {
         if (abortRef.current !== controller || isAbortError(err)) return;

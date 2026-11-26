@@ -102,13 +102,20 @@ export function validateAndComputeRecords(
   return { roomFee, records };
 }
 
+// 复用 Intl.DateTimeFormat 实例，避免高频周期/日期格式化重复构造
+const SHANGHAI_YM_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Shanghai',
+  year: 'numeric',
+  month: '2-digit',
+});
+
+const SHANGHAI_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Shanghai',
+});
+
 // 当前上海时区的年（YYYY）与月（MM），供周期过滤与 stats 全局概览共用
 export function currentShanghaiYearMonth(): { year: string; month: string } {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Shanghai',
-    year: 'numeric',
-    month: '2-digit',
-  }).formatToParts(new Date());
+  const parts = SHANGHAI_YM_FORMATTER.formatToParts(new Date());
   // formatToParts 实际不会失败；兜底回退 UTC 年月分量，避免硬编码年份过期后静默错年
   const now = new Date();
   return {
@@ -121,7 +128,7 @@ export function currentShanghaiYearMonth(): { year: string; month: string } {
 
 // 当前上海时区的自然日（YYYY-MM-DD），供分享有效期等自然日语义使用
 export function currentShanghaiDate(now: Date = new Date()): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(now);
+  return SHANGHAI_DATE_FORMATTER.format(now);
 }
 
 // 是否为合法的周期参数（'all' | 'year' | 'month' | 'YYYY' | 'YYYY-MM'）。

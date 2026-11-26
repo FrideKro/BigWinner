@@ -1,15 +1,16 @@
 import { NextResponse } from 'next/server';
 import { withTransaction } from '@/lib/db';
 import { withAuth, parseJsonBody } from '../_lib/handler';
-import { getDefaultRoomFee, getPasswordLoginEnabled } from '../_lib/shared';
+import {
+  getDefaultRoomFee,
+  getPasswordLoginEnabled,
+  getSystemSettings,
+  invalidateSystemSettingsCache,
+} from '../_lib/shared';
 
 export const GET = withAuth(
   async () => {
-    const [defaultRoomFee, passwordLoginEnabled] = await Promise.all([
-      getDefaultRoomFee(),
-      getPasswordLoginEnabled(),
-    ]);
-    return NextResponse.json({ defaultRoomFee, passwordLoginEnabled });
+    return NextResponse.json(await getSystemSettings());
   },
   { error: '获取系统设置失败' },
 );
@@ -64,6 +65,8 @@ export const PUT = withAuth(
         );
       }
     });
+
+    invalidateSystemSettingsCache();
 
     return NextResponse.json({
       defaultRoomFee: defaultRoomFee ?? (await getDefaultRoomFee()),

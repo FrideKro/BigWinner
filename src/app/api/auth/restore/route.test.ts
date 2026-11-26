@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 
 const mocks = vi.hoisted(() => ({
@@ -38,11 +38,22 @@ function restoreReq(body: unknown, headers: Record<string, string> = {}) {
 }
 
 describe('POST /api/auth/restore', () => {
+  const prevTrustProxy = process.env.TRUST_PROXY;
+
   beforeEach(() => {
+    process.env.TRUST_PROXY = 'true';
     vi.clearAllMocks();
     clearFailures(IP_KEY);
     clearFailures('restore:ip:');
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    if (prevTrustProxy === undefined) {
+      delete process.env.TRUST_PROXY;
+    } else {
+      process.env.TRUST_PROXY = prevTrustProxy;
+    }
   });
 
   it('缺少本地凭证返回 401', async () => {
@@ -93,6 +104,18 @@ describe('POST /api/auth/restore', () => {
     expect(body.user.nickname).toBe('老王');
     expect(mocks.setDeviceCookie).toHaveBeenCalledTimes(1);
     expect(mocks.verifyAndExtendDeviceToken).toHaveBeenCalledWith(restoredUser.deviceToken);
+  });
+
+  it('管理员会话拒绝通过本地凭证恢复（强制仅走 HttpOnly Cookie）', async () => {
+    mocks.verifyAndExtendDeviceToken.mockResolvedValue({ ...restoredUser, role: 'ADMIN' });
+
+    const res = await POST(restoreReq({ deviceToken: restoredUser.deviceToken }, XFF));
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: '管理员不支持通过本地凭证恢复，请使用账号密码登录',
+    });
+    expect(mocks.setDeviceCookie).not.toHaveBeenCalled();
   });
 
   it('失败限流锁定期间直接 429，不校验凭证', async () => {

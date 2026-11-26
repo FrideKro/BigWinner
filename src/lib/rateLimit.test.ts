@@ -125,21 +125,50 @@ describe('rateLimit', () => {
 });
 
 describe('getClientIp', () => {
-  it('提取 x-forwarded-for 末段（单层可信反代追加模式下的真实客户端 IP）', () => {
+  const prevTrustProxy = process.env.TRUST_PROXY;
+
+  afterEach(() => {
+    if (prevTrustProxy === undefined) {
+      delete process.env.TRUST_PROXY;
+    } else {
+      process.env.TRUST_PROXY = prevTrustProxy;
+    }
+  });
+
+  it('未开启 TRUST_PROXY 时默认忽略 x-forwarded-for 返回空字符串', () => {
+    delete process.env.TRUST_PROXY;
+    const headers = new Headers({ 'x-forwarded-for': '203.0.113.5, 10.0.0.1' });
+    expect(getClientIp(headers)).toBe('');
+
+    process.env.TRUST_PROXY = 'false';
+    expect(getClientIp(headers)).toBe('');
+  });
+
+  it('TRUST_PROXY=true/1/yes 时提取 x-forwarded-for 末段', () => {
     const headers = new Headers({ 'x-forwarded-for': ' 203.0.113.5 , 10.0.0.1 ' });
+    process.env.TRUST_PROXY = 'true';
+    expect(getClientIp(headers)).toBe('10.0.0.1');
+
+    process.env.TRUST_PROXY = '1';
+    expect(getClientIp(headers)).toBe('10.0.0.1');
+
+    process.env.TRUST_PROXY = 'yes';
     expect(getClientIp(headers)).toBe('10.0.0.1');
   });
 
   it('客户端伪造的前导 IP 不影响末段取值', () => {
+    process.env.TRUST_PROXY = 'true';
     const headers = new Headers({ 'x-forwarded-for': '6.6.6.6, 203.0.113.5' });
     expect(getClientIp(headers)).toBe('203.0.113.5');
   });
 
   it('未设置 x-forwarded-for 时返回空字符串', () => {
+    process.env.TRUST_PROXY = 'true';
     expect(getClientIp(new Headers())).toBe('');
   });
 
   it('超长 IP 头截断到 64 字符', () => {
+    process.env.TRUST_PROXY = 'true';
     const headers = new Headers({ 'x-forwarded-for': 'x'.repeat(120) });
     expect(getClientIp(headers)).toHaveLength(64);
   });
@@ -172,6 +201,26 @@ describe('checkRateLimit 全量请求限速', () => {
 
     vi.advanceTimersByTime(15 * 60 * 1000 + 1000);
     expect(checkRateLimit('rate:full-b', 3)).toEqual({ allowed: true, retryAfterSeconds: 0 });
+  });
+
+  it('窗口末尾触发锁定后，即使越过原 windowStart + windowMs，在 lockedUntil 到期前仍保持拒绝', () => {
+    const key = 'rate:full-edge-lock';
+    expect(checkRateLimit(key, 2).allowed).toBe(true);
+    // 推进到窗口末尾（14 分 55 秒）再触发超限锁定
+    vi.advanceTimersByTime(14 * 60 * 1000 + 55 * 1000);
+    expect(checkRateLimit(key, 2).allowed).toBe(true);
+    const locked = checkRateLimit(key, 2);
+    expect(locked.allowed).toBe(false);
+
+    // 越过原 windowStart + 15 分钟（仅推进 10 秒），仍应处于 lockedUntil 锁定期内
+    vi.advanceTimersByTime(10 * 1000);
+    const stillLocked = checkRateLimit(key, 2);
+    expect(stillLocked.allowed).toBe(false);
+    expect(stillLocked.retryAfterSeconds).toBeGreaterThan(14 * 60);
+
+    // 锁定完整到期后才重新放行
+    vi.advanceTimersByTime(15 * 60 * 1000);
+    expect(checkRateLimit(key, 2)).toEqual({ allowed: true, retryAfterSeconds: 0 });
   });
 
   it('不同 key 相互独立', () => {

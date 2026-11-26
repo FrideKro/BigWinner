@@ -13,8 +13,8 @@ vi.mock('@/lib/db', () => ({ query: mocks.query, withTransaction: vi.fn() }));
 
 import { GET } from './route';
 
-function callGet(id: number) {
-  return GET(new NextRequest(`http://localhost/api/users/${id}/avatar?v=1`), {
+function callGet(id: number, query = '?v=1') {
+  return GET(new NextRequest(`http://localhost/api/users/${id}/avatar${query}`), {
     params: Promise.resolve({ id: String(id) }),
   });
 }
@@ -25,7 +25,7 @@ describe('GET /api/users/[id]/avatar', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
   });
 
-  it('返回头像 data URL 与版本号', async () => {
+  it('返回头像 data URL 与版本号，版本不匹配时走默认禁缓存头', async () => {
     mocks.getCurrentUser.mockResolvedValue({ id: 1, role: 'PLAYER' });
     mocks.query.mockResolvedValue({
       rows: [{ avatar_image: 'data:image/jpeg;base64,QQ==', avatar_version: 3 }],
@@ -35,8 +35,22 @@ describe('GET /api/users/[id]/avatar', () => {
     const res = await callGet(2);
 
     expect(res.status).toBe(200);
+    expect(res.headers.get('Cache-Control')).toBe('private, no-store');
     expect(await res.json()).toEqual({ avatar: 'data:image/jpeg;base64,QQ==', version: 3 });
     expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining('SELECT avatar_image'), [2]);
+  });
+
+  it('查询参数 v 与数据库 avatar_version 一致时返回长效不可变缓存头', async () => {
+    mocks.getCurrentUser.mockResolvedValue({ id: 1, role: 'PLAYER' });
+    mocks.query.mockResolvedValue({
+      rows: [{ avatar_image: 'data:image/jpeg;base64,QQ==', avatar_version: 3 }],
+      rowCount: 1,
+    });
+
+    const res = await callGet(2, '?v=3');
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Cache-Control')).toBe('private, max-age=31536000, immutable');
   });
 
   it('未设置头像返回 avatar null（客户端负缓存）', async () => {

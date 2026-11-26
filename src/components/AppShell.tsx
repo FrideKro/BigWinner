@@ -63,7 +63,6 @@ interface BootstrapPayload {
   players: PlayerListItem[];
   defaultRoomFee: number;
   passwordLoginEnabled: boolean;
-  deviceToken?: string;
 }
 
 interface AppContextValue {
@@ -108,6 +107,15 @@ export function useApp() {
 
 const LS_DEVICE_TOKEN = 'bw_device_token';
 const SESSION_EXPIRED_KEY = 'bw_session_expired';
+const AVATAR_BATCH_SIZE = 50;
+
+function avatarMapsEqual(a: Map<number, string>, b: Map<number, string>): boolean {
+  if (a.size !== b.size) return false;
+  for (const [k, v] of a) {
+    if (b.get(k) !== v) return false;
+  }
+  return true;
+}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -166,9 +174,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setPlayers(data.players || []);
     setDefaultRoomFee(data.defaultRoomFee ?? 100);
     setPasswordLoginEnabled(Boolean(data.passwordLoginEnabled));
-    if (data.deviceToken) {
+    // 管理员会话仅走 HttpOnly Cookie，清理可能残留的本地 Token
+    if (data.user.role === 'ADMIN') {
       try {
-        localStorage.setItem(LS_DEVICE_TOKEN, data.deviceToken);
+        localStorage.removeItem(LS_DEVICE_TOKEN);
       } catch {
         /* ignore */
       }
@@ -328,29 +337,40 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const cache = loadAvatarCache();
     const needList = diffAvatarVersions(players, cache);
     if (needList.length === 0) {
-      setAvatarImageMap(avatarMapFromCache(players, cache));
+      const targetMap = avatarMapFromCache(players, cache);
+      setAvatarImageMap((prev) => (avatarMapsEqual(prev, targetMap) ? prev : targetMap));
       return;
     }
     void (async () => {
-      // URL 携带期望版本作缓存键：同一头像短时间两次变更也不会命中 apiClient 旧响应
+      // 按每批最多 50 个 ID 批量拉取；URL 携带期望版本号作缓存键，版本变化自动失效
+      const chunks: Array<typeof needList> = [];
+      for (let i = 0; i < needList.length; i += AVATAR_BATCH_SIZE) {
+        chunks.push(needList.slice(i, i + AVATAR_BATCH_SIZE));
+      }
       const results = await Promise.allSettled(
-        needList.map(async ({ id, version }) => {
-          const res = await apiGet<{ avatar: string | null; version: number }>(
-            `/api/users/${id}/avatar?v=${version}`,
-          );
-          return { id, version: res.version, avatar: res.avatar };
+        chunks.map((chunk) => {
+          const idsParam = chunk.map((item) => item.id).join(',');
+          const versionsParam = chunk.map((item) => item.version).join(',');
+          return apiGet<{
+            avatars: Record<string, { avatar: string | null; version: number }>;
+          }>(`/api/users/avatars?ids=${idsParam}&v=${versionsParam}`);
         }),
       );
       if (cancelled) return;
       let next = cache;
       for (const r of results) {
-        // 单个失败不阻塞其余：保留旧条目继续展示，下次 players 变化时自动重试
         if (r.status === 'fulfilled') {
-          next = putAvatar(next, r.value.id, r.value.version, r.value.avatar);
+          for (const [idStr, item] of Object.entries(r.value.avatars || {})) {
+            const uid = Number(idStr);
+            if (Number.isInteger(uid) && uid > 0) {
+              next = putAvatar(next, uid, item.version, item.avatar);
+            }
+          }
         }
       }
       saveAvatarCache(next);
-      setAvatarImageMap(avatarMapFromCache(players, next));
+      const targetMap = avatarMapFromCache(players, next);
+      setAvatarImageMap((prev) => (avatarMapsEqual(prev, targetMap) ? prev : targetMap));
     })();
     return () => {
       cancelled = true;
